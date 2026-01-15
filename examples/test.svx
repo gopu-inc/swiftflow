@@ -1,0 +1,12 @@
+// Test des structures de contrôle
+fn main() {
+    for let i = 0; i < 5; i = i + 1 {
+        swget("Iteration: " + i as string)
+    }
+    
+    let counter = 0
+    while counter < 3 {
+        swget("Counter: " + counter as string)
+        counter = counter + 1
+    }
+}

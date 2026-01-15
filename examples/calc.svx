@@ -1,0 +1,15 @@
+// Calculatrice simple
+fn main() {
+    let a = 10
+    let b = 20
+    
+    swget("Addition: " + (a + b) as string)
+    swget("Soustraction: " + (a - b) as string)
+    swget("Multiplication: " + (a * b) as string)
+    
+    if a > b {
+        swget("a est plus grand")
+    } else {
+        swget("b est plus grand ou égal")
+    }
+}

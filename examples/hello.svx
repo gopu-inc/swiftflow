@@ -1,0 +1,10 @@
+// Programme Hello World en SwiftVelox
+fn main() {
+    swget("Bonjour SwiftVelox!")
+    swget("Ce langage compile en C pur")
+    
+    let x: i32 = 42
+    let message: string = "Valeur de x: "
+    
+    swget(message + x as string)
+}
