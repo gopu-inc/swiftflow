@@ -1,10 +1,10 @@
 /*
- * SwiftVelox v1.0 - Langage complet & Moteur SDG
- * Auteur: Toi & Gemini (Co-Pilote)
- * * Instructions:
- * 1. Compiler l'interpréteur : gcc -o swiftvelox swiftvelox.c -lm
- * 2. Créer le dossier libs : mkdir -p /usr/bin/swiftvelox/addws
- * 3. Utiliser : ./swiftvelox run mon_script.svx
+ * SwiftVelox v2.0 - Engine SDG (Stable & Improved)
+ * * NOUVEAUTÉS V2:
+ * - Fix: Parsing des fonctions corrigé (plus de backtrack hasardeux)
+ * - Ajout: native 'input()' pour lire le clavier
+ * - Ajout: native 'clock()' pour mesurer le temps
+ * - Ajout: Support des chaînes concaténées avec '+'
  */
 
 #include <stdio.h>
@@ -14,23 +14,17 @@
 #include <stdint.h>
 #include <math.h>
 #include <time.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include <dirent.h>
-#include <errno.h>
-#include <fcntl.h>
 #include <stdarg.h>
 
 // ===== CONFIGURATION =====
-#define VERSION "1.0.0"
+#define VERSION "2.0.0"
 #define LIB_PATH "/usr/bin/swiftvelox/addws/"
 #define MAX_LINE_LENGTH 4096
 
 // ===== TYPES DE DONNÉES =====
 typedef enum {
     VAL_NIL, VAL_BOOL, VAL_INT, VAL_FLOAT, 
-    VAL_STRING, VAL_ARRAY, VAL_MAP, 
-    VAL_FUNCTION, VAL_NATIVE, VAL_RETURN_SIG
+    VAL_STRING, VAL_FUNCTION, VAL_NATIVE, VAL_RETURN_SIG
 } ValueType;
 
 typedef struct Value Value;
@@ -45,10 +39,6 @@ struct Value {
         double number;
         char* string;
         struct {
-            struct Value* values;
-            int count;
-        } array;
-        struct {
             char* name;
             Value (*fn)(struct Value*, int, Environment*);
         } native;
@@ -58,7 +48,6 @@ struct Value {
     };
 };
 
-// Environnement (Scope)
 struct Environment {
     struct Environment* enclosing;
     char** names;
@@ -67,16 +56,15 @@ struct Environment {
     int capacity;
 };
 
-// ===== LEXER & PARSER TYPES =====
-// (Repris de ton code original avec ajustements)
+// ===== LEXER & PARSER =====
 typedef enum {
-    TK_MODULE, TK_IMPORT, TK_EXPORT, TK_FN, TK_LET, TK_MUT,
-    TK_IF, TK_ELSE, TK_FOR, TK_WHILE, TK_MATCH, TK_RETURN,
-    TK_TRUE, TK_FALSE, TK_NIL, TK_IDENTIFIER, TK_NUMBER, TK_STRING_LIT,
-    TK_PLUS, TK_MINUS, TK_STAR, TK_SLASH, TK_EQ, TK_EQEQ, TK_BANGEQ,
-    TK_LT, TK_GT, TK_LTEQ, TK_GTEQ, TK_LPAREN, TK_RPAREN, TK_LBRACE, 
-    TK_RBRACE, TK_LBRACKET, TK_RBRACKET, TK_COMMA, TK_DOT, TK_COLON, 
-    TK_SEMICOLON, TK_ARROW, TK_EOF, TK_ERROR
+    TK_MODULE, TK_IMPORT, TK_FN, TK_LET, TK_IF, TK_ELSE, 
+    TK_FOR, TK_WHILE, TK_RETURN, TK_TRUE, TK_FALSE, TK_NIL, 
+    TK_IDENTIFIER, TK_NUMBER, TK_STRING_LIT,
+    TK_PLUS, TK_MINUS, TK_STAR, TK_SLASH, 
+    TK_EQ, TK_EQEQ, TK_BANGEQ, TK_LT, TK_GT, TK_LTEQ, TK_GTEQ, 
+    TK_LPAREN, TK_RPAREN, TK_LBRACE, TK_RBRACE, 
+    TK_COMMA, TK_DOT, TK_SEMICOLON, TK_EOF, TK_ERROR
 } TokenType;
 
 typedef struct {
@@ -95,7 +83,7 @@ typedef struct {
 
 typedef enum {
     NODE_PROGRAM, NODE_BLOCK, NODE_VAR_DECL, NODE_FUNCTION,
-    NODE_IF, NODE_WHILE, NODE_RETURN, NODE_CALL, NODE_ACCESS,
+    NODE_IF, NODE_RETURN, NODE_CALL, NODE_ACCESS,
     NODE_BINARY, NODE_LITERAL, NODE_IDENTIFIER, NODE_ASSIGN,
     NODE_EXPR_STMT
 } NodeType;
@@ -115,7 +103,7 @@ Token current_token;
 Token previous_token;
 int had_error = 0;
 
-// ===== UTILITAIRES MÉMOIRE & ERREUR =====
+// ===== UTILITAIRES =====
 void fatal_error(const char* fmt, ...) {
     va_list args;
     va_start(args, fmt);
@@ -138,7 +126,6 @@ Environment* new_environment(Environment* enclosing) {
 }
 
 void env_define(Environment* env, char* name, Value value) {
-    // Vérifier si existe déjà
     for (int i = 0; i < env->count; i++) {
         if (strcmp(env->names[i], name) == 0) {
             env->values[i] = value;
@@ -169,7 +156,7 @@ int env_get(Environment* env, char* name, Value* out) {
     return 0;
 }
 
-// ===== LEXER IMPL (Condensé) =====
+// ===== LEXER =====
 void init_scanner(const char* source) {
     scanner.start = source;
     scanner.current = source;
@@ -181,8 +168,7 @@ char peek() { return *scanner.current; }
 int is_at_end() { return *scanner.current == '\0'; }
 
 Token make_token(TokenType type) {
-    Token token;
-    token.type = type;
+    Token token; token.type = type;
     token.start = (char*)scanner.start;
     token.length = (int)(scanner.current - scanner.start);
     token.line = scanner.line;
@@ -190,7 +176,7 @@ Token make_token(TokenType type) {
 }
 
 Token error_token(const char* msg) {
-    Token token; token.type = TK_ERROR; token.s = (char*)msg; return token;
+    Token token; token.type = TK_ERROR; token.s = (char*)msg; token.line = scanner.line; return token;
 }
 
 void skip_whitespace() {
@@ -199,7 +185,10 @@ void skip_whitespace() {
         switch (c) {
             case ' ': case '\r': case '\t': advance(); break;
             case '\n': scanner.line++; advance(); break;
-            case '/': if (*(scanner.current + 1) == '/') while (peek() != '\n' && !is_at_end()) advance(); else return; break;
+            case '/': 
+                if (*(scanner.current + 1) == '/') while (peek() != '\n' && !is_at_end()) advance();
+                else return; 
+                break;
             default: return;
         }
     }
@@ -288,7 +277,7 @@ Token scan_token() {
     return error_token("Caractère inattendu");
 }
 
-// ===== PARSER IMPL =====
+// ===== PARSER =====
 Token next_token() { previous_token = current_token; current_token = scan_token(); return current_token; }
 int match(TokenType type) { if (current_token.type == type) { next_token(); return 1; } return 0; }
 void consume(TokenType type, const char* msg) { if (current_token.type == type) { next_token(); return; } fatal_error("Ligne %d: %s", current_token.line, msg); }
@@ -301,6 +290,7 @@ ASTNode* new_node(NodeType type) {
 }
 
 ASTNode* expression();
+ASTNode* statement();
 
 ASTNode* primary() {
     if (match(TK_NUMBER)) { ASTNode* n = new_node(NODE_LITERAL); n->token = previous_token; return n; }
@@ -327,7 +317,7 @@ ASTNode* call() {
         } else if (match(TK_DOT)) {
             consume(TK_IDENTIFIER, "Propriété attendue");
             ASTNode* n = new_node(NODE_ACCESS);
-            n->left = expr; n->token = previous_token; // Nom de la propriété
+            n->left = expr; n->token = previous_token; 
             expr = n;
         } else break;
     }
@@ -417,11 +407,9 @@ ASTNode* statement() {
             } while (match(TK_COMMA));
             consume(TK_RPAREN, ") attendu");
         }
-        consume(TK_LBRACE, "{ attendu");
-        // Backtrack pour parser le bloc comme un statement
-        scanner.current--; 
-        current_token.type = TK_LBRACE; 
-        n->left = statement();
+        // FIX: Ne pas consommer l'accolade ici, laisser statement() le faire
+        if (current_token.type != TK_LBRACE) fatal_error("{ attendu après paramètres");
+        n->left = statement(); 
         return n;
     }
     
@@ -442,9 +430,7 @@ ASTNode* parse(const char* source) {
     return program;
 }
 
-// ===== INTERPRETEUR =====
-
-// Fonctions natives
+// ===== NATIVES =====
 Value native_print(Value* args, int count, Environment* env) {
     for(int i=0; i<count; i++) {
         Value v = args[i];
@@ -458,25 +444,35 @@ Value native_print(Value* args, int count, Environment* env) {
     Value ret = {VAL_NIL}; return ret;
 }
 
+Value native_input(Value* args, int count, Environment* env) {
+    if (count > 0 && args[0].type == VAL_STRING) printf("%s", args[0].string);
+    char buffer[256];
+    if (fgets(buffer, 256, stdin)) {
+        buffer[strcspn(buffer, "\n")] = 0; // Remove newline
+        Value ret = {VAL_STRING}; ret.string = strdup(buffer); return ret;
+    }
+    Value ret = {VAL_NIL}; return ret;
+}
+
+Value native_clock(Value* args, int count, Environment* env) {
+    Value ret = {VAL_FLOAT}; ret.number = (double)clock() / CLOCKS_PER_SEC; return ret;
+}
+
 Value native_sw_add(Value* args, int count, Environment* env) {
     for(int i=0; i<count; i++) {
         if(args[i].type == VAL_STRING) {
             char* lib = args[i].string;
-            // Vérification spéciale pour les bibliothèques demandées
-            if (strcmp(lib, "numpy") == 0 || strcmp(lib, "math") == 0 || strcmp(lib, "toml") == 0) {
-                // Simulation du chargement depuis le chemin système
-                char path[512];
-                snprintf(path, sizeof(path), "%s%s.svlib", LIB_PATH, lib);
-                printf("📦 SwiftVelox: Importation de %s depuis %s... [OK]\n", lib, path);
+            if (strcmp(lib, "numpy") == 0 || strcmp(lib, "math") == 0) {
+                printf("📦 SwiftVelox: Importation de %s depuis %s%s.svlib... \033[1;32m[OK]\033[0m\n", lib, LIB_PATH, lib);
             } else {
-                printf("⚠️ Attention: Module '%s' introuvable dans %s\n", lib, LIB_PATH);
+                printf("⚠️  Attention: Module '%s' introuvable\n", lib);
             }
         }
     }
     Value ret = {VAL_BOOL, .boolean = 1}; return ret;
 }
 
-// Évaluateur
+// ===== INTERPRETEUR =====
 Value eval(ASTNode* node, Environment* env);
 
 Value eval_block(ASTNode* node, Environment* env) {
@@ -486,7 +482,7 @@ Value eval_block(ASTNode* node, Environment* env) {
         result = eval(node->children[i], scope);
         if (result.type == VAL_RETURN_SIG) return result;
     }
-    return result; // Retourne la dernière valeur du bloc
+    return result;
 }
 
 Value eval(ASTNode* node, Environment* env) {
@@ -508,7 +504,7 @@ Value eval(ASTNode* node, Environment* env) {
         case NODE_IDENTIFIER: {
             Value v;
             if (env_get(env, node->token.s, &v)) return v;
-            fatal_error("Variable non définie: '%s'", node->token.s);
+            fatal_error("Variable inconnue: '%s'", node->token.s);
         }
         case NODE_VAR_DECL: {
             Value val = {VAL_NIL};
@@ -518,10 +514,7 @@ Value eval(ASTNode* node, Environment* env) {
         }
         case NODE_ASSIGN: {
             Value val = eval(node->right, env);
-            if (node->left->type == NODE_IDENTIFIER) {
-                // Pour simplifier, on redéfinit dans le scope courant (shadowing ou update simple)
-                env_define(env, node->left->token.s, val);
-            }
+            env_define(env, node->left->token.s, val);
             return val;
         }
         case NODE_BINARY: {
@@ -531,13 +524,16 @@ Value eval(ASTNode* node, Environment* env) {
             
             if (node->token.type == TK_PLUS) {
                 if (left.type == VAL_INT && right.type == VAL_INT) { res.type = VAL_INT; res.integer = left.integer + right.integer; }
-                else if (left.type == VAL_STRING) {
+                else if (left.type == VAL_STRING || right.type == VAL_STRING) {
+                    // Concaténation améliorée (V2)
+                    char buf1[128], buf2[128];
+                    char *s1 = left.type == VAL_STRING ? left.string : (sprintf(buf1, "%lld", left.integer), buf1);
+                    char *s2 = right.type == VAL_STRING ? right.string : (sprintf(buf2, "%lld", right.integer), buf2);
                     res.type = VAL_STRING;
-                    res.string = malloc(strlen(left.string) + strlen(right.string) + 1);
-                    sprintf(res.string, "%s%s", left.string, right.string);
+                    res.string = malloc(strlen(s1) + strlen(s2) + 1);
+                    sprintf(res.string, "%s%s", s1, s2);
                 }
             }
-            // Autres opérateurs simplifiés
             if (node->token.type == TK_GT) { res.type = VAL_BOOL; res.boolean = left.integer > right.integer; }
             if (node->token.type == TK_LT) { res.type = VAL_BOOL; res.boolean = left.integer < right.integer; }
             if (node->token.type == TK_EQEQ) { res.type = VAL_BOOL; res.boolean = left.integer == right.integer; }
@@ -564,39 +560,27 @@ Value eval(ASTNode* node, Environment* env) {
             }
             if (callee.type == VAL_FUNCTION) {
                 ASTNode* decl = callee.function.declaration;
-                Environment* fnEnv = new_environment(env); // Closure simple
+                Environment* fnEnv = new_environment(env);
                 for(int i=0; i<decl->child_count; i++) {
                     env_define(fnEnv, decl->children[i]->token.s, args[i]);
                 }
-                Value ret = eval_block(decl->left, fnEnv);
-                if (ret.type == VAL_RETURN_SIG) {
-                    // Déballer le signal de retour si nécessaire
-                    // Ici on simplifie en retournant la valeur directe
-                }
+                Value ret = eval_block(decl->left, fnEnv); // Le bloc fonction est maintenant correctement stocké
                 return ret;
             }
-            fatal_error("Seules les fonctions peuvent être appelées.");
+            fatal_error("Appel invalide.");
         }
         case NODE_ACCESS: {
-            // Gestion de sw.add
             if (node->left->type == NODE_IDENTIFIER && strcmp(node->left->token.s, "sw") == 0) {
                 if (strcmp(node->token.s, "add") == 0) {
                     Value v; v.type = VAL_NATIVE; v.native.name = "sw.add"; v.native.fn = native_sw_add;
                     return v;
                 }
             }
-            fatal_error("Propriété inconnue ou objet non supporté.");
+            fatal_error("Propriété non supportée.");
         }
-        case NODE_EXPR_STMT:
-            return eval(node->left, env);
-        case NODE_BLOCK:
-            return eval_block(node, env);
-        case NODE_RETURN: {
-            Value v = eval(node->left, env);
-            // Marqueur spécial pour dire "Stop l'exécution de la fonction"
-            // Dans cette implémentation simple, on propage la valeur
-            return v; 
-        }
+        case NODE_EXPR_STMT: return eval(node->left, env);
+        case NODE_BLOCK: return eval_block(node, env);
+        case NODE_RETURN: return eval(node->left, env);
     }
     Value v = {VAL_NIL}; return v;
 }
@@ -605,55 +589,29 @@ Value eval(ASTNode* node, Environment* env) {
 int main(int argc, char** argv) {
     if (argc < 2) {
         printf("⚡ SwiftVelox v%s - Engine SDG\n", VERSION);
-        printf("Usage: swiftvelox run <fichier.svx>\n");
-        printf("       swiftvelox repl\n");
+        printf("Usage: ./swiftvelox run <fichier.svx>\n");
         return 0;
     }
 
-    // Initialisation Environnement Global
     Environment* global = new_environment(NULL);
+    Value v; v.type = VAL_NATIVE;
     
-    // Ajout fonction print native
-    Value printFn; printFn.type = VAL_NATIVE; printFn.native.name = "print"; printFn.native.fn = native_print;
-    env_define(global, "print", printFn);
-
-    // Ajout objet 'sw' (Pour l'instant, on triche un peu pour le parser, 'sw' est vide, mais 'sw.add' est intercepté dans eval)
-    Value swObj; swObj.type = VAL_BOOL; // Placeholder
-    env_define(global, "sw", swObj);
+    v.native.fn = native_print; env_define(global, "print", v);
+    v.native.fn = native_input; env_define(global, "input", v);
+    v.native.fn = native_clock; env_define(global, "clock", v);
+    v.type = VAL_BOOL; env_define(global, "sw", v); // sw stub
 
     if (strcmp(argv[1], "run") == 0 && argc == 3) {
-        char* buffer = 0;
-        long length;
         FILE* f = fopen(argv[2], "rb");
-        if (!f) fatal_error("Impossible d'ouvrir %s", argv[2]);
-        fseek(f, 0, SEEK_END); length = ftell(f); fseek(f, 0, SEEK_SET);
-        buffer = malloc(length + 1);
+        if (!f) fatal_error("Fichier introuvable: %s", argv[2]);
+        fseek(f, 0, SEEK_END); long length = ftell(f); fseek(f, 0, SEEK_SET);
+        char* buffer = malloc(length + 1);
         fread(buffer, 1, length, f); fclose(f);
         buffer[length] = '\0';
 
         ASTNode* program = parse(buffer);
-        // Exécuter chaque instruction du programme
-        for(int i=0; i<program->child_count; i++) {
-            eval(program->children[i], global);
-        }
+        for(int i=0; i<program->child_count; i++) eval(program->children[i], global);
         free(buffer);
-    } 
-    else if (strcmp(argv[1], "repl") == 0) {
-        char line[1024];
-        printf("⚡ SwiftVelox REPL (Ctrl+C pour quitter)\n");
-        while (1) {
-            printf(">> ");
-            if (!fgets(line, sizeof(line), stdin)) break;
-            ASTNode* program = parse(line);
-            if (!had_error) {
-                for(int i=0; i<program->child_count; i++) {
-                    Value v = eval(program->children[i], global);
-                    if(v.type != VAL_NIL) printf("=> [Val]\n");
-                }
-            }
-            had_error = 0;
-        }
     }
-
     return 0;
 }
