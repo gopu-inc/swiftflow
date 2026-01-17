@@ -535,19 +535,3 @@ void consume(TokenType type, const char* message) {
     } 
     syntax_error(current_token, message);
 }
-
-void syntax_error(Token token, const char* message) {
-    if (panic_mode) return;
-    panic_mode = 1;
-    
-    fprintf(stderr, "\033[1;31m[Ligne %d] Erreur de syntaxe", token.line);
-    if (token.type == TK_EOF) {
-        fprintf(stderr, " à la fin");
-    } else if (token.type == TK_ERROR) {
-        fprintf(stderr, ": %s", token.s);
-    } else {
-        fprintf(stderr, " à '%.*s'", token.length, token.start);
-    }
-    fprintf(stderr, ": %s\033[0m\n", message);
-    had_error = 1;
-}
