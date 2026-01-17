@@ -2,7 +2,6 @@
 #define INTERPRETER_H
 
 #include "value.h"
-#include "parser.h"
 
 // Environnement
 typedef struct Environment {
@@ -17,10 +16,10 @@ Environment* new_environment(Environment* enclosing);
 void env_define(Environment* env, char* name, Value value);
 int env_get(Environment* env, char* name, Value* out);
 
-// Évaluation - ajoute le prototype
-Value eval(ASTNode* node, Environment* env);
-
 // Variables globales
 extern Environment* global_env;
+
+// Fonctions d'évaluation
+Value eval(void* node, Environment* env);  // Prototype corrigé
 
 #endif
