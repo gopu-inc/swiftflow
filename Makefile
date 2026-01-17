@@ -1,20 +1,30 @@
 CC = gcc
-CFLAGS = -O2 -Wall -Wextra
-TARGET = swiftvelox
+CFLAGS = -std=c99 -Wall -Wextra -O2 -D_POSIX_C_SOURCE=200809L -I./src
+LIBS = -lm -lpthread -lcurl -lsqlite3
+SRC_DIR = src
+OBJ_DIR = obj
 
-.PHONY: all clean test
+SRCS = $(SRC_DIR)/main.c $(SRC_DIR)/lexer.c $(SRC_DIR)/parser.c \
+       $(SRC_DIR)/interpreter.c $(SRC_DIR)/native.c $(SRC_DIR)/value.c
+OBJS = $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(SRCS))
+
+TARGET = swiftvelox
 
 all: $(TARGET)
 
-$(TARGET): src/main.c
-	$(CC) $(CFLAGS) -o $(TARGET) src/main.c
+$(TARGET): $(OBJS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
+
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJ_DIR):
+	mkdir -p $(OBJ_DIR)
 
 clean:
-	rm -f $(TARGET) *.o *.out *.c examples/*.out examples/*.c
+	rm -rf $(OBJ_DIR) $(TARGET)
 
-test: $(TARGET)
-	./$(TARGET) run examples/test.svx
-	./$(TARGET) run examples/calc.svx
+run: $(TARGET)
+	./$(TARGET)
 
-quick:
-	gcc -O2 -o swiftvelox src/main.c
+.PHONY: all clean run
