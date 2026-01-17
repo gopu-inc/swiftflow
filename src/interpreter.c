@@ -9,6 +9,9 @@
 // Variables globales
 Environment* global_env = NULL;
 
+// Prototype de eval pour éviter les erreurs de déclaration
+Value eval(ASTNode* node, Environment* env);
+
 void fatal_error(const char* fmt, ...) {
     va_list args;
     va_start(args, fmt);
@@ -120,6 +123,34 @@ Value eval_binary(ASTNode* node, Environment* env) {
                 result = make_bool(left.integer > right.integer);
             }
             break;
+            
+        case TK_LTEQ:
+            if (left.type == VAL_INT && right.type == VAL_INT) {
+                result = make_bool(left.integer <= right.integer);
+            }
+            break;
+            
+        case TK_GTEQ:
+            if (left.type == VAL_INT && right.type == VAL_INT) {
+                result = make_bool(left.integer >= right.integer);
+            }
+            break;
+            
+        case TK_AND:
+            if (left.type == VAL_BOOL && right.type == VAL_BOOL) {
+                result = make_bool(left.boolean && right.boolean);
+            }
+            break;
+            
+        case TK_OR:
+            if (left.type == VAL_BOOL && right.type == VAL_BOOL) {
+                result = make_bool(left.boolean || right.boolean);
+            }
+            break;
+            
+        default:
+            // Pour les tokens non gérés, retourne nil
+            break;
     }
     
     return result;
@@ -176,6 +207,33 @@ Value eval_call(ASTNode* node, Environment* env) {
         Value result = callee.native.fn(args, node->child_count, env);
         free(args);
         return result;
+    }
+    
+    // Gestion des fonctions utilisateur
+    if (callee.type == VAL_FUNCTION) {
+        ASTNode* decl = callee.function.declaration;
+        Environment* func_env = new_environment(callee.function.closure);
+        
+        // Bind parameters
+        for (int i = 0; i < decl->child_count; i++) {
+            ASTNode* param = decl->children[i];
+            if (i < node->child_count) {
+                env_define(func_env, param->token.s, args[i]);
+            } else {
+                fatal_error("Argument manquant pour le paramètre '%s'", param->token.s);
+            }
+        }
+        
+        // Execute function body
+        Value result = eval(decl->left, func_env);
+        
+        // Handle return
+        if (result.type == VAL_RETURN_SIG) {
+            result.type = VAL_NIL; // Convertir en valeur normale
+            return result;
+        }
+        
+        return make_nil();
     }
     
     fatal_error("Tentative d'appel sur une valeur non-fonction");
