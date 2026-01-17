@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
-#include <stdio.h>
 
 // Helper pour strdup
 #ifndef strdup
@@ -64,14 +63,6 @@ Value make_object() {
     v.object.values = NULL;
     v.object.count = 0;
     v.object.capacity = 0;
-    return v;
-}
-
-Value make_error(const char* message) {
-    Value v;
-    v.type = VAL_ERROR;
-    v.error.message = strdup(message ? message : "Unknown error");
-    v.error.data = NULL;
     return v;
 }
 
