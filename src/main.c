@@ -1,8 +1,6 @@
 /*
  * SwiftVelox 4.0.0 - Langage de programmation moderne
- * Fichier unique complet
- * Compilation: gcc -o swiftvelox swiftvelox.c -lm
- * Installation: sudo cp swiftvelox /usr/local/bin/
+ * Fichier unique complet avec corrections
  */
 
 #include <stdio.h>
@@ -19,103 +17,58 @@
 #define VERSION "4.0.0"
 #define LIB_PATH "/usr/local/lib/swiftvelox/"
 #define MAX_LINE_LENGTH 4096
-#define MAX_MACROS 100
-#define MAX_PACKAGES 50
 
 // ===== COULEURS TERMINAL =====
 #define RED     "\033[0;31m"
 #define GREEN   "\033[0;32m"
 #define YELLOW  "\033[0;33m"
 #define BLUE    "\033[0;34m"
-#define MAGENTA "\033[0;35m"
 #define CYAN    "\033[0;36m"
-#define WHITE   "\033[0;37m"
 #define NC      "\033[0m"
 
 // ===== TYPES DE BASE =====
 typedef enum {
     VAL_NIL, VAL_BOOL, VAL_INT, VAL_FLOAT, 
     VAL_STRING, VAL_FUNCTION, VAL_NATIVE, VAL_RETURN_SIG,
-    VAL_ARRAY, VAL_OBJECT, VAL_CLOSURE, VAL_GENERATOR,
-    VAL_PROMISE, VAL_ERROR, VAL_REGEX, VAL_BUFFER,
-    VAL_DATE, VAL_SYMBOL, VAL_BIGINT, VAL_ITERATOR,
-    VAL_BREAK, VAL_CONTINUE
+    VAL_ARRAY, VAL_OBJECT
 } ValueType;
 
-// ===== TOKENS =====
+// ===== TOKENS SIMPLIFIÉS =====
 typedef enum {
-    // Keywords
-    TK_MODULE, TK_IMPORT, TK_EXPORT, TK_FROM, TK_AS,
-    TK_FN, TK_LET, TK_CONST, TK_VAR, TK_MUT,
-    TK_IF, TK_ELSE, TK_ELIF, TK_UNLESS, TK_WHEN,
-    TK_FOR, TK_IN, TK_WHILE, TK_DO, TK_REPEAT, TK_UNTIL,
-    TK_MATCH, TK_CASE, TK_DEFAULT, TK_WHERE,
-    TK_TRY, TK_CATCH, TK_FINALLY, TK_THROW,
-    TK_RETURN, TK_YIELD, TK_BREAK, TK_CONTINUE, TK_SKIP,
-    TK_TRUE, TK_FALSE, TK_NIL, TK_UNDEFINED,
-    TK_CLASS, TK_STRUCT, TK_ENUM, TK_TRAIT, TK_INTERFACE,
-    TK_EXTENDS, TK_IMPLEMENTS, TK_NEW, TK_DELETE,
-    TK_PUBLIC, TK_PRIVATE, TK_PROTECTED, TK_STATIC,
-    TK_ABSTRACT, TK_FINAL, TK_OVERRIDE,
-    TK_ASYNC, TK_AWAIT, TK_ASYNC_AWAIT,
-    TK_TYPEOF, TK_INSTANCEOF, TK_VOID,
-    TK_NAMESPACE, TK_USING, TK_WITH,
-    TK_DEFMACRO, TK_MACRO, TK_QUOTE, TK_UNQUOTE,
-    TK_DECORATOR, TK_ANNOTATION,
-    TK_ASSERT, TK_TEST, TK_SUITE, TK_BENCH,
-    TK_DEBUGGER, TK_TRACER, TK_LOG,
-    TK_SUPER, TK_THIS, TK_CONSTRUCTOR,
-    
-    // Types
-    TK_INT_TYPE, TK_FLOAT_TYPE, TK_STRING_TYPE, TK_BOOL_TYPE,
-    TK_CHAR_TYPE, TK_ARRAY_TYPE, TK_OBJECT_TYPE, TK_FUNC_TYPE,
-    TK_ANY_TYPE, TK_VOID_TYPE, TK_NULLABLE_TYPE,
+    // Keywords de base
+    TK_FN, TK_LET, TK_VAR, TK_CONST,
+    TK_IF, TK_ELSE, 
+    TK_WHILE, TK_FOR,
+    TK_RETURN,
+    TK_TRUE, TK_FALSE, TK_NIL,
     
     // Literals
-    TK_IDENTIFIER, TK_NUMBER, TK_STRING_LIT, TK_CHAR_LIT,
-    TK_REGEX_LIT, TK_TEMPLATE_LIT,
+    TK_IDENTIFIER, TK_NUMBER, TK_STRING_LIT,
     
     // Operators
-    TK_PLUS, TK_MINUS, TK_STAR, TK_SLASH, TK_PERCENT,
-    TK_PLUS_EQ, TK_MINUS_EQ, TK_STAR_EQ, TK_SLASH_EQ,
-    TK_PLUS_PLUS, TK_MINUS_MINUS,
-    TK_PLUS_EQ_EQ, TK_MINUS_EQ_EQ,
-    TK_EQ, TK_EQEQ, TK_EQEQEQ, TK_BANGEQ, TK_BANGEQEQ,
+    TK_PLUS, TK_MINUS, TK_STAR, TK_SLASH,
+    TK_EQ, TK_EQEQ, TK_BANGEQ,
     TK_LT, TK_GT, TK_LTEQ, TK_GTEQ,
-    TK_LSHIFT, TK_RSHIFT, TK_URSHIFT,
-    TK_AMPERSAND, TK_BAR, TK_CARET, TK_TILDE,
-    TK_AMPERSAND_EQ, TK_BAR_EQ, TK_CARET_EQ,
-    TK_LSHIFT_EQ, TK_RSHIFT_EQ, TK_URSHIFT_EQ,
-    TK_AND, TK_OR, TK_NOT, TK_XOR,
-    TK_QUESTION, TK_DOUBLE_QUESTION, TK_BANG, TK_DOUBLE_BANG,
-    TK_DOT, TK_DOTDOT, TK_DOTDOTDOT,
-    TK_COLON, TK_DOUBLE_COLON, TK_SEMICOLON, TK_COMMA,
-    TK_ARROW, TK_FAT_ARROW, TK_DOUBLE_ARROW,
-    TK_PIPE, TK_DOUBLE_PIPE, TK_PIPELINE,
-    TK_AT, TK_HASH, TK_DOLLAR,
+    TK_AND, TK_OR, TK_BANG,
     
-    // Grouping
-    TK_LPAREN, TK_RPAREN, TK_LBRACKET, TK_RBRACKET,
-    TK_LBRACE, TK_RBRACE, TK_LANGLE, TK_RANGLE,
+    // Punctuation
+    TK_LPAREN, TK_RPAREN,
+    TK_LBRACE, TK_RBRACE,
+    TK_SEMICOLON, TK_COMMA, TK_DOT,
     
-    // Special
-    TK_UNDERSCORE, TK_ELLIPSIS, TK_BACKTICK,
-    TK_SHEBANG, TK_COMMENT, TK_MULTILINE_COMMENT,
     TK_EOF, TK_ERROR
 } TokenType;
 
 // ===== STRUCTURES =====
 typedef struct Token {
     TokenType type;
-    char* start;
+    const char* start;
     int length;
     int line;
-    int col;
     union { 
         int64_t i; 
         double d; 
-        char* s; 
-        char c;
+        char* s;
     };
 } Token;
 
@@ -159,21 +112,12 @@ struct Value {
             int capacity;
         } object;
         struct {
-            char* name;
             Value (*fn)(Value*, int, Environment*);
         } native;
         struct {
             ASTNode* declaration;
             Environment* closure;
         } function;
-        struct {
-            int resolved;
-            Value* value;
-        } promise;
-        struct {
-            char* message;
-            Value* data;
-        } error;
     };
 };
 
@@ -203,7 +147,6 @@ Token current_token;
 Token previous_token;
 int had_error = 0;
 int panic_mode = 0;
-ASTNode* current_function = NULL;
 Environment* global_env = NULL;
 
 // ===== FONCTIONS UTILITAIRES =====
@@ -295,64 +238,6 @@ Value make_nil() {
     return v;
 }
 
-Value make_array() {
-    Value v;
-    v.type = VAL_ARRAY;
-    v.array.items = NULL;
-    v.array.count = 0;
-    v.array.capacity = 0;
-    return v;
-}
-
-Value make_object() {
-    Value v;
-    v.type = VAL_OBJECT;
-    v.object.keys = NULL;
-    v.object.values = NULL;
-    v.object.count = 0;
-    v.object.capacity = 0;
-    return v;
-}
-
-void array_push(Value* array, Value item) {
-    if (array->type != VAL_ARRAY) return;
-    
-    if (array->array.count >= array->array.capacity) {
-        int new_capacity = array->array.capacity == 0 ? 8 : array->array.capacity * 2;
-        Value* new_items = realloc(array->array.items, sizeof(Value) * new_capacity);
-        if (!new_items) return;
-        array->array.items = new_items;
-        array->array.capacity = new_capacity;
-    }
-    
-    array->array.items[array->array.count++] = item;
-}
-
-void object_set(Value* obj, const char* key, Value value) {
-    if (obj->type != VAL_OBJECT) return;
-    
-    for (int i = 0; i < obj->object.count; i++) {
-        if (strcmp(obj->object.keys[i], key) == 0) {
-            obj->object.values[i] = value;
-            return;
-        }
-    }
-    
-    if (obj->object.count >= obj->object.capacity) {
-        int new_capacity = obj->object.capacity == 0 ? 8 : obj->object.capacity * 2;
-        char** new_keys = realloc(obj->object.keys, sizeof(char*) * new_capacity);
-        Value* new_values = realloc(obj->object.values, sizeof(Value) * new_capacity);
-        if (!new_keys || !new_values) return;
-        obj->object.keys = new_keys;
-        obj->object.values = new_values;
-        obj->object.capacity = new_capacity;
-    }
-    
-    obj->object.keys[obj->object.count] = my_strdup(key ? key : "");
-    obj->object.values[obj->object.count] = value;
-    obj->object.count++;
-}
-
 // ===== LEXER =====
 void init_scanner(const char* source) {
     scanner.start = source;
@@ -393,7 +278,7 @@ int match_char(char expected) {
 Token make_token(TokenType type) {
     Token token;
     token.type = type;
-    token.start = (char*)scanner.start;
+    token.start = scanner.start;
     token.length = (int)(scanner.current - scanner.start);
     token.line = scanner.line;
     token.col = scanner.col - token.length;
@@ -403,7 +288,7 @@ Token make_token(TokenType type) {
 Token error_token(const char* message) {
     Token token;
     token.type = TK_ERROR;
-    token.start = (char*)message;
+    token.start = message;
     token.length = (int)strlen(message);
     token.line = scanner.line;
     token.col = scanner.col;
@@ -413,40 +298,36 @@ Token error_token(const char* message) {
 void skip_whitespace() {
     while (1) {
         char c = peek();
-        switch (c) {
-            case ' ':
-            case '\r':
-            case '\t':
-                advance();
-                break;
-            case '\n':
-                scanner.line++;
-                scanner.col = 1;
-                advance();
-                break;
-            case '/':
-                if (peek_next() == '/') {
-                    while (peek() != '\n' && !is_at_end()) advance();
-                } else if (peek_next() == '*') {
-                    advance(); // /
-                    advance(); // *
-                    while (!(peek() == '*' && peek_next() == '/') && !is_at_end()) {
-                        if (peek() == '\n') {
-                            scanner.line++;
-                            scanner.col = 1;
-                        }
-                        advance();
+        if (c == ' ' || c == '\r' || c == '\t') {
+            advance();
+        } else if (c == '\n') {
+            scanner.line++;
+            scanner.col = 1;
+            advance();
+        } else if (c == '/') {
+            if (peek_next() == '/') {
+                // Commentaire ligne
+                while (peek() != '\n' && !is_at_end()) advance();
+            } else if (peek_next() == '*') {
+                // Commentaire multi-ligne
+                advance(); // /
+                advance(); // *
+                while (!(peek() == '*' && peek_next() == '/') && !is_at_end()) {
+                    if (peek() == '\n') {
+                        scanner.line++;
+                        scanner.col = 1;
                     }
-                    if (!is_at_end()) {
-                        advance(); // *
-                        advance(); // /
-                    }
-                } else {
-                    return;
+                    advance();
                 }
+                if (!is_at_end()) {
+                    advance(); // *
+                    advance(); // /
+                }
+            } else {
                 break;
-            default:
-                return;
+            }
+        } else {
+            break;
         }
     }
 }
@@ -456,9 +337,6 @@ Token string_literal() {
         if (peek() == '\n') {
             scanner.line++;
             scanner.col = 1;
-        }
-        if (peek() == '\\') {
-            advance(); // skip backslash
         }
         advance();
     }
@@ -470,9 +348,11 @@ Token string_literal() {
     advance(); // closing "
     
     Token token = make_token(TK_STRING_LIT);
-    int length = token.length - 2; // remove quotes
+    int length = token.length - 2;
     char* str = malloc(length + 1);
-    strncpy(str, token.start + 1, length);
+    if (length > 0) {
+        strncpy(str, token.start + 1, length);
+    }
     str[length] = '\0';
     token.s = str;
     
@@ -487,19 +367,13 @@ Token number_literal() {
         while (isdigit(peek())) advance();
     }
     
-    if (peek() == 'e' || peek() == 'E') {
-        advance();
-        if (peek() == '+' || peek() == '-') advance();
-        while (isdigit(peek())) advance();
-    }
-    
     Token token = make_token(TK_NUMBER);
     
     char* num_str = malloc(token.length + 1);
     strncpy(num_str, token.start, token.length);
     num_str[token.length] = '\0';
     
-    if (strchr(num_str, '.') || strchr(num_str, 'e') || strchr(num_str, 'E')) {
+    if (strchr(num_str, '.')) {
         token.d = strtod(num_str, NULL);
     } else {
         token.i = strtoll(num_str, NULL, 10);
@@ -517,83 +391,37 @@ int is_alphanumeric(char c) {
     return is_alpha(c) || isdigit(c);
 }
 
-TokenType check_keyword(const char* start, int length, const char* rest, TokenType type) {
-    if (scanner.current - scanner.start == length + (start - scanner.start) &&
-        memcmp(start, rest, length) == 0) {
-        return type;
-    }
-    return TK_IDENTIFIER;
-}
-
-TokenType identifier_type() {
-    const char* start = scanner.start;
-    int length = (int)(scanner.current - scanner.start);
-    
-    switch (start[0]) {
-        case 'f':
-            if (length > 1) {
-                switch (start[1]) {
-                    case 'n': return check_keyword(start + 2, length - 2, "", TK_FN);
-                    case 'a': return check_keyword(start + 2, length - 2, "lse", TK_FALSE);
-                    case 'o': return check_keyword(start + 2, length - 2, "r", TK_FOR);
-                    case 'r': return check_keyword(start + 2, length - 2, "om", TK_FROM);
-                }
-            }
-            break;
-        case 'i':
-            if (length > 1) {
-                switch (start[1]) {
-                    case 'f': return check_keyword(start + 2, length - 2, "", TK_IF);
-                    case 'n': return check_keyword(start + 2, length - 2, "", TK_IN);
-                }
-            }
-            break;
-        case 'l':
-            return check_keyword(start + 1, length - 1, "et", TK_LET);
-        case 'n':
-            return check_keyword(start + 1, length - 1, "il", TK_NIL);
-        case 'r':
-            return check_keyword(start + 1, length - 1, "eturn", TK_RETURN);
-        case 't':
-            return check_keyword(start + 1, length - 1, "rue", TK_TRUE);
-        case 'v':
-            return check_keyword(start + 1, length - 1, "ar", TK_VAR);
-        case 'w':
-            if (length > 1) {
-                switch (start[1]) {
-                    case 'h': return check_keyword(start + 2, length - 2, "ile", TK_WHILE);
-                }
-            }
-            break;
-        case 'c':
-            if (length > 1) {
-                switch (start[1]) {
-                    case 'o': return check_keyword(start + 2, length - 2, "nst", TK_CONST);
-                }
-            }
-            break;
-        case 'e':
-            if (length > 1) {
-                switch (start[1]) {
-                    case 'l': return check_keyword(start + 2, length - 2, "se", TK_ELSE);
-                }
-            }
-            break;
-    }
-    
-    return TK_IDENTIFIER;
-}
-
 Token identifier() {
     while (is_alphanumeric(peek())) advance();
     
-    Token token = make_token(identifier_type());
+    Token token = make_token(TK_IDENTIFIER);
+    
+    // Vérifier les mots-clés
+    char* ident = malloc(token.length + 1);
+    strncpy(ident, token.start, token.length);
+    ident[token.length] = '\0';
+    
+    // Mots-clés
+    if (strcmp(ident, "fn") == 0) token.type = TK_FN;
+    else if (strcmp(ident, "let") == 0) token.type = TK_LET;
+    else if (strcmp(ident, "var") == 0) token.type = TK_VAR;
+    else if (strcmp(ident, "const") == 0) token.type = TK_CONST;
+    else if (strcmp(ident, "if") == 0) token.type = TK_IF;
+    else if (strcmp(ident, "else") == 0) token.type = TK_ELSE;
+    else if (strcmp(ident, "while") == 0) token.type = TK_WHILE;
+    else if (strcmp(ident, "for") == 0) token.type = TK_FOR;
+    else if (strcmp(ident, "return") == 0) token.type = TK_RETURN;
+    else if (strcmp(ident, "true") == 0) token.type = TK_TRUE;
+    else if (strcmp(ident, "false") == 0) token.type = TK_FALSE;
+    else if (strcmp(ident, "nil") == 0) token.type = TK_NIL;
+    else {
+        token.s = ident;
+    }
     
     if (token.type == TK_IDENTIFIER) {
-        char* name = malloc(token.length + 1);
-        strncpy(name, token.start, token.length);
-        name[token.length] = '\0';
-        token.s = name;
+        token.s = ident;
+    } else {
+        free(ident);
     }
     
     return token;
@@ -619,54 +447,35 @@ Token scan_token() {
         case ';': return make_token(TK_SEMICOLON);
         case ',': return make_token(TK_COMMA);
         case '.': return make_token(TK_DOT);
-        case '-': 
-            if (match_char('>')) {
-                return make_token(TK_ARROW);
-            }
-            return make_token(TK_MINUS);
+        case '-': return make_token(TK_MINUS);
         case '+': return make_token(TK_PLUS);
         case '/': return make_token(TK_SLASH);
         case '*': return make_token(TK_STAR);
         case '!':
-            if (match_char('=')) {
-                return make_token(TK_BANGEQ);
-            }
+            if (match_char('=')) return make_token(TK_BANGEQ);
             return make_token(TK_BANG);
         case '=':
-            if (match_char('=')) {
-                return make_token(TK_EQEQ);
-            }
+            if (match_char('=')) return make_token(TK_EQEQ);
             return make_token(TK_EQ);
         case '<':
-            if (match_char('=')) {
-                return make_token(TK_LTEQ);
-            }
+            if (match_char('=')) return make_token(TK_LTEQ);
             return make_token(TK_LT);
         case '>':
-            if (match_char('=')) {
-                return make_token(TK_GTEQ);
-            }
+            if (match_char('=')) return make_token(TK_GTEQ);
             return make_token(TK_GT);
-        case '"': return string_literal();
         case '&':
-            if (match_char('&')) {
-                return make_token(TK_AND);
-            }
-            return make_token(TK_AMPERSAND);
+            if (match_char('&')) return make_token(TK_AND);
+            break;
         case '|':
-            if (match_char('|')) {
-                return make_token(TK_OR);
-            }
-            return make_token(TK_BAR);
-        case '%': return make_token(TK_PERCENT);
-        case ':': return make_token(TK_COLON);
-        case '?': return make_token(TK_QUESTION);
+            if (match_char('|')) return make_token(TK_OR);
+            break;
+        case '"': return string_literal();
     }
     
     return error_token("Caractère inattendu");
 }
 
-Token next_token() {
+void next_token() {
     previous_token = current_token;
     
     if (panic_mode) {
@@ -686,8 +495,6 @@ Token next_token() {
         had_error = 1;
         panic_mode = 1;
     }
-    
-    return current_token;
 }
 
 int match(TokenType type) {
@@ -720,7 +527,7 @@ void consume(TokenType type, const char* message) {
 ASTNode* new_node(NodeType type) {
     ASTNode* node = malloc(sizeof(ASTNode));
     node->type = type;
-    node->token = current_token;
+    node->token = current_token;  // Stocke le token courant
     node->left = node->right = NULL;
     node->children = NULL;
     node->child_count = 0;
@@ -738,7 +545,7 @@ ASTNode* primary(void) {
     if (match(TK_NUMBER) || match(TK_STRING_LIT) || 
         match(TK_TRUE) || match(TK_FALSE) || match(TK_NIL)) {
         ASTNode* n = new_node(NODE_LITERAL);
-        n->token = previous_token;
+        n->token = previous_token;  // Utilise le token précédent (celui qui a matché)
         return n;
     }
     if (match(TK_IDENTIFIER)) {
@@ -757,21 +564,28 @@ ASTNode* primary(void) {
 }
 
 // Call expressions
+ASTNode* finish_call(ASTNode* callee) {
+    ASTNode* n = new_node(NODE_CALL);
+    n->left = callee;
+    n->child_count = 0;
+    n->children = NULL;
+    
+    if (!match(TK_RPAREN)) {
+        do {
+            n->children = realloc(n->children, sizeof(ASTNode*) * (n->child_count + 1));
+            n->children[n->child_count++] = expression();
+        } while (match(TK_COMMA));
+        consume(TK_RPAREN, "')' attendu");
+    }
+    
+    return n;
+}
+
 ASTNode* call(void) {
     ASTNode* expr = primary();
     
     if (match(TK_LPAREN)) {
-        ASTNode* n = new_node(NODE_CALL);
-        n->left = expr;
-        
-        if (!match(TK_RPAREN)) {
-            do {
-                n->children = realloc(n->children, sizeof(ASTNode*) * (n->child_count + 1));
-                n->children[n->child_count++] = expression();
-            } while (match(TK_COMMA));
-            consume(TK_RPAREN, "')' attendu");
-        }
-        expr = n;
+        expr = finish_call(expr);
     }
     
     return expr;
@@ -793,7 +607,7 @@ ASTNode* unary(void) {
 ASTNode* factor(void) {
     ASTNode* expr = unary();
     
-    while (match(TK_STAR) || match(TK_SLASH) || match(TK_PERCENT)) {
+    while (match(TK_STAR) || match(TK_SLASH)) {
         ASTNode* n = new_node(NODE_BINARY);
         n->token = previous_token;
         n->left = expr;
@@ -823,9 +637,7 @@ ASTNode* term(void) {
 ASTNode* comparison(void) {
     ASTNode* expr = term();
     
-    while (match(TK_EQEQ) || match(TK_BANGEQ) || 
-           match(TK_LT) || match(TK_GT) || 
-           match(TK_LTEQ) || match(TK_GTEQ)) {
+    while (match(TK_LT) || match(TK_GT) || match(TK_LTEQ) || match(TK_GTEQ)) {
         ASTNode* n = new_node(NODE_BINARY);
         n->token = previous_token;
         n->left = expr;
@@ -836,9 +648,24 @@ ASTNode* comparison(void) {
     return expr;
 }
 
+// Equality
+ASTNode* equality(void) {
+    ASTNode* expr = comparison();
+    
+    while (match(TK_EQEQ) || match(TK_BANGEQ)) {
+        ASTNode* n = new_node(NODE_BINARY);
+        n->token = previous_token;
+        n->left = expr;
+        n->right = comparison();
+        expr = n;
+    }
+    
+    return expr;
+}
+
 // Assignment
 ASTNode* assignment(void) {
-    ASTNode* expr = comparison();
+    ASTNode* expr = equality();
     
     if (match(TK_EQ)) {
         ASTNode* n = new_node(NODE_ASSIGN);
@@ -866,16 +693,25 @@ ASTNode* expression_statement(void) {
     return n;
 }
 
-// Variable declaration
+// Variable declaration - CORRECTION IMPORTANTE ICI
 ASTNode* var_declaration(void) {
-    TokenType decl_type = current_token.type;
-    next_token(); // Skip let/const/var
+    // On a déjà consommé TK_LET/TK_VAR/TK_CONST
+    TokenType decl_type = previous_token.type;
     
     ASTNode* n = new_node(NODE_VAR_DECL);
+    n->token = previous_token;  // Stocke le token let/var/const
     
-    consume(TK_IDENTIFIER, "Nom de variable attendu");
-    n->token = previous_token;
+    // Maintenant on s'attend à un identifiant
+    if (current_token.type != TK_IDENTIFIER) {
+        syntax_error(current_token, "Nom de variable attendu");
+        return n;
+    }
     
+    // Consommer l'identifiant
+    n->token = current_token;  // Maintenant stocke le nom de la variable
+    next_token();
+    
+    // Vérifier s'il y a une initialisation
     if (match(TK_EQ)) {
         n->right = expression();
     }
@@ -945,39 +781,6 @@ ASTNode* return_statement(void) {
     return n;
 }
 
-// Function declaration
-ASTNode* function_declaration(void) {
-    ASTNode* n = new_node(NODE_FUNCTION);
-    
-    consume(TK_IDENTIFIER, "Nom de fonction attendu");
-    n->token = previous_token;
-    
-    consume(TK_LPAREN, "'(' attendu");
-    
-    // Parameters
-    if (!match(TK_RPAREN)) {
-        do {
-            ASTNode* param = new_node(NODE_IDENTIFIER);
-            consume(TK_IDENTIFIER, "Nom de paramètre attendu");
-            param->token = previous_token;
-            n->children = realloc(n->children, sizeof(ASTNode*) * (n->child_count + 1));
-            n->children[n->child_count++] = param;
-        } while (match(TK_COMMA));
-        consume(TK_RPAREN, "')' attendu");
-    }
-    
-    // Save current function
-    ASTNode* enclosing = current_function;
-    current_function = n;
-    
-    n->left = block_statement(); // Function body
-    
-    // Restore
-    current_function = enclosing;
-    
-    return n;
-}
-
 // Statement
 ASTNode* statement(void) {
     if (match(TK_IF)) return if_statement();
@@ -994,7 +797,14 @@ ASTNode* declaration(void) {
         return var_declaration();
     }
     if (match(TK_FN)) {
-        return function_declaration();
+        // Simple function stub for now
+        ASTNode* n = new_node(NODE_FUNCTION);
+        consume(TK_IDENTIFIER, "Nom de fonction attendu");
+        n->token = previous_token;
+        consume(TK_LPAREN, "'(' attendu");
+        consume(TK_RPAREN, "')' attendu");
+        n->left = block_statement();
+        return n;
     }
     
     return statement();
@@ -1003,7 +813,7 @@ ASTNode* declaration(void) {
 // Parse program
 ASTNode* parse(const char* source) {
     init_scanner(source);
-    next_token();
+    next_token();  // Récupère le premier token
     
     ASTNode* program = new_node(NODE_PROGRAM);
     
@@ -1288,29 +1098,25 @@ Value eval_block(ASTNode* node, Environment* env) {
     return result;
 }
 
-Value eval_function(ASTNode* node, Environment* env) {
-    Value func;
-    func.type = VAL_FUNCTION;
-    func.function.declaration = node;
-    func.function.closure = env;
-    
-    // Register function name
-    env_define(env, node->token.s, func);
-    
-    return func;
+Value eval_var_decl(ASTNode* node, Environment* env) {
+    Value value = make_nil();
+    if (node->right) {
+        value = eval(node->right, env);
+    }
+    env_define(env, node->token.s, value);
+    return value;
 }
 
 // Main evaluation function
 Value eval(void* node_ptr, Environment* env) {
+    if (!node_ptr) return make_nil();
+    
     ASTNode* node = (ASTNode*)node_ptr;
-    if (!node) return make_nil();
     
     switch (node->type) {
         case NODE_LITERAL:
             if (node->token.type == TK_NUMBER) {
-                if (strchr(node->token.start, '.') || 
-                    strchr(node->token.start, 'e') || 
-                    strchr(node->token.start, 'E')) {
+                if (strchr(node->token.start, '.')) {
                     return make_number(node->token.d);
                 } else {
                     return make_number(node->token.i);
@@ -1341,17 +1147,8 @@ Value eval(void* node_ptr, Environment* env) {
         case NODE_CALL:
             return eval_call(node, env);
             
-        case NODE_VAR_DECL: {
-            Value value = make_nil();
-            if (node->right) {
-                value = eval(node->right, env);
-            }
-            env_define(env, node->token.s, value);
-            return value;
-        }
-            
-        case NODE_FUNCTION:
-            return eval_function(node, env);
+        case NODE_VAR_DECL:
+            return eval_var_decl(node, env);
             
         case NODE_IF:
             return eval_if(node, env);
@@ -1383,7 +1180,7 @@ Value eval(void* node_ptr, Environment* env) {
 
 // ===== NATIVE FUNCTIONS =====
 Value native_print(Value* args, int count, Environment* env) {
-    (void)env; // Unused parameter
+    (void)env;
     for (int i = 0; i < count; i++) {
         Value v = args[i];
         switch (v.type) {
@@ -1392,7 +1189,7 @@ Value native_print(Value* args, int count, Environment* env) {
             case VAL_FLOAT: printf("%g", v.number); break;
             case VAL_BOOL: printf("%s", v.boolean ? "true" : "false"); break;
             case VAL_NIL: printf("nil"); break;
-            default: printf("[type:%d]", v.type); break;
+            default: printf("[object]"); break;
         }
         if (i < count - 1) printf(" ");
     }
@@ -1401,7 +1198,7 @@ Value native_print(Value* args, int count, Environment* env) {
 }
 
 Value native_http_run(Value* args, int count, Environment* env) {
-    (void)env; // Unused parameter
+    (void)env;
     printf(BLUE "[INFO]" NC " Serveur HTTP (en développement)\n");
     printf(BLUE "[INFO]" NC " Port configuré: %lld\n", count > 0 ? args[0].integer : 8080);
     printf(YELLOW "[WARNING]" NC " Fonctionnalité en cours d'implémentation\n");
@@ -1478,33 +1275,18 @@ int main(int argc, char** argv) {
         log_info("Exécution de %s...", argv[2]);
         
         ASTNode* program = parse(source);
-        eval((void*)program, global_env);
+        if (!had_error) {
+            eval((void*)program, global_env);
+        }
         
         free(source);
         log_success("Exécution terminée");
         return 0;
     }
-    else if (strcmp(argv[1], "http") == 0) {
-        // HTTP server
-        int port = 8080;
-        
-        for (int i = 2; i < argc; i++) {
-            if (strcmp(argv[i], "--port") == 0 && i + 1 < argc) {
-                port = atoi(argv[++i]);
-            }
-        }
-        
-        Value args[1];
-        args[0].type = VAL_INT;
-        args[0].integer = port;
-        
-        native_http_run(args, 1, global_env);
-        return 0;
-    }
     else if (strcmp(argv[1], "repl") == 0) {
         // REPL mode
         printf(CYAN "💻 SwiftVelox REPL v%s\n" NC, VERSION);
-        printf("Tapez 'exit' pour quitter, 'help' pour l'aide\n\n");
+        printf("Tapez 'exit' pour quitter\n\n");
         
         char line[4096];
         while (1) {
@@ -1529,93 +1311,20 @@ int main(int argc, char** argv) {
             if (strlen(line) == 0) continue;
             
             ASTNode* program = parse(line);
-            Value result = eval((void*)program, global_env);
-            
-            // Print result if not nil
-            if (result.type != VAL_NIL && result.type != VAL_RETURN_SIG) {
-                printf(GREEN "=> " NC);
-                Value* print_args = &result;
-                native_print(print_args, 1, global_env);
+            if (!had_error) {
+                Value result = eval((void*)program, global_env);
+                
+                // Print result if not nil
+                if (result.type != VAL_NIL && result.type != VAL_RETURN_SIG) {
+                    printf(GREEN "=> " NC);
+                    Value* print_args = &result;
+                    native_print(print_args, 1, global_env);
+                }
             }
+            had_error = 0; // Reset pour la prochaine commande
         }
         
         printf("\n👋 Au revoir !\n");
-        return 0;
-    }
-    else if (strcmp(argv[1], "test") == 0) {
-        // Test runner
-        printf("🧪 Lancement des tests...\n");
-        
-        if (argc >= 3) {
-            // Run specific test file
-            FILE* f = fopen(argv[2], "rb");
-            if (f) {
-                fseek(f, 0, SEEK_END);
-                long size = ftell(f);
-                fseek(f, 0, SEEK_SET);
-                
-                char* source = malloc(size + 1);
-                fread(source, 1, size, f);
-                fclose(f);
-                source[size] = '\0';
-                
-                ASTNode* program = parse(source);
-                eval(program, global_env);
-                
-                free(source);
-            } else {
-                log_error("Fichier de test non trouvé: %s", argv[2]);
-            }
-        } else {
-            // Simple built-in tests
-            log_info("Tests intégrés...");
-            
-            // Test 1: Basic arithmetic
-            char* test1 = "let a = 5 + 3; print(\"5 + 3 =\", a);";
-            printf("Test 1: Arithmétique de base\n");
-            ASTNode* prog1 = parse(test1);
-            eval(prog1, global_env);
-            
-            // Test 2: Functions
-            char* test2 = "fn add(x, y) { return x + y; } print(\"add(2, 3) =\", add(2, 3));";
-            printf("\nTest 2: Fonctions\n");
-            ASTNode* prog2 = parse(test2);
-            eval(prog2, global_env);
-            
-            // Test 3: Variables
-            char* test3 = "let x = 10; let y = 20; print(\"x + y =\", x + y);";
-            printf("\nTest 3: Variables\n");
-            ASTNode* prog3 = parse(test3);
-            eval(prog3, global_env);
-        }
-        
-        printf("\n");
-        log_success("Tests terminés");
-        return 0;
-    }
-    else if (strcmp(argv[1], "fmt") == 0 && argc >= 3) {
-        // Code formatter (simplified)
-        log_info("Formatage du code...");
-        
-        FILE* f = fopen(argv[2], "rb");
-        if (!f) {
-            log_error("Fichier non trouvé: %s", argv[2]);
-            return 1;
-        }
-        
-        fseek(f, 0, SEEK_END);
-        long size = ftell(f);
-        fseek(f, 0, SEEK_SET);
-        
-        char* source = malloc(size + 1);
-        fread(source, 1, size, f);
-        fclose(f);
-        source[size] = '\0';
-        
-        // Simple formatting: just re-parse and pretty print
-        log_success("Formaté: %s (formatage basique)", argv[2]);
-        
-        free(source);
         return 0;
     }
     else {
