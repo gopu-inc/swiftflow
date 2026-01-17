@@ -48,7 +48,7 @@ int main(int argc, char** argv) {
         printf("📦 Exécution de %s...\n", argv[2]);
         
         ASTNode* program = parse(source);
-        eval(program, global_env);  // Retiré la variable result inutilisée
+        eval((void*)program, global_env);  // Retiré la variable result inutilisée
         
         free(source);
         printf("✅ Exécution terminée\n");
@@ -99,7 +99,7 @@ int main(int argc, char** argv) {
             if (strlen(line) == 0) continue;
             
             ASTNode* program = parse(line);
-            Value result = eval(program, global_env);
+            Value result = eval((void*)program, global_env);
             
             // Print result if not nil
             if (result.type != VAL_NIL && result.type != VAL_RETURN_SIG) {
