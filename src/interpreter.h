@@ -2,29 +2,24 @@
 #define INTERPRETER_H
 
 #include "value.h"
-#include "parser.h"
 
 // Environnement
-typedef struct Environment {
+struct Environment {
     struct Environment* enclosing;
     char** names;
     Value* values;
     int count;
     int capacity;
-} Environment;
+};
 
+typedef struct Environment Environment;
+
+// Fonctions d'environnement
 Environment* new_environment(Environment* enclosing);
 void env_define(Environment* env, char* name, Value value);
 int env_get(Environment* env, char* name, Value* out);
 
-// Évaluation
-Value eval(ASTNode* node, Environment* env);
-Value eval_block(ASTNode* node, Environment* env);
-
 // Variables globales
 extern Environment* global_env;
-
-// Fonctions utilitaires
-void fatal_error(const char* fmt, ...);
 
 #endif
