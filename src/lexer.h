@@ -1,6 +1,7 @@
 #ifndef LEXER_H
 #define LEXER_H
 
+#include <stdint.h>  // Ajoute cet include
 #include "common.h"
 
 typedef struct {
