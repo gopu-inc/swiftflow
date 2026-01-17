@@ -29,7 +29,7 @@ Value native_print(Value* args, int count, Environment* env) {
 }
 
 Value native_log(Value* args, int count, Environment* env) {
-    printf("📝 LOG: ");
+    printf("\03;033m[INFO]\0;033mLOG: ");
     native_print(args, count, env);
     return make_nil();
 }
