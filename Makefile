@@ -9,11 +9,12 @@ SRCS = $(SRC_DIR)/main.c \
        $(SRC_DIR)/value.c \
        $(SRC_DIR)/interpreter.c \
        $(SRC_DIR)/native.c \
-       $(SRC_DIR)/parser.c
+       $(SRC_DIR)/parser.c \
+       $(SRC_DIR)/lexer.c
 
 OBJS = $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(SRCS))
 
-TARGET = swft
+TARGET = swiftvelox
 
 all: $(TARGET)
 
