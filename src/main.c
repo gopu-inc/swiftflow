@@ -198,9 +198,9 @@ struct Environment {
 };
 
 // ===== VARIABLES GLOBALES =====
-Scanner scanner = {0};
-Token current_token = {0};
-Token previous_token = {0};
+Scanner scanner;
+Token current_token;
+Token previous_token;
 int had_error = 0;
 int panic_mode = 0;
 ASTNode* current_function = NULL;
@@ -619,17 +619,45 @@ Token scan_token() {
         case ';': return make_token(TK_SEMICOLON);
         case ',': return make_token(TK_COMMA);
         case '.': return make_token(TK_DOT);
-        case '-': return make_token(match_char('>') ? TK_ARROW : TK_MINUS);
+        case '-': 
+            if (match_char('>')) {
+                return make_token(TK_ARROW);
+            }
+            return make_token(TK_MINUS);
         case '+': return make_token(TK_PLUS);
         case '/': return make_token(TK_SLASH);
         case '*': return make_token(TK_STAR);
-        case '!': return make_token(match_char('=') ? TK_BANGEQ : TK_BANG);
-        case '=': return make_token(match_char('=') ? TK_EQEQ : TK_EQ);
-        case '<': return make_token(match_char('=') ? TK_LTEQ : TK_LT);
-        case '>': return make_token(match_char('=') ? TK_GTEQ : TK_GT);
+        case '!':
+            if (match_char('=')) {
+                return make_token(TK_BANGEQ);
+            }
+            return make_token(TK_BANG);
+        case '=':
+            if (match_char('=')) {
+                return make_token(TK_EQEQ);
+            }
+            return make_token(TK_EQ);
+        case '<':
+            if (match_char('=')) {
+                return make_token(TK_LTEQ);
+            }
+            return make_token(TK_LT);
+        case '>':
+            if (match_char('=')) {
+                return make_token(TK_GTEQ);
+            }
+            return make_token(TK_GT);
         case '"': return string_literal();
-        case '&': return make_token(match_char('&') ? TK_AND : TK_AMPERSAND);
-        case '|': return make_token(match_char('|') ? TK_OR : TK_BAR);
+        case '&':
+            if (match_char('&')) {
+                return make_token(TK_AND);
+            }
+            return make_token(TK_AMPERSAND);
+        case '|':
+            if (match_char('|')) {
+                return make_token(TK_OR);
+            }
+            return make_token(TK_BAR);
         case '%': return make_token(TK_PERCENT);
         case ':': return make_token(TK_COLON);
         case '?': return make_token(TK_QUESTION);
@@ -670,15 +698,6 @@ int match(TokenType type) {
     return 0;
 }
 
-void consume(TokenType type, const char* message) {
-    if (current_token.type == type) {
-        next_token();
-        return;
-    }
-    
-    syntax_error(current_token, message);
-}
-
 void syntax_error(Token token, const char* message) {
     if (panic_mode) return;
     panic_mode = 1;
@@ -686,6 +705,15 @@ void syntax_error(Token token, const char* message) {
     fprintf(stderr, RED "[SYNTAX ERROR]" NC " Ligne %d:%d: %s\n", 
             token.line, token.col, message);
     had_error = 1;
+}
+
+void consume(TokenType type, const char* message) {
+    if (current_token.type == type) {
+        next_token();
+        return;
+    }
+    
+    syntax_error(current_token, message);
 }
 
 // ===== PARSER =====
@@ -701,12 +729,12 @@ ASTNode* new_node(NodeType type) {
 }
 
 // Déclarations anticipées
-ASTNode* expression();
-ASTNode* statement();
-ASTNode* declaration();
+ASTNode* expression(void);
+ASTNode* statement(void);
+ASTNode* declaration(void);
 
 // Primary expressions
-ASTNode* primary() {
+ASTNode* primary(void) {
     if (match(TK_NUMBER) || match(TK_STRING_LIT) || 
         match(TK_TRUE) || match(TK_FALSE) || match(TK_NIL)) {
         ASTNode* n = new_node(NODE_LITERAL);
@@ -729,7 +757,7 @@ ASTNode* primary() {
 }
 
 // Call expressions
-ASTNode* call() {
+ASTNode* call(void) {
     ASTNode* expr = primary();
     
     if (match(TK_LPAREN)) {
@@ -750,7 +778,7 @@ ASTNode* call() {
 }
 
 // Unary operators
-ASTNode* unary() {
+ASTNode* unary(void) {
     if (match(TK_MINUS) || match(TK_BANG)) {
         ASTNode* n = new_node(NODE_UNARY);
         n->token = previous_token;
@@ -762,7 +790,7 @@ ASTNode* unary() {
 }
 
 // Multiplication and division
-ASTNode* factor() {
+ASTNode* factor(void) {
     ASTNode* expr = unary();
     
     while (match(TK_STAR) || match(TK_SLASH) || match(TK_PERCENT)) {
@@ -777,7 +805,7 @@ ASTNode* factor() {
 }
 
 // Addition and subtraction
-ASTNode* term() {
+ASTNode* term(void) {
     ASTNode* expr = factor();
     
     while (match(TK_PLUS) || match(TK_MINUS)) {
@@ -792,7 +820,7 @@ ASTNode* term() {
 }
 
 // Comparison operators
-ASTNode* comparison() {
+ASTNode* comparison(void) {
     ASTNode* expr = term();
     
     while (match(TK_EQEQ) || match(TK_BANGEQ) || 
@@ -809,7 +837,7 @@ ASTNode* comparison() {
 }
 
 // Assignment
-ASTNode* assignment() {
+ASTNode* assignment(void) {
     ASTNode* expr = comparison();
     
     if (match(TK_EQ)) {
@@ -824,12 +852,12 @@ ASTNode* assignment() {
 }
 
 // Expression
-ASTNode* expression() {
+ASTNode* expression(void) {
     return assignment();
 }
 
 // Expression statement
-ASTNode* expression_statement() {
+ASTNode* expression_statement(void) {
     ASTNode* expr = expression();
     consume(TK_SEMICOLON, "';' attendu");
     
@@ -839,7 +867,7 @@ ASTNode* expression_statement() {
 }
 
 // Variable declaration
-ASTNode* var_declaration() {
+ASTNode* var_declaration(void) {
     TokenType decl_type = current_token.type;
     next_token(); // Skip let/const/var
     
@@ -857,7 +885,7 @@ ASTNode* var_declaration() {
 }
 
 // Block statement
-ASTNode* block_statement() {
+ASTNode* block_statement(void) {
     ASTNode* n = new_node(NODE_BLOCK);
     
     consume(TK_LBRACE, "'{' attendu");
@@ -872,7 +900,7 @@ ASTNode* block_statement() {
 }
 
 // If statement
-ASTNode* if_statement() {
+ASTNode* if_statement(void) {
     ASTNode* n = new_node(NODE_IF);
     
     consume(TK_LPAREN, "'(' attendu après 'if'");
@@ -894,7 +922,7 @@ ASTNode* if_statement() {
 }
 
 // While statement
-ASTNode* while_statement() {
+ASTNode* while_statement(void) {
     ASTNode* n = new_node(NODE_WHILE);
     
     consume(TK_LPAREN, "'(' attendu après 'while'");
@@ -906,7 +934,7 @@ ASTNode* while_statement() {
 }
 
 // Return statement
-ASTNode* return_statement() {
+ASTNode* return_statement(void) {
     ASTNode* n = new_node(NODE_RETURN);
     
     if (current_token.type != TK_SEMICOLON) {
@@ -918,7 +946,7 @@ ASTNode* return_statement() {
 }
 
 // Function declaration
-ASTNode* function_declaration() {
+ASTNode* function_declaration(void) {
     ASTNode* n = new_node(NODE_FUNCTION);
     
     consume(TK_IDENTIFIER, "Nom de fonction attendu");
@@ -951,7 +979,7 @@ ASTNode* function_declaration() {
 }
 
 // Statement
-ASTNode* statement() {
+ASTNode* statement(void) {
     if (match(TK_IF)) return if_statement();
     if (match(TK_WHILE)) return while_statement();
     if (match(TK_RETURN)) return return_statement();
@@ -961,7 +989,7 @@ ASTNode* statement() {
 }
 
 // Declaration (top-level)
-ASTNode* declaration() {
+ASTNode* declaration(void) {
     if (match(TK_LET) || match(TK_CONST) || match(TK_VAR)) {
         return var_declaration();
     }
@@ -1355,6 +1383,7 @@ Value eval(void* node_ptr, Environment* env) {
 
 // ===== NATIVE FUNCTIONS =====
 Value native_print(Value* args, int count, Environment* env) {
+    (void)env; // Unused parameter
     for (int i = 0; i < count; i++) {
         Value v = args[i];
         switch (v.type) {
@@ -1372,6 +1401,7 @@ Value native_print(Value* args, int count, Environment* env) {
 }
 
 Value native_http_run(Value* args, int count, Environment* env) {
+    (void)env; // Unused parameter
     printf(BLUE "[INFO]" NC " Serveur HTTP (en développement)\n");
     printf(BLUE "[INFO]" NC " Port configuré: %lld\n", count > 0 ? args[0].integer : 8080);
     printf(YELLOW "[WARNING]" NC " Fonctionnalité en cours d'implémentation\n");
@@ -1385,6 +1415,7 @@ Value native_time(Value* args, int count, Environment* env) {
 
 Value native_random(Value* args, int count, Environment* env) {
     (void)args; (void)count; (void)env;
+    srand(time(NULL));
     return make_number((double)rand() / RAND_MAX);
 }
 
@@ -1404,14 +1435,6 @@ void register_natives(Environment* env) {
     native_val.native.fn = native_random;
     env_define(env, "random", native_val);
 }
-
-// ===== RUNTIME FUNCTIONS =====
-double sv_sin(double x) { return sin(x); }
-double sv_cos(double x) { return cos(x); }
-double sv_tan(double x) { return tan(x); }
-double sv_sqrt(double x) { return sqrt(x); }
-double sv_pow(double x, double y) { return pow(x, y); }
-double sv_abs(double x) { return fabs(x); }
 
 // ===== MAIN FUNCTION =====
 int main(int argc, char** argv) {
@@ -1606,10 +1629,7 @@ int main(int argc, char** argv) {
         }
         
         log_error("Commande inconnue: %s", argv[1]);
-        printf("Utilisez 'sw        }
-        
-        log_error("Commande inconnue: %s", argv[1]);
-        printf("Utilisez 'swiftvelox' sans argumentsiftvelox' sans arguments pour l'aide\n");
+        printf("Utilisez 'swiftvelox' sans arguments pour l'aide\n");
         return 1;
     }
     
