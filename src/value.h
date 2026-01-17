@@ -1,25 +1,14 @@
 #ifndef VALUE_H
 #define VALUE_H
 
-#include <stdint.h>
-
-// ===== TYPES DE DONNÉES =====
-typedef enum {
-    VAL_NIL, VAL_BOOL, VAL_INT, VAL_FLOAT, 
-    VAL_STRING, VAL_FUNCTION, VAL_NATIVE, VAL_RETURN_SIG,
-    VAL_ARRAY, VAL_OBJECT, VAL_CLOSURE, VAL_GENERATOR,
-    VAL_PROMISE, VAL_ERROR, VAL_REGEX, VAL_BUFFER,
-    VAL_DATE, VAL_SYMBOL, VAL_BIGINT, VAL_ITERATOR,
-    VAL_BREAK, VAL_CONTINUE, VAL_EXPR
-} ValueType;
+#include "common.h"
 
 // Déclarations anticipées
 typedef struct ASTNode ASTNode;
 typedef struct Environment Environment;
-typedef struct Value Value;
 
 // Structure Value complète
-struct Value {
+typedef struct Value {
     ValueType type;
     union {
         int boolean;
@@ -27,19 +16,19 @@ struct Value {
         double number;
         char* string;
         struct {
-            Value* items;
+            struct Value* items;
             int count;
             int capacity;
         } array;
         struct {
             char** keys;
-            Value* values;
+            struct Value* values;
             int count;
             int capacity;
         } object;
         struct {
             char* name;
-            Value (*fn)(Value*, int, Environment*);
+            struct Value (*fn)(struct Value*, int, Environment*);
         } native;
         struct {
             ASTNode* declaration;
@@ -52,14 +41,14 @@ struct Value {
         } generator;
         struct {
             int resolved;
-            Value value;
+            struct Value value;
         } promise;
         struct {
             char* message;
-            Value data;
+            struct Value data;
         } error;
     };
-};
+} Value;
 
 // Fonctions utilitaires pour Value
 Value make_number(double value);
