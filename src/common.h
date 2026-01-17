@@ -1,6 +1,6 @@
 #ifndef COMMON_H
 #define COMMON_H
-
+#include <stdint.h>
 // ===== CONFIGURATION =====
 #define VERSION "4.0.0"
 #define LIB_PATH "/usr/local/lib/swiftvelox/"
