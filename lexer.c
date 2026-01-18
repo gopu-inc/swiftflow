@@ -93,6 +93,15 @@ static void skipWhitespace() {
             case '/':
                 if (peekNext() == '/') { // Commentaire //
                     while (peek() != '\n' && !isAtEnd()) advance();
+                } else if (peekNext() == '*') { // Commentaire /* */
+                    advance(); advance(); // Skip /*
+                    while (!(peek() == '*' && peekNext() == '/') && !isAtEnd()) {
+                        if (peek() == '\n') lexer.line++;
+                        advance();
+                    }
+                    if (!isAtEnd()) {
+                        advance(); advance(); // Skip */
+                    }
                 } else {
                     return;
                 }
@@ -104,19 +113,63 @@ static void skipWhitespace() {
 }
 
 // ======================================================
-// [SECTION] STRING LEXING
+// [SECTION] CHAR LEXING
+// ======================================================
+static Token character() {
+    advance(); // Skip opening quote
+    
+    char c = advance();
+    char value = c;
+    
+    // Handle escape sequences
+    if (c == '\\') {
+        c = advance();
+        switch (c) {
+            case 'n': value = '\n'; break;
+            case 't': value = '\t'; break;
+            case 'r': value = '\r'; break;
+            case '\\': value = '\\'; break;
+            case '\'': value = '\''; break;
+            case '"': value = '"'; break;
+            case '0': value = '\0'; break;
+            default: value = c; break;
+        }
+    }
+    
+    if (peek() != '\'') {
+        return errorToken("Unterminated character literal");
+    }
+    advance(); // Skip closing quote
+    
+    Token token = makeToken(TK_CHAR);
+    token.value.char_val = value;
+    return token;
+}
+
+// ======================================================
+// [SECTION] STRING LEXING (avec support JSON et couleurs)
 // ======================================================
 static Token string(char quote_char) {
-    // Skip opening quote (déjà consommé)
-    
     while (peek() != quote_char && !isAtEnd()) {
         if (peek() == '\n') lexer.line++;
         if (peek() == '\\') { // Handle escape sequences
             advance();
             switch (peek()) {
                 case 'n': case 't': case 'r': case '\\': 
-                case '"': case '\'':  // Support both quote types in escapes
+                case '"': case '\'': case '0':  // Support escape chars
                     advance();
+                    break;
+                case 'x': // Hex escape \x1B
+                    advance(); // Skip 'x'
+                    if (isxdigit(peek()) && isxdigit(peekNext())) {
+                        advance(); advance(); // Skip hex digits
+                    }
+                    break;
+                case 'u': // Unicode escape \uXXXX
+                    advance(); // Skip 'u'
+                    for (int i = 0; i < 4 && isxdigit(peek()); i++) {
+                        advance();
+                    }
                     break;
                 default:
                     advance(); // Just skip unknown escape
@@ -133,14 +186,12 @@ static Token string(char quote_char) {
         return errorToken(error_msg);
     }
     
-    // Skip closing quote
-    advance();
+    advance(); // Skip closing quote
     
     // Extract string without quotes
-    int length = (int)(lexer.current - lexer.start - 2); // -2 for quotes
+    int length = (int)(lexer.current - lexer.start - 2);
     char* str = malloc(length + 1);
     if (str) {
-        // Copy string content (skip quotes)
         const char* src = lexer.start + 1;
         char* dest = str;
         int dest_idx = 0;
@@ -156,6 +207,16 @@ static Token string(char quote_char) {
                         case '\\': str[dest_idx++] = '\\'; break;
                         case '"': str[dest_idx++] = '"'; break;
                         case '\'': str[dest_idx++] = '\''; break;
+                        case '0': str[dest_idx++] = '\0'; break;
+                        case 'x': // Hex escape \x1B
+                            if (i + 2 < length) {
+                                char hex[3] = {src[i+1], src[i+2], '\0'};
+                                int val;
+                                sscanf(hex, "%x", &val);
+                                str[dest_idx++] = (char)val;
+                                i += 2;
+                            }
+                            break;
                         default: str[dest_idx++] = src[i]; break;
                     }
                 }
@@ -176,46 +237,56 @@ static Token string(char quote_char) {
 // ======================================================
 static Token number() {
     bool is_float = false;
+    bool is_hex = false;
     
-    // Integer part
-    while (isdigit(peek())) advance();
-    
-    // Decimal part
-    if (peek() == '.' && isdigit(peekNext())) {
-        is_float = true;
-        advance(); // Consume '.'
-        while (isdigit(peek())) advance();
-    }
-    
-    if (is_float) {
-        // Parse as float
-        int length = (int)(lexer.current - lexer.start);
-        char* num_str = malloc(length + 1);
-        if (num_str) {
-            strncpy(num_str, lexer.start, length);
-            num_str[length] = '\0';
-            
-            Token token = makeToken(TK_FLOAT);
-            token.value.float_val = atof(num_str);
-            free(num_str);
-            return token;
-        }
+    // Check for hex
+    if (peek() == '0' && (peekNext() == 'x' || peekNext() == 'X')) {
+        is_hex = true;
+        advance(); // Skip '0'
+        advance(); // Skip 'x'
+        
+        while (isxdigit(peek())) advance();
     } else {
-        // Parse as integer
-        int length = (int)(lexer.current - lexer.start);
-        char* num_str = malloc(length + 1);
-        if (num_str) {
-            strncpy(num_str, lexer.start, length);
-            num_str[length] = '\0';
-            
-            Token token = makeToken(TK_INT);
-            token.value.int_val = atoll(num_str);
-            free(num_str);
-            return token;
+        // Decimal
+        while (isdigit(peek())) advance();
+        
+        // Decimal part
+        if (peek() == '.' && isdigit(peekNext())) {
+            is_float = true;
+            advance(); // Consume '.'
+            while (isdigit(peek())) advance();
+        }
+        
+        // Scientific notation
+        if (peek() == 'e' || peek() == 'E') {
+            is_float = true;
+            advance(); // Consume 'e'
+            if (peek() == '+' || peek() == '-') advance();
+            while (isdigit(peek())) advance();
         }
     }
     
-    return errorToken("Failed to parse number");
+    int length = (int)(lexer.current - lexer.start);
+    char* num_str = malloc(length + 1);
+    if (!num_str) return errorToken("Failed to allocate memory");
+    
+    strncpy(num_str, lexer.start, length);
+    num_str[length] = '\0';
+    
+    Token token;
+    if (is_float) {
+        token = makeToken(TK_FLOAT);
+        token.value.float_val = atof(num_str);
+    } else if (is_hex) {
+        token = makeToken(TK_INT);
+        token.value.int_val = strtoll(num_str, NULL, 16);
+    } else {
+        token = makeToken(TK_INT);
+        token.value.int_val = atoll(num_str);
+    }
+    
+    free(num_str);
+    return token;
 }
 
 // ======================================================
@@ -230,7 +301,7 @@ static bool isAlphaNumeric(char c) {
 }
 
 static Token identifier() {
-    while (isAlphaNumeric(peek()) || peek() == '.') advance();
+    while (isAlphaNumeric(peek())) advance();
     
     int length = (int)(lexer.current - lexer.start);
     char* text = malloc(length + 1);
@@ -241,75 +312,21 @@ static Token identifier() {
     
     // Check for keywords
     if (text) {
-        if (strcmp(text, "var") == 0) {
-            free(text);
-            return makeToken(TK_VAR);
+        for (int i = 0; keywords[i].keyword != NULL; i++) {
+            if (strcmp(text, keywords[i].keyword) == 0) {
+                free(text);
+                return makeToken(keywords[i].kind);
+            }
         }
-        if (strcmp(text, "print") == 0) {
+        
+        // Check for "null" literal
+        if (strcmp(text, "null") == 0) {
             free(text);
-            return makeToken(TK_PRINT);
-        }
-        if (strcmp(text, "if") == 0) {
-            free(text);
-            return makeToken(TK_IF);
-        }
-        if (strcmp(text, "else") == 0) {
-            free(text);
-            return makeToken(TK_ELSE);
-        }
-        if (strcmp(text, "while") == 0) {
-            free(text);
-            return makeToken(TK_WHILE);
-        }
-        if (strcmp(text, "for") == 0) {
-            free(text);
-            return makeToken(TK_FOR);
-        }
-        if (strcmp(text, "func") == 0) {
-            free(text);
-            return makeToken(TK_FUNC);
-        }
-        if (strcmp(text, "return") == 0) {
-            free(text);
-            return makeToken(TK_RETURN);
-        }
-        if (strcmp(text, "import") == 0) {
-            free(text);
-            return makeToken(TK_IMPORT);
-        }
-        if (strcmp(text, "true") == 0) {
-            free(text);
-            return makeToken(TK_TRUE);
-        }
-        if (strcmp(text, "false") == 0) {
-            free(text);
-            return makeToken(TK_FALSE);
-        }
-        if (strcmp(text, "int") == 0) {
-            free(text);
-            return makeToken(TK_TYPE_INT);
-        }
-        if (strcmp(text, "float") == 0) {
-            free(text);
-            return makeToken(TK_TYPE_FLOAT);
-        }
-        if (strcmp(text, "string") == 0) {
-            free(text);
-            return makeToken(TK_TYPE_STR);
-        }
-        if (strcmp(text, "bool") == 0) {
-            free(text);
-            return makeToken(TK_TYPE_BOOL);
-        }
-        if (strcmp(text, "from") == 0) {
-            free(text);
-            // "from" est traité comme un identifiant spécial
-            Token token = makeToken(TK_IDENT);
-            token.value.str_val = str_copy("from");
+            Token token = makeToken(TK_NULL);
             return token;
         }
         
-        // Si not a keyword, it's an identifier
+        // If not a keyword, it's an identifier
         Token token = makeToken(TK_IDENT);
         token.value.str_val = text;
         return token;
@@ -336,6 +353,8 @@ Token scanToken() {
         case ')': return makeToken(TK_RPAREN);
         case '{': return makeToken(TK_LBRACE);
         case '}': return makeToken(TK_RBRACE);
+        case '[': return makeToken(TK_LBRACKET);
+        case ']': return makeToken(TK_RBRACKET);
         case ',': return makeToken(TK_COMMA);
         case ';': return makeToken(TK_SEMICOLON);
         case ':': return makeToken(TK_COLON);
@@ -370,9 +389,9 @@ Token scanToken() {
             if (match('|')) return makeToken(TK_OR);
             break;
         
-        // String literal - support BOTH single and double quotes
-        case '"': return string('"');   // Double quotes
-        case '\'': return string('\''); // Single quotes
+        // String and character literals
+        case '"': return string('"');
+        case '\'': return character();
     }
     
     // Numbers
@@ -395,16 +414,27 @@ const char* tokenKindToString(TokenKind kind) {
         case TK_INT: return "TK_INT";
         case TK_FLOAT: return "TK_FLOAT";
         case TK_STRING: return "TK_STRING";
+        case TK_CHAR: return "TK_CHAR";
         case TK_IDENT: return "TK_IDENT";
+        case TK_NULL: return "TK_NULL";
+        case TK_TRUE: return "TK_TRUE";
+        case TK_FALSE: return "TK_FALSE";
+        
         case TK_PLUS: return "TK_PLUS";
         case TK_MINUS: return "TK_MINUS";
         case TK_MULT: return "TK_MULT";
         case TK_DIV: return "TK_DIV";
         case TK_MOD: return "TK_MOD";
+        
         case TK_EQ: return "TK_EQ";
         case TK_NEQ: return "TK_NEQ";
         case TK_ASSIGN: return "TK_ASSIGN";
+        
         case TK_VAR: return "TK_VAR";
+        case TK_NIP: return "TK_NIP";
+        case TK_SIM: return "TK_SIM";
+        case TK_NUUM: return "TK_NUUM";
+        
         case TK_PRINT: return "TK_PRINT";
         case TK_IF: return "TK_IF";
         case TK_ELSE: return "TK_ELSE";
@@ -412,19 +442,32 @@ const char* tokenKindToString(TokenKind kind) {
         case TK_FOR: return "TK_FOR";
         case TK_FUNC: return "TK_FUNC";
         case TK_RETURN: return "TK_RETURN";
+        case TK_MAIN: return "TK_MAIN";
         case TK_IMPORT: return "TK_IMPORT";
-        case TK_TRUE: return "TK_TRUE";
-        case TK_FALSE: return "TK_FALSE";
+        case TK_JSON: return "TK_JSON";
+        
+        case TK_CLASS: return "TK_CLASS";
+        case TK_TYPELOCK: return "TK_TYPELOCK";
+        case TK_ZIS: return "TK_ZIS";
+        case TK_SIZEOF: return "TK_SIZEOF";
+        
+        case TK_TYPE_INT: return "TK_TYPE_INT";
+        case TK_TYPE_FLOAT: return "TK_TYPE_FLOAT";
+        case TK_TYPE_STR: return "TK_TYPE_STR";
+        case TK_TYPE_BOOL: return "TK_TYPE_BOOL";
+        case TK_TYPE_CHAR: return "TK_TYPE_CHAR";
+        
         case TK_LPAREN: return "TK_LPAREN";
         case TK_RPAREN: return "TK_RPAREN";
         case TK_LBRACE: return "TK_LBRACE";
         case TK_RBRACE: return "TK_RBRACE";
+        case TK_LBRACKET: return "TK_LBRACKET";
+        case TK_RBRACKET: return "TK_RBRACKET";
         case TK_COMMA: return "TK_COMMA";
         case TK_SEMICOLON: return "TK_SEMICOLON";
         case TK_COLON: return "TK_COLON";
         case TK_PERIOD: return "TK_PERIOD";
-        case TK_EOF: return "TK_EOF";
-        case TK_ERROR: return "TK_ERROR";
+        
         case TK_AND: return "TK_AND";
         case TK_OR: return "TK_OR";
         case TK_NOT: return "TK_NOT";
@@ -432,10 +475,10 @@ const char* tokenKindToString(TokenKind kind) {
         case TK_LT: return "TK_LT";
         case TK_GTE: return "TK_GTE";
         case TK_LTE: return "TK_LTE";
-        case TK_TYPE_INT: return "TK_TYPE_INT";
-        case TK_TYPE_FLOAT: return "TK_TYPE_FLOAT";
-        case TK_TYPE_STR: return "TK_TYPE_STR";
-        case TK_TYPE_BOOL: return "TK_TYPE_BOOL";
+        
+        case TK_EOF: return "TK_EOF";
+        case TK_ERROR: return "TK_ERROR";
+        
         default: return "TK_UNKNOWN";
     }
 }
@@ -449,6 +492,8 @@ void printToken(Token token) {
         printf("%lld", token.value.int_val);
     } else if (token.kind == TK_FLOAT) {
         printf("%f", token.value.float_val);
+    } else if (token.kind == TK_CHAR) {
+        printf("%c", token.value.char_val);
     } else {
         for (int i = 0; i < token.length; i++) {
             putchar(token.start[i]);
