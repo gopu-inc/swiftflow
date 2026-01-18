@@ -87,20 +87,20 @@ static void skipWhitespace() {
                 lexer.line++;
                 advance();
                 break;
-            case '#': // Commentaire avec #
+            case '#':
                 while (peek() != '\n' && !isAtEnd()) advance();
                 break;
             case '/':
-                if (peekNext() == '/') { // Commentaire //
+                if (peekNext() == '/') {
                     while (peek() != '\n' && !isAtEnd()) advance();
-                } else if (peekNext() == '*') { // Commentaire /* */
-                    advance(); advance(); // Skip /*
+                } else if (peekNext() == '*') {
+                    advance(); advance();
                     while (!(peek() == '*' && peekNext() == '/') && !isAtEnd()) {
                         if (peek() == '\n') lexer.line++;
                         advance();
                     }
                     if (!isAtEnd()) {
-                        advance(); advance(); // Skip */
+                        advance(); advance();
                     }
                 } else {
                     return;
@@ -116,12 +116,11 @@ static void skipWhitespace() {
 // [SECTION] CHAR LEXING
 // ======================================================
 static Token character() {
-    advance(); // Skip opening quote
+    advance();
     
     char c = advance();
     char value = c;
     
-    // Handle escape sequences
     if (c == '\\') {
         c = advance();
         switch (c) {
@@ -139,7 +138,7 @@ static Token character() {
     if (peek() != '\'') {
         return errorToken("Unterminated character literal");
     }
-    advance(); // Skip closing quote
+    advance();
     
     Token token = makeToken(TK_CHAR);
     token.value.char_val = value;
@@ -147,32 +146,32 @@ static Token character() {
 }
 
 // ======================================================
-// [SECTION] STRING LEXING (avec support JSON et couleurs)
+// [SECTION] STRING LEXING
 // ======================================================
 static Token string(char quote_char) {
     while (peek() != quote_char && !isAtEnd()) {
         if (peek() == '\n') lexer.line++;
-        if (peek() == '\\') { // Handle escape sequences
+        if (peek() == '\\') {
             advance();
             switch (peek()) {
                 case 'n': case 't': case 'r': case '\\': 
-                case '"': case '\'': case '0':  // Support escape chars
+                case '"': case '\'': case '0':
                     advance();
                     break;
-                case 'x': // Hex escape \x1B
-                    advance(); // Skip 'x'
+                case 'x':
+                    advance();
                     if (isxdigit(peek()) && isxdigit(peekNext())) {
-                        advance(); advance(); // Skip hex digits
+                        advance(); advance();
                     }
                     break;
-                case 'u': // Unicode escape \uXXXX
-                    advance(); // Skip 'u'
+                case 'u':
+                    advance();
                     for (int i = 0; i < 4 && isxdigit(peek()); i++) {
                         advance();
                     }
                     break;
                 default:
-                    advance(); // Just skip unknown escape
+                    advance();
                     break;
             }
         } else {
@@ -186,19 +185,17 @@ static Token string(char quote_char) {
         return errorToken(error_msg);
     }
     
-    advance(); // Skip closing quote
+    advance();
     
-    // Extract string without quotes
     int length = (int)(lexer.current - lexer.start - 2);
     char* str = malloc(length + 1);
     if (str) {
         const char* src = lexer.start + 1;
-        char* dest = str;
         int dest_idx = 0;
         
         for (int i = 0; i < length; i++) {
             if (src[i] == '\\') {
-                i++; // Skip backslash
+                i++;
                 if (i < length) {
                     switch (src[i]) {
                         case 'n': str[dest_idx++] = '\n'; break;
@@ -208,7 +205,7 @@ static Token string(char quote_char) {
                         case '"': str[dest_idx++] = '"'; break;
                         case '\'': str[dest_idx++] = '\''; break;
                         case '0': str[dest_idx++] = '\0'; break;
-                        case 'x': // Hex escape \x1B
+                        case 'x':
                             if (i + 2 < length) {
                                 char hex[3] = {src[i+1], src[i+2], '\0'};
                                 int val;
@@ -239,28 +236,24 @@ static Token number() {
     bool is_float = false;
     bool is_hex = false;
     
-    // Check for hex
     if (peek() == '0' && (peekNext() == 'x' || peekNext() == 'X')) {
         is_hex = true;
-        advance(); // Skip '0'
-        advance(); // Skip 'x'
+        advance();
+        advance();
         
         while (isxdigit(peek())) advance();
     } else {
-        // Decimal
         while (isdigit(peek())) advance();
         
-        // Decimal part
         if (peek() == '.' && isdigit(peekNext())) {
             is_float = true;
-            advance(); // Consume '.'
+            advance();
             while (isdigit(peek())) advance();
         }
         
-        // Scientific notation
         if (peek() == 'e' || peek() == 'E') {
             is_float = true;
-            advance(); // Consume 'e'
+            advance();
             if (peek() == '+' || peek() == '-') advance();
             while (isdigit(peek())) advance();
         }
@@ -310,7 +303,6 @@ static Token identifier() {
         text[length] = '\0';
     }
     
-    // Check for keywords
     if (text) {
         for (int i = 0; keywords[i].keyword != NULL; i++) {
             if (strcmp(text, keywords[i].keyword) == 0) {
@@ -319,14 +311,12 @@ static Token identifier() {
             }
         }
         
-        // Check for "null" literal
         if (strcmp(text, "null") == 0) {
             free(text);
             Token token = makeToken(TK_NULL);
             return token;
         }
         
-        // If not a keyword, it's an identifier
         Token token = makeToken(TK_IDENT);
         token.value.str_val = text;
         return token;
@@ -347,7 +337,6 @@ Token scanToken() {
     
     char c = advance();
     
-    // Single character tokens
     switch (c) {
         case '(': return makeToken(TK_LPAREN);
         case ')': return makeToken(TK_RPAREN);
@@ -360,14 +349,12 @@ Token scanToken() {
         case ':': return makeToken(TK_COLON);
         case '.': return makeToken(TK_PERIOD);
         
-        // Operators
         case '+': return makeToken(TK_PLUS);
         case '-': return makeToken(TK_MINUS);
         case '*': return makeToken(TK_MULT);
         case '/': return makeToken(TK_DIV);
         case '%': return makeToken(TK_MOD);
         
-        // Comparison and assignment
         case '=':
             if (match('=')) return makeToken(TK_EQ);
             return makeToken(TK_ASSIGN);
@@ -381,7 +368,6 @@ Token scanToken() {
             if (match('=')) return makeToken(TK_GTE);
             return makeToken(TK_GT);
         
-        // Logical operators
         case '&':
             if (match('&')) return makeToken(TK_AND);
             break;
@@ -389,18 +375,14 @@ Token scanToken() {
             if (match('|')) return makeToken(TK_OR);
             break;
         
-        // String and character literals
         case '"': return string('"');
         case '\'': return character();
     }
     
-    // Numbers
     if (isdigit(c)) return number();
     
-    // Identifiers and keywords
     if (isAlpha(c)) return identifier();
     
-    // Unknown character
     char error_msg[32];
     snprintf(error_msg, sizeof(error_msg), "Unexpected character: '%c'", c);
     return errorToken(error_msg);
