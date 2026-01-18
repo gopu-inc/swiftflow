@@ -1,17 +1,23 @@
 CC = gcc
-CFLAGS = -std=c99 -Wall -Os -I.  # -Os pour optimisation taille
+CFLAGS = -Wall -Wextra -std=c99 -g
 TARGET = swf
 SOURCES = swf.c lexer.c parser.c
+HEADERS = common.h
+OBJECTS = $(SOURCES:.c=.o)
 
 all: $(TARGET)
 
-$(TARGET): $(SOURCES) common.h
-	$(CC) $(CFLAGS) -o $(TARGET) $(SOURCES)
+$(TARGET): $(OBJECTS)
+	$(CC) $(CFLAGS) -o $(TARGET) $(OBJECTS)
+
+%.o: %.c $(HEADERS)
+	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -f $(TARGET) *.o
+	rm -f $(OBJECTS) $(TARGET)
 
-run: $(TARGET)
-	./$(TARGET)
+test: $(TARGET)
+	@echo "=== Testing ==="
+	@./$(TARGET) test1.swf
 
-.PHONY: all clean run
+.PHONY: all clean test
