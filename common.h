@@ -27,7 +27,7 @@
 // ======================================================
 typedef enum {
     // Literals
-    TK_INT, TK_FLOAT, TK_STRING, TK_TRUE, TK_FALSE, TK_NULL,
+    TK_INT, TK_FLOAT, TK_STRING, TK_CHAR, TK_TRUE, TK_FALSE, TK_NULL,
     // Identifiers
     TK_IDENT,
     // Operators
@@ -70,9 +70,9 @@ typedef struct {
 static const Keyword keywords[] = {
     // Variables types
     {"var", TK_VAR},
-    {"nip", TK_NIP},      // immutable variable
-    {"sim", TK_SIM},      // simple/constant
-    {"nuum", TK_NUUM},    // number only
+    {"nip", TK_NIP},
+    {"sim", TK_SIM},
+    {"nuum", TK_NUUM},
     {"const", TK_CONST},
     
     // Control flow
