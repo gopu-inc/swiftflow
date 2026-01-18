@@ -8,17 +8,6 @@
 extern ASTNode** parse(const char* source, int* count);
 
 // ======================================================
-// [SECTION] COULEURS POUR LE TERMINAL
-// ======================================================
-#define RED     "\033[1;31m"
-#define GREEN   "\033[1;32m"
-#define YELLOW  "\033[1;33m"
-#define BLUE    "\033[1;34m"
-#define MAGENTA "\033[1;35m"
-#define CYAN    "\033[1;36m"
-#define RESET   "\033[0m"
-
-// ======================================================
 // [SECTION] VM STATE
 // ======================================================
 typedef struct {
@@ -60,24 +49,44 @@ static char* findImportFile(const char* module, const char* from_module) {
         return my_strdup(module);
     }
     
-    // Chemin par défaut
-    const char* base_path = from_module ? from_module : "/usr/local/lib/swift/";
+    // Déterminer le chemin de base
+    const char* base_path = "/usr/local/lib/swift/";
+    
+    // ============================================
+    // 1. D'ABORD CHERCHER COMME PACKAGE (DOSSIER)
+    // ============================================
+    char* package_dir = malloc(strlen(base_path) + strlen(module) + 2);
+    sprintf(package_dir, "%s%s/", base_path, module);
+    
+    struct stat st;
+    if (stat(package_dir, &st) == 0 && S_ISDIR(st.st_mode)) {
+        // C'est un dossier package, chercher le fichier .svlib
+        char* svlib_path = malloc(strlen(package_dir) + strlen(module) + 10);
+        sprintf(svlib_path, "%s%s.svlib", package_dir, module);
+        
+        if (access(svlib_path, F_OK) == 0) {
+            printf(CYAN "[PACKAGE]" RESET " Found package: %s\n", module);
+            free(package_dir);
+            return svlib_path;
+        }
+        free(svlib_path);
+    }
+    free(package_dir);
+    
+    // ============================================
+    // 2. SINON CHERCHER COMME FICHIER SIMPLE
+    // ============================================
+    char* path = malloc(strlen(base_path) + strlen(module) + 10);
     
     // Essayer avec .swf
-    char* path = malloc(strlen(base_path) + strlen(module) + 10);
     sprintf(path, "%s%s.swf", base_path, module);
-    
-    FILE* f = fopen(path, "r");
-    if (f) {
-        fclose(f);
+    if (access(path, F_OK) == 0) {
         return path;
     }
     
     // Essayer sans extension
     sprintf(path, "%s%s", base_path, module);
-    f = fopen(path, "r");
-    if (f) {
-        fclose(f);
+    if (access(path, F_OK) == 0) {
         return path;
     }
     
@@ -89,6 +98,8 @@ static void importModule(const char* module, const char* from_module);
 static void run(const char* source, const char* filename);
 
 static void importModule(const char* module, const char* from_module) {
+    printf(YELLOW "[IMPORT]" RESET " Loading: %s\n", module);
+    
     char* path = findImportFile(module, from_module ? my_strdup(from_module) : NULL);
     if (!path) {
         printf(RED "[ERROR]" RESET " Cannot find module: %s\n", module);
@@ -111,22 +122,35 @@ static void importModule(const char* module, const char* from_module) {
     source[size] = '\0';
     fclose(f);
     
+    // Vérifier si c'est un fichier .svlib (package manifest)
+    const char* ext = strrchr(path, '.');
+    bool is_package = ext && strcmp(ext, ".svlib") == 0;
+    
     // Sauvegarder ancien chemin
     char* old_path = vm.import_path ? my_strdup(vm.import_path) : NULL;
     
-    // Définir nouveau chemin
+    // Définir nouveau chemin basé sur le fichier
     char* dir_path = my_strdup(path);
     char* last_slash = strrchr(dir_path, '/');
     if (last_slash) {
-        *last_slash = '\0';
+        if (is_package) {
+            // Pour un package, le chemin est le dossier du package
+            *last_slash = '\0';
+        } else {
+            // Pour un fichier .swf, le chemin est son dossier parent
+            *last_slash = '\0';
+        }
         setImportPath(dir_path);
     }
     free(dir_path);
     
-    // Exécuter
+    // Exécuter le module/package
+    if (is_package) {
+        printf(CYAN "[PACKAGE]" RESET " Executing package manifest\n");
+    }
     run(source, module);
     
-    // Restaurer
+    // Restaurer ancien chemin
     if (old_path) {
         setImportPath(old_path);
         free(old_path);
@@ -323,6 +347,8 @@ static void execute(ASTNode* node) {
 }
 
 static void run(const char* source, const char* filename) {
+    (void)filename; // Supprimer l'avertissement unused parameter
+    
     int count = 0;
     ASTNode** nodes = parse(source, &count);
     
