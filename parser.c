@@ -361,10 +361,8 @@ void executeCode(VM* vm, const char* code) {
 
 // ============ FONCTIONS CLI ============
 void showBanner() {
-    printf("╔══════════════════════════════════════════════════╗\n");
-    printf("║           🚀 SwiftVelox v2.1 🚀                 ║\n");
-    printf("║        Compilateur & Interpréteur               ║\n");
-    printf("╚══════════════════════════════════════════════════╝\n");
+    printf("          🚀 SwiftVelox v2.1 🚀                 \n");
+
 }
 
 void runFile(const char* filename, bool debug) {
