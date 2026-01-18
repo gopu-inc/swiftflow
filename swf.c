@@ -29,6 +29,53 @@ typedef struct {
 static VM vm = {0};
 
 // ======================================================
+// [SECTION] GLOBAL VARIABLES (partagées entre modules)
+// ======================================================
+typedef struct {
+    char name[100];
+    union {
+        int int_val;
+        float float_val;
+    } value;
+    bool is_float;
+    char* module;  // Module d'origine
+} GlobalVariable;
+
+static GlobalVariable global_vars[500];
+static int global_var_count = 0;
+
+static int findGlobalVar(const char* name) {
+    for (int i = 0; i < global_var_count; i++) {
+        if (strcmp(global_vars[i].name, name) == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+static void setGlobalVar(const char* name, float value, bool is_float, const char* module) {
+    int idx = findGlobalVar(name);
+    if (idx >= 0) {
+        // Variable existe déjà, la mettre à jour
+        global_vars[idx].value.float_val = value;
+        global_vars[idx].is_float = is_float;
+        if (module && !global_vars[idx].module) {
+            global_vars[idx].module = str_copy(module);
+        }
+    } else {
+        // Nouvelle variable
+        if (global_var_count < 500) {
+            strncpy(global_vars[global_var_count].name, name, 99);
+            global_vars[global_var_count].name[99] = '\0';
+            global_vars[global_var_count].value.float_val = value;
+            global_vars[global_var_count].is_float = is_float;
+            global_vars[global_var_count].module = module ? str_copy(module) : NULL;
+            global_var_count++;
+        }
+    }
+}
+
+// ======================================================
 // [SECTION] PACKAGE EXPORT SYSTEM
 // ======================================================
 typedef struct {
@@ -82,9 +129,15 @@ static void registerPackageExport(const char* package_name, const char* alias, c
 }
 
 static char* resolvePackageExport(const char* alias, const char* package_name) {
+    printf(CYAN "[RESOLVE]" RESET " Looking for export '%s' in package '%s'\n", 
+           alias, package_name);
+    
     for (int i = 0; i < package_count; i++) {
         if (strcmp(packages[i].name, package_name) == 0) {
             for (int j = 0; j < packages[i].export_count; j++) {
+                printf(CYAN "[RESOLVE]" RESET " Checking export: %s -> %s\n", 
+                       packages[i].exports[j].alias, packages[i].exports[j].module_path);
+                
                 if (strcmp(packages[i].exports[j].alias, alias) == 0) {
                     // Construire le chemin complet
                     char* full_path = malloc(strlen("/usr/local/lib/swift/") + 
@@ -92,11 +145,15 @@ static char* resolvePackageExport(const char* alias, const char* package_name) {
                                             strlen(packages[i].exports[j].module_path) + 10);
                     sprintf(full_path, "/usr/local/lib/swift/%s/%s", 
                             package_name, packages[i].exports[j].module_path);
+                    
+                    printf(CYAN "[RESOLVE]" RESET " Found: %s -> %s\n", alias, full_path);
                     return full_path;
                 }
             }
         }
     }
+    
+    printf(RED "[RESOLVE]" RESET " Export '%s' not found in package '%s'\n", alias, package_name);
     return NULL;
 }
 
@@ -231,9 +288,26 @@ static void importModule(const char* module, const char* from_package);
 static void run(const char* source, const char* filename);
 
 static void importModule(const char* module, const char* from_package) {
-    printf(YELLOW "[IMPORT]" RESET " Loading: %s", module);
-    if (from_package) printf(" from package: %s", from_package);
+    printf(YELLOW "[IMPORT]" RESET " %s", module);
+    if (from_package) printf(" from %s", from_package);
     printf("\n");
+    
+    // Si on spécifie un package, vérifier s'il est déjà chargé
+    if (from_package) {
+        bool package_loaded = false;
+        for (int i = 0; i < package_count; i++) {
+            if (strcmp(packages[i].name, from_package) == 0) {
+                package_loaded = true;
+                break;
+            }
+        }
+        
+        // Si le package n'est pas chargé, le charger d'abord
+        if (!package_loaded) {
+            printf(CYAN "[PACKAGE]" RESET " Loading package %s for exports\n", from_package);
+            importModule(from_package, NULL);
+        }
+    }
     
     char* path = findImportFile(module, from_package);
     if (!path) {
@@ -337,19 +411,32 @@ static void evalAndPrint(ASTNode* node) {
             break;
             
         case NODE_STRING:
-            printf("%s", node->data.str_val);
+            if (node->data.str_val) {
+                printf("%s", node->data.str_val);
+            }
             break;
             
         case NODE_IDENT: {
-            int idx = findVar(node->data.name);
+            // Chercher d'abord dans les variables globales
+            int idx = findGlobalVar(node->data.name);
             if (idx >= 0) {
-                if (vm.vars[idx].is_float) {
-                    printf("%.2f", vm.vars[idx].value.float_val);
+                if (global_vars[idx].is_float) {
+                    printf("%.2f", global_vars[idx].value.float_val);
                 } else {
-                    printf("%d", vm.vars[idx].value.int_val);
+                    printf("%d", (int)global_vars[idx].value.float_val);
                 }
             } else {
-                printf(RED "[ERROR]" RESET " Undefined variable: %s\n", node->data.name);
+                // Essayer dans les variables locales
+                idx = findVar(node->data.name);
+                if (idx >= 0) {
+                    if (vm.vars[idx].is_float) {
+                        printf("%.2f", vm.vars[idx].value.float_val);
+                    } else {
+                        printf("%d", vm.vars[idx].value.int_val);
+                    }
+                } else {
+                    printf(RED "[ERROR]" RESET " Undefined variable: %s\n", node->data.name);
+                }
             }
             break;
         }
@@ -388,7 +475,14 @@ static float evalFloat(ASTNode* node) {
             return (float)node->data.float_val;
             
         case NODE_IDENT: {
-            int idx = findVar(node->data.name);
+            // Chercher d'abord dans les variables globales
+            int idx = findGlobalVar(node->data.name);
+            if (idx >= 0) {
+                return global_vars[idx].value.float_val;
+            }
+            
+            // Essayer dans les variables locales
+            idx = findVar(node->data.name);
             if (idx >= 0) {
                 if (vm.vars[idx].is_float) {
                     return vm.vars[idx].value.float_val;
@@ -442,16 +536,23 @@ static void execute(ASTNode* node) {
                     vm.vars[vm.count].name[49] = '\0';
                     
                     if (node->left) {
+                        float val = evalFloat(node->left);
                         if (node->left->type == NODE_FLOAT) {
                             vm.vars[vm.count].is_float = true;
-                            vm.vars[vm.count].value.float_val = evalFloat(node->left);
+                            vm.vars[vm.count].value.float_val = val;
                         } else {
                             vm.vars[vm.count].is_float = false;
-                            vm.vars[vm.count].value.int_val = (int)evalFloat(node->left);
+                            vm.vars[vm.count].value.int_val = (int)val;
                         }
+                        
+                        // Stocker aussi dans les variables globales
+                        setGlobalVar(node->data.name, val, 
+                                    (node->left->type == NODE_FLOAT),
+                                    vm.current_package);
                     } else {
                         vm.vars[vm.count].is_float = false;
                         vm.vars[vm.count].value.int_val = 0;
+                        setGlobalVar(node->data.name, 0, false, vm.current_package);
                     }
                     vm.count++;
                 }
@@ -463,14 +564,20 @@ static void execute(ASTNode* node) {
             int idx = findVar(node->data.name);
             if (idx >= 0) {
                 if (node->left) {
+                    float val = evalFloat(node->left);
                     if (vm.vars[idx].is_float || 
                         (node->left->type == NODE_FLOAT)) {
                         vm.vars[idx].is_float = true;
-                        vm.vars[idx].value.float_val = evalFloat(node->left);
+                        vm.vars[idx].value.float_val = val;
                     } else {
                         vm.vars[idx].is_float = false;
-                        vm.vars[idx].value.int_val = (int)evalFloat(node->left);
+                        vm.vars[idx].value.int_val = (int)val;
                     }
+                    
+                    // Mettre à jour les variables globales
+                    setGlobalVar(node->data.name, val, 
+                                (vm.vars[idx].is_float || (node->left && node->left->type == NODE_FLOAT)),
+                                vm.current_package);
                 }
             } else {
                 printf(RED "[ERROR]" RESET " Variable '%s' not found\n", node->data.name);
@@ -565,6 +672,11 @@ static void repl() {
     
     if (vm.import_path) free(vm.import_path);
     if (vm.current_package) free(vm.current_package);
+    
+    // Cleanup global variables
+    for (int i = 0; i < global_var_count; i++) {
+        if (global_vars[i].module) free(global_vars[i].module);
+    }
 }
 
 int main(int argc, char* argv[]) {
@@ -604,6 +716,11 @@ int main(int argc, char* argv[]) {
         
         if (vm.import_path) free(vm.import_path);
         if (vm.current_package) free(vm.current_package);
+        
+        // Cleanup global variables
+        for (int i = 0; i < global_var_count; i++) {
+            if (global_vars[i].module) free(global_vars[i].module);
+        }
     }
     
     return 0;
