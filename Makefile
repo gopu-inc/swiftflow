@@ -1,27 +1,23 @@
-# Makefile for SwiftFlow
 CC = gcc
-CFLAGS = -Wall -Wextra -std=c99 -g -I.
-LDFLAGS = -lm
-
-SRCS = lexer.c parser.c swf.c
-OBJS = $(SRCS:.c=.o)
-TARGET = swiftflow
-
-.PHONY: all clean
+CFLAGS = -Wall -Wextra -std=c99 -g
+TARGET = swf
+SOURCES = swf.c lexer.c parser.c
+HEADERS = common.h
+OBJECTS = $(SOURCES:.c=.o)
 
 all: $(TARGET)
 
-$(TARGET): $(OBJS)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+$(TARGET): $(OBJECTS)
+	$(CC) $(CFLAGS) -o $(TARGET) $(OBJECTS)
 
-%.o: %.c common.h
+%.o: %.c $(HEADERS)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -f $(OBJS) $(TARGET)
+	rm -f $(OBJECTS) $(TARGET)
 
 test: $(TARGET)
-	./$(TARGET) test.swf
+	@echo "=== Testing ==="
+	@./$(TARGET) test1.swf
 
-repl: $(TARGET)
-	./$(TARGET)
+.PHONY: all clean test
