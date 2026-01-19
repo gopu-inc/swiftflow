@@ -66,6 +66,29 @@ typedef enum {
     TK_PRINT, TK_INPUT,
     // Special
     TK_MAIN, TK_THIS, TK_SELF,
+    
+    // AJOUTER CES TOKENS ICI (opérateurs manquants) :
+    // Opérateurs bitwise
+    TK_BIT_AND, TK_BIT_OR, TK_BIT_XOR, TK_BIT_NOT,
+    TK_SHL, TK_SHR,
+    
+    // Opérateurs d'assignation composés
+    TK_PLUS_ASSIGN, TK_MINUS_ASSIGN, TK_MULT_ASSIGN, 
+    TK_DIV_ASSIGN, TK_MOD_ASSIGN,
+    
+    // Opérateurs spéciaux
+    TK_RARROW,    // ->
+    TK_DARROW,    // =>
+    TK_LDARROW,   // <==
+    TK_RDARROW,   // ==>
+    TK_SPACESHIP, // ===
+    
+    // Autres
+    TK_ELLIPSIS,  // ...
+    TK_RANGE,     // ..
+    TK_QUESTION,  // ?
+    TK_SCOPE,     // ::
+    
     // End markers
     TK_EOF, TK_ERROR
 } TokenKind;
