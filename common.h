@@ -87,7 +87,9 @@ typedef enum {
     TK_ELLIPSIS,  // ...
     TK_RANGE,     // ..
     TK_QUESTION,  // ?
-    TK_SCOPE,     // ::
+    TK_SCOPE,     // :: 
+    TK_UNDEFINED,  // Pour 'undefined'
+    TK_THEN,       // Pour 'then' (optionnel dans if)
     
     // End markers
     TK_EOF, TK_ERROR
@@ -163,6 +165,11 @@ static const Keyword keywords[] = {
 // ======================================================
 typedef enum {
     // Expressions
+    NODE_UNDEFINED,
+    NODE_CONST_DECL,
+    
+    // ... fin de l'enum ...
+
     NODE_INT,
     NODE_FLOAT,
     NODE_STRING,
