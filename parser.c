@@ -70,6 +70,8 @@ static void synchronize() {
             case TK_WHILE:
             case TK_PRINT:
             case TK_RETURN:
+            case TK_IMPORT:
+            case TK_EXPORT:
                 return;
             default:
                 break;
@@ -334,6 +336,124 @@ static ASTNode* primary() {
     
     error("Expected expression");
     return NULL;
+}
+
+// ======================================================
+// [SECTION] IMPORT STATEMENT PARSING
+// ======================================================
+static ASTNode* parseImport() {
+    ASTNode* node = newNode(NODE_IMPORT);
+    
+    // Syntax: import "module"
+    // Syntax: import "module1", "module2" from "package"
+    // Syntax: import * from "package"
+    
+    if (!match(TK_STRING)) {
+        error("Expected module name after import");
+        free(node);
+        return NULL;
+    }
+    
+    char** imports = malloc(sizeof(char*));
+    if (!imports) {
+        free(node);
+        return NULL;
+    }
+    
+    imports[0] = str_copy(previous.value.str_val);
+    int import_count = 1;
+    
+    // Additional imports separated by commas
+    while (match(TK_COMMA)) {
+        if (match(TK_MULT)) { // import * from "package"
+            // Handle wildcard import
+            char** new_imports = realloc(imports, (import_count + 1) * sizeof(char*));
+            if (!new_imports) {
+                for (int i = 0; i < import_count; i++) free(imports[i]);
+                free(imports);
+                free(node);
+                return NULL;
+            }
+            imports = new_imports;
+            imports[import_count++] = str_copy("*");
+            break;
+        }
+        
+        if (!match(TK_STRING)) {
+            error("Expected module name after comma");
+            break;
+        }
+        
+        char** new_imports = realloc(imports, (import_count + 1) * sizeof(char*));
+        if (!new_imports) {
+            for (int i = 0; i < import_count; i++) free(imports[i]);
+            free(imports);
+            free(node);
+            return NULL;
+        }
+        imports = new_imports;
+        imports[import_count++] = str_copy(previous.value.str_val);
+    }
+    
+    // Check for 'from' clause
+    if (match(TK_FROM)) {
+        if (!match(TK_STRING)) {
+            error("Expected package name after 'from'");
+            for (int i = 0; i < import_count; i++) free(imports[i]);
+            free(imports);
+            free(node);
+            return NULL;
+        }
+        node->data.imports.from_module = str_copy(previous.value.str_val);
+    } else {
+        node->data.imports.from_module = NULL;
+    }
+    
+    node->data.imports.modules = imports;
+    node->data.imports.module_count = import_count;
+    
+    if (!match(TK_SEMICOLON)) {
+        error("Expected ';' after import statement");
+    }
+    
+    return node;
+}
+
+// ======================================================
+// [SECTION] EXPORT STATEMENT PARSING
+// ======================================================
+static ASTNode* parseExport() {
+    ASTNode* node = newNode(NODE_EXPORT);
+    
+    // Syntax: export var_name;
+    // Syntax: export var_name as alias;
+    
+    if (!match(TK_IDENT)) {
+        error("Expected identifier after export");
+        free(node);
+        return NULL;
+    }
+    
+    node->data.export.symbol = str_copy(previous.value.str_val);
+    
+    // Optional alias
+    if (match(TK_AS)) {
+        if (!match(TK_IDENT)) {
+            error("Expected alias name after 'as'");
+            free(node->data.export.symbol);
+            free(node);
+            return NULL;
+        }
+        node->data.export.alias = str_copy(previous.value.str_val);
+    } else {
+        node->data.export.alias = str_copy(node->data.export.symbol);
+    }
+    
+    if (!match(TK_SEMICOLON)) {
+        error("Expected ';' after export statement");
+    }
+    
+    return node;
 }
 
 // ======================================================
@@ -618,6 +738,8 @@ static ASTNode* dbvarCommand() {
 static ASTNode* declaration() {
     if (match(TK_MAIN)) return mainDeclaration();
     if (match(TK_DBVAR)) return dbvarCommand();
+    if (match(TK_IMPORT)) return parseImport();
+    if (match(TK_EXPORT)) return parseExport();
     
     if (match(TK_VAR) || match(TK_LET) || match(TK_CONST) ||
         match(TK_NET) || match(TK_CLOG) || match(TK_DOS) || match(TK_SEL)) {
