@@ -1,27 +1,14 @@
-#ifndef SWIFTFLOW_COMMON_H
-#define SWIFTFLOW_COMMON_H
+#ifndef COMMON_H
+#define COMMON_H
 
-// ======================================================
-// [SECTION] CONFIGURATION DE LA PLATEFORME
-// ======================================================
-#define _POSIX_C_SOURCE 200809L
-#define SWIFTFLOW_VERSION "2.5-Fusion"
-#define SWIFTFLOW_YEAR 2026
-
-// ======================================================
-// [SECTION] INCLUDES STANDARDS
-// ======================================================
 #include <stdbool.h>
 #include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include <unistd.h>
 #include <sys/stat.h>
-#include <pthread.h>
 #include <time.h>
-#include <ctype.h>
-#include <errno.h>
 #include <math.h>
 
 // ======================================================
@@ -34,132 +21,121 @@
 #define MAGENTA "\033[1;35m"
 #define CYAN    "\033[1;36m"
 #define WHITE   "\033[1;37m"
-#define BOLD    "\033[1m"
 #define RESET   "\033[0m"
 
 // ======================================================
-// [SECTION] DÉFINITIONS DE BASE
-// ======================================================
-typedef enum {
-    TYPE_NONE,
-    TYPE_INT,
-    TYPE_FLOAT,
-    TYPE_STRING,
-    TYPE_BOOL,
-    TYPE_CHAR,
-    TYPE_VOID,
-    TYPE_ANY,
-    TYPE_ARRAY,
-    TYPE_MAP,
-    TYPE_FUNCTION,
-    TYPE_CLASS,
-    TYPE_OBJECT,
-    TYPE_ENUM,
-    TYPE_TUPLE,
-    TYPE_NULL,
-    TYPE_UNDEFINED,
-    TYPE_PROMISE,     // Pour async/await
-    TYPE_GENERIC,     // Types génériques
-    TYPE_UNION,       // Types union
-    TYPE_INTERFACE    // Interfaces
-} ValueType;
-
-// ======================================================
-// [SECTION] TOKEN DEFINITIONS (COMPLÈTE)
+// [SECTION] TOKEN DEFINITIONS (EXTENDED)
 // ======================================================
 typedef enum {
     // Literals
-    TK_INT, TK_FLOAT, TK_STRING, TK_CHAR, 
-    TK_TRUE, TK_FALSE, TK_NULL, TK_UNDEFINED,
+    TK_INT, TK_FLOAT, TK_STRING, TK_TRUE, TK_FALSE,
+    TK_NULL, TK_UNDEFINED, TK_NAN, TK_INF,
     
     // Identifiers
-    TK_IDENT, TK_AS, TK_IS, TK_IN,
+    TK_IDENT, TK_AS, TK_IN, TK_IS, TK_OF,
     
     // Operators
     TK_PLUS, TK_MINUS, TK_MULT, TK_DIV, TK_MOD,
-    TK_POW, TK_CONCAT, TK_SPREAD,
+    TK_POW, TK_CONCAT, TK_INC, TK_DEC,
     TK_ASSIGN, TK_EQ, TK_NEQ, TK_GT, TK_LT, TK_GTE, TK_LTE,
-    TK_AND, TK_OR, TK_NOT,
+    TK_AND, TK_OR, TK_NOT, TK_XOR,
     TK_BIT_AND, TK_BIT_OR, TK_BIT_XOR, TK_BIT_NOT,
-    TK_SHL, TK_SHR,
-    TK_INC, TK_DEC,
+    TK_SHL, TK_SHR, TK_BIT_SHL, TK_BIT_SHR,
     
     // Assignment operators
     TK_PLUS_ASSIGN, TK_MINUS_ASSIGN, TK_MULT_ASSIGN, 
-    TK_DIV_ASSIGN, TK_MOD_ASSIGN, TK_AND_ASSIGN,
-    TK_OR_ASSIGN, TK_XOR_ASSIGN, TK_SHL_ASSIGN, TK_SHR_ASSIGN,
+    TK_DIV_ASSIGN, TK_MOD_ASSIGN, TK_POW_ASSIGN,
+    TK_AND_ASSIGN, TK_OR_ASSIGN, TK_XOR_ASSIGN,
+    TK_SHL_ASSIGN, TK_SHR_ASSIGN,
     
     // Special operators
     TK_RARROW, TK_DARROW, TK_LDARROW, TK_RDARROW,
-    TK_SPACESHIP, TK_ELLIPSIS, TK_RANGE,
+    TK_SPACESHIP, TK_ELLIPSIS, TK_RANGE, TK_PIPE,
     TK_QUESTION, TK_SCOPE, TK_SAFE_NAV,
-    TK_AT, TK_HASH, TK_DOLLAR, TK_BACKTICK,
     
     // Punctuation
     TK_LPAREN, TK_RPAREN, TK_LBRACE, TK_RBRACE,
     TK_LBRACKET, TK_RBRACKET, TK_LANGLE, TK_RANGLE,
     TK_COMMA, TK_SEMICOLON, TK_COLON, TK_PERIOD,
+    TK_AT, TK_HASH, TK_DOLLAR, TK_BACKTICK,
+    TK_QUOTE, TK_DQUOTE, TK_BACKSLASH,
     
     // Keywords - Variables
-    TK_VAR, TK_LET, TK_CONST,
-    TK_NET, TK_CLOG, TK_DOS, TK_SEL,
+    TK_VAR, TK_LET, TK_CONST, TK_STATIC,
+    TK_NET, TK_CLOG, TK_DOS, TK_SEL, TK_REF,
+    TK_GLOBAL, TK_LOCAL, TK_THREADLOCAL,
     
-    // Control flow
-    TK_IF, TK_ELSE, TK_ELIF,
-    TK_WHILE, TK_FOR, TK_DO, TK_FOREACH,
-    TK_SWITCH, TK_CASE, TK_DEFAULT,
-    TK_BREAK, TK_CONTINUE, TK_RETURN,
-    TK_YIELD, TK_AWAIT,
+    // Keywords - Control flow
+    TK_IF, TK_ELSE, TK_ELIF, TK_THEN,
+    TK_WHILE, TK_FOR, TK_DO, TK_LOOP,
+    TK_SWITCH, TK_CASE, TK_DEFAULT, TK_MATCH,
+    TK_BREAK, TK_CONTINUE, TK_RETURN, TK_YIELD,
+    TK_GOTO, TK_LABEL,
     
-    // Functions & Modules
-    TK_FUNC, TK_IMPORT, TK_EXPORT, TK_FROM,
-    TK_CLASS, TK_STRUCT, TK_ENUM, TK_TYPEDEF,
-    TK_TYPELOCK, TK_NAMESPACE, TK_USING,
-    TK_ASYNC, TK_GENERATOR,
+    // Keywords - Exception
+    TK_TRY, TK_CATCH, TK_FINALLY, TK_THROW,
+    TK_RAISE, TK_ASSERT, TK_REQUIRE, TK_ENSURE,
     
-    // Access modifiers
-    TK_PUBLIC, TK_PRIVATE, TK_PROTECTED, TK_INTERNAL,
-    TK_STATIC, TK_ABSTRACT, TK_VIRTUAL, TK_OVERRIDE,
-    TK_SEALED, TK_READONLY, TK_MUTABLE,
+    // Keywords - Functions & Modules
+    TK_FUNC, TK_PROC, TK_METHOD, TK_CONSTRUCTOR,
+    TK_IMPORT, TK_EXPORT, TK_FROM, TK_USE,
+    TK_CLASS, TK_STRUCT, TK_ENUM, TK_UNION,
+    TK_INTERFACE, TK_TRAIT, TK_PROTOCOL,
+    TK_TYPEDEF, TK_TYPELOCK, TK_NAMESPACE,
+    TK_MODULE, TK_PACKAGE, TK_LIBRARY,
     
-    // Types
+    // Keywords - Types
     TK_TYPE_INT, TK_TYPE_FLOAT, TK_TYPE_STR,
     TK_TYPE_BOOL, TK_TYPE_CHAR, TK_TYPE_VOID,
     TK_TYPE_ANY, TK_TYPE_AUTO, TK_TYPE_DYNAMIC,
     TK_TYPE_NET, TK_TYPE_CLOG, TK_TYPE_DOS,
-    TK_TYPE_SEL, TK_TYPE_ARRAY, TK_TYPE_MAP,
-    TK_TYPE_FUNC, TK_TYPE_CLASS, TK_TYPE_ENUM,
+    TK_TYPE_SEL, TK_TYPE_REF, TK_TYPE_PTR,
+    TK_TYPE_ARRAY, TK_TYPE_LIST, TK_TYPE_MAP,
+    TK_TYPE_SET, TK_TYPE_TUPLE, TK_TYPE_OPTION,
+    TK_TYPE_RESULT,
     
-    // Memory & Size
-    TK_SIZEOF, TK_SIZE, TK_SIZ,
-    TK_NEW, TK_DELETE, TK_FREE, TK_GC,
+    // Keywords - Memory
+    TK_SIZEOF, TK_SIZE, TK_SIZ, TK_ALIGNOF,
+    TK_NEW, TK_DELETE, TK_FREE, TK_ALLOC,
+    TK_MALLOC, TK_CALLOC, TK_REALLOC,
+    TK_MOVE, TK_COPY, TK_CLONE, TK_DROP,
     
-    // Debug & DB
-    TK_DB, TK_DBVAR, TK_PRINT_DB, TK_ASSERT,
+    // Keywords - Debug & Testing
+    TK_DB, TK_DBVAR, TK_PRINT_DB, TK_DEBUG,
+    TK_TEST, TK_BENCHMARK, TK_ASSERT_EQ,
+    TK_ASSERT_NE, TK_ASSERT_GT, TK_ASSERT_LT,
     
-    // I/O
+    // Keywords - I/O
     TK_PRINT, TK_INPUT, TK_READ, TK_WRITE,
+    TK_OPEN, TK_CLOSE, TK_SEEK, TK_TELL,
+    TK_FLUSH, TK_EOF,
     
-    // Error handling
-    TK_TRY, TK_CATCH, TK_FINALLY, TK_THROW,
+    // Keywords - Concurrency
+    TK_ASYNC, TK_AWAIT, TK_SPAWN, TK_TASK,
+    TK_CHANNEL, TK_MUTEX, TK_SEMAPHORE,
+    TK_LOCK, TK_UNLOCK, TK_BARRIER,
     
-    // Concurrency
-    TK_ASYNC_FUNC, TK_AWAIT_EXPR, TK_SPAWN, TK_CHANNEL,
-    TK_MUTEX, TK_LOCK, TK_UNLOCK, TK_ATOMIC,
+    // Keywords - Time
+    TK_SLEEP, TK_DELAY, TK_TIMEOUT,
+    TK_NOW, TK_TODAY, TK_YESTERDAY,
     
-    // Special
+    // Special keywords
     TK_MAIN, TK_THIS, TK_SELF, TK_SUPER,
-    TK_CONSTRUCTOR, TK_DESTRUCTOR,
-    TK_GET, TK_SET, TK_INIT, TK_DEINIT,
+    TK_BASE, TK_PARENT, TK_ROOT,
     
-    // Templates & Generics
-    TK_TEMPLATE, TK_GENERIC, TK_WHERE,
+    // Preprocessor-like
+    TK_DEFINE, TK_UNDEF, TK_IFDEF, TK_IFNDEF,
+    TK_ELIFDEF, TK_ENDIF, TK_INCLUDE,
+    
+    // Documentation
+    TK_DOC, TK_COMMENT_DOC, TK_DOC_PARAM,
+    TK_DOC_RETURN, TK_DOC_THROWS,
     
     // End markers
-    TK_EOF, TK_ERROR
+    TK_EOF, TK_ERROR, TK_WARNING, TK_INFO
 } TokenKind;
 
-// Structure Token
+// Token structure
 typedef struct {
     TokenKind kind;
     const char* start;
@@ -170,12 +146,12 @@ typedef struct {
         int64_t int_val;
         double float_val;
         char* str_val;
-        char char_val;
         bool bool_val;
+        void* ptr_val;
     } value;
 } Token;
 
-// Table des mots-clés
+// Keyword mapping
 typedef struct {
     const char* keyword;
     TokenKind kind;
@@ -183,232 +159,191 @@ typedef struct {
 
 static const Keyword keywords[] = {
     // Variables
-    {"var", TK_VAR}, {"let", TK_LET}, {"const", TK_CONST},
+    {"var", TK_VAR}, {"let", TK_LET}, {"const", TK_CONST}, {"static", TK_STATIC},
     {"net", TK_NET}, {"clog", TK_CLOG}, {"dos", TK_DOS}, {"sel", TK_SEL},
+    {"ref", TK_REF}, {"global", TK_GLOBAL}, {"local", TK_LOCAL},
+    {"threadlocal", TK_THREADLOCAL},
     
     // Control flow
-    {"if", TK_IF}, {"else", TK_ELSE}, {"elif", TK_ELIF},
-    {"while", TK_WHILE}, {"for", TK_FOR}, {"do", TK_DO}, {"foreach", TK_FOREACH},
+    {"if", TK_IF}, {"else", TK_ELSE}, {"elif", TK_ELIF}, {"then", TK_THEN},
+    {"while", TK_WHILE}, {"for", TK_FOR}, {"do", TK_DO}, {"loop", TK_LOOP},
     {"switch", TK_SWITCH}, {"case", TK_CASE}, {"default", TK_DEFAULT},
-    {"break", TK_BREAK}, {"continue", TK_CONTINUE}, {"return", TK_RETURN},
-    {"yield", TK_YIELD}, {"await", TK_AWAIT},
+    {"match", TK_MATCH}, {"break", TK_BREAK}, {"continue", TK_CONTINUE},
+    {"return", TK_RETURN}, {"yield", TK_YIELD}, {"goto", TK_GOTO},
+    {"label", TK_LABEL},
     
-    // Functions
-    {"func", TK_FUNC}, {"import", TK_IMPORT}, {"export", TK_EXPORT},
-    {"from", TK_FROM}, {"as", TK_AS}, {"is", TK_IS}, {"in", TK_IN},
-    
-    // Classes & Types
-    {"class", TK_CLASS}, {"struct", TK_STRUCT}, {"enum", TK_ENUM},
-    {"typedef", TK_TYPEDEF}, {"typelock", TK_TYPELOCK},
-    {"namespace", TK_NAMESPACE}, {"using", TK_USING},
-    {"new", TK_NEW}, {"delete", TK_DELETE},
-    
-    // Access modifiers
-    {"public", TK_PUBLIC}, {"private", TK_PRIVATE},
-    {"protected", TK_PROTECTED}, {"internal", TK_INTERNAL},
-    {"static", TK_STATIC}, {"abstract", TK_ABSTRACT},
-    {"virtual", TK_VIRTUAL}, {"override", TK_OVERRIDE},
-    {"sealed", TK_SEALED}, {"readonly", TK_READONLY},
-    {"mutable", TK_MUTABLE},
-    
-    // Async
-    {"async", TK_ASYNC}, {"await", TK_AWAIT}, {"spawn", TK_SPAWN},
-    
-    // Error handling
+    // Exception handling
     {"try", TK_TRY}, {"catch", TK_CATCH}, {"finally", TK_FINALLY},
-    {"throw", TK_THROW},
+    {"throw", TK_THROW}, {"raise", TK_RAISE}, {"assert", TK_ASSERT},
+    {"require", TK_REQUIRE}, {"ensure", TK_ENSURE},
+    
+    // Functions & Modules
+    {"func", TK_FUNC}, {"proc", TK_PROC}, {"method", TK_METHOD},
+    {"constructor", TK_CONSTRUCTOR}, {"import", TK_IMPORT},
+    {"export", TK_EXPORT}, {"from", TK_FROM}, {"use", TK_USE},
+    {"class", TK_CLASS}, {"struct", TK_STRUCT}, {"enum", TK_ENUM},
+    {"union", TK_UNION}, {"interface", TK_INTERFACE},
+    {"trait", TK_TRAIT}, {"protocol", TK_PROTOCOL},
+    {"typedef", TK_TYPEDEF}, {"typelock", TK_TYPELOCK},
+    {"namespace", TK_NAMESPACE}, {"module", TK_MODULE},
+    {"package", TK_PACKAGE}, {"library", TK_LIBRARY},
     
     // Types
     {"int", TK_TYPE_INT}, {"float", TK_TYPE_FLOAT}, {"string", TK_TYPE_STR},
     {"bool", TK_TYPE_BOOL}, {"char", TK_TYPE_CHAR}, {"void", TK_TYPE_VOID},
     {"any", TK_TYPE_ANY}, {"auto", TK_TYPE_AUTO}, {"dynamic", TK_TYPE_DYNAMIC},
-    {"array", TK_TYPE_ARRAY}, {"map", TK_TYPE_MAP}, {"func", TK_TYPE_FUNC},
+    {"netvar", TK_TYPE_NET}, {"clogvar", TK_TYPE_CLOG},
+    {"dosvar", TK_TYPE_DOS}, {"selvar", TK_TYPE_SEL},
+    {"refvar", TK_TYPE_REF}, {"ptr", TK_TYPE_PTR},
+    {"array", TK_TYPE_ARRAY}, {"list", TK_TYPE_LIST},
+    {"map", TK_TYPE_MAP}, {"set", TK_TYPE_SET},
+    {"tuple", TK_TYPE_TUPLE}, {"option", TK_TYPE_OPTION},
+    {"result", TK_TYPE_RESULT},
     
-    // Memory
+    // Memory management
     {"sizeof", TK_SIZEOF}, {"size", TK_SIZE}, {"siz", TK_SIZ},
-    {"free", TK_FREE}, {"gc", TK_GC},
+    {"alignof", TK_ALIGNOF}, {"new", TK_NEW}, {"delete", TK_DELETE},
+    {"free", TK_FREE}, {"alloc", TK_ALLOC}, {"malloc", TK_MALLOC},
+    {"calloc", TK_CALLOC}, {"realloc", TK_REALLOC},
+    {"move", TK_MOVE}, {"copy", TK_COPY}, {"clone", TK_CLONE},
+    {"drop", TK_DROP},
     
-    // Debug
+    // Debug & Testing
     {"db", TK_DB}, {"dbvar", TK_DBVAR}, {"printdb", TK_PRINT_DB},
-    {"assert", TK_ASSERT},
+    {"debug", TK_DEBUG}, {"test", TK_TEST}, {"benchmark", TK_BENCHMARK},
+    {"assert_eq", TK_ASSERT_EQ}, {"assert_ne", TK_ASSERT_NE},
+    {"assert_gt", TK_ASSERT_GT}, {"assert_lt", TK_ASSERT_LT},
     
-    // I/O
+    // I/O operations
     {"print", TK_PRINT}, {"input", TK_INPUT}, {"read", TK_READ},
-    {"write", TK_WRITE},
+    {"write", TK_WRITE}, {"open", TK_OPEN}, {"close", TK_CLOSE},
+    {"seek", TK_SEEK}, {"tell", TK_TELL}, {"flush", TK_FLUSH},
+    {"eof", TK_EOF},
     
-    // Special
+    // Concurrency
+    {"async", TK_ASYNC}, {"await", TK_AWAIT}, {"spawn", TK_SPAWN},
+    {"task", TK_TASK}, {"channel", TK_CHANNEL}, {"mutex", TK_MUTEX},
+    {"semaphore", TK_SEMAPHORE}, {"lock", TK_LOCK}, {"unlock", TK_UNLOCK},
+    {"barrier", TK_BARRIER},
+    
+    // Time operations
+    {"sleep", TK_SLEEP}, {"delay", TK_DELAY}, {"timeout", TK_TIMEOUT},
+    {"now", TK_NOW}, {"today", TK_TODAY}, {"yesterday", TK_YESTERDAY},
+    
+    // Special identifiers
     {"main", TK_MAIN}, {"this", TK_THIS}, {"self", TK_SELF},
-    {"super", TK_SUPER}, {"constructor", TK_CONSTRUCTOR},
-    {"destructor", TK_DESTRUCTOR}, {"get", TK_GET}, {"set", TK_SET},
-    {"init", TK_INIT}, {"deinit", TK_DEINIT},
+    {"super", TK_SUPER}, {"base", TK_BASE}, {"parent", TK_PARENT},
+    {"root", TK_ROOT},
     
-    // Templates
-    {"template", TK_TEMPLATE}, {"generic", TK_GENERIC}, {"where", TK_WHERE},
+    // Preprocessor
+    {"define", TK_DEFINE}, {"undef", TK_UNDEF}, {"ifdef", TK_IFDEF},
+    {"ifndef", TK_IFNDEF}, {"elifdef", TK_ELIFDEF},
+    {"endif", TK_ENDIF}, {"include", TK_INCLUDE},
+    
+    // Documentation
+    {"doc", TK_DOC}, {"docparam", TK_DOC_PARAM},
+    {"docreturn", TK_DOC_RETURN}, {"docthrows", TK_DOC_THROWS},
     
     // Literals
     {"true", TK_TRUE}, {"false", TK_FALSE}, {"null", TK_NULL},
-    {"undefined", TK_UNDEFINED},
+    {"undefined", TK_UNDEFINED}, {"nan", TK_NAN}, {"inf", TK_INF},
+    {"Infinity", TK_INF},
     
     // End marker
     {NULL, TK_ERROR}
 };
 
 // ======================================================
-// [SECTION] AST NODE DEFINITIONS
+// [SECTION] AST NODE DEFINITIONS (EXTENDED)
 // ======================================================
 typedef enum {
     // Expressions
-    NODE_INT,
-    NODE_FLOAT,
-    NODE_STRING,
-    NODE_CHAR,
-    NODE_BOOL,
-    NODE_IDENT,
-    NODE_NULL,
-    NODE_UNDEFINED,
-    NODE_ARRAY,
-    NODE_MAP,
-    NODE_TUPLE,
+    NODE_INT, NODE_FLOAT, NODE_STRING, NODE_BOOL,
+    NODE_IDENT, NODE_NULL, NODE_UNDEFINED, NODE_NAN,
+    NODE_ARRAY, NODE_MAP, NODE_TUPLE, NODE_RANGE,
     
     // Operations
-    NODE_BINARY,
-    NODE_UNARY,
-    NODE_ASSIGN,
-    NODE_COMPOUND_ASSIGN,
+    NODE_BINARY, NODE_UNARY, NODE_TERNARY,
+    NODE_ASSIGN, NODE_COMPOUND_ASSIGN,
     
     // Control flow
-    NODE_IF,
-    NODE_WHILE,
-    NODE_FOR,
-    NODE_FOREACH,
-    NODE_SWITCH,
-    NODE_CASE,
-    NODE_TRY,
-    NODE_THROW,
+    NODE_IF, NODE_WHILE, NODE_FOR, NODE_LOOP,
+    NODE_SWITCH, NODE_CASE, NODE_MATCH,
+    NODE_RETURN, NODE_YIELD, NODE_BREAK, NODE_CONTINUE,
     
-    // Functions
-    NODE_FUNC,
-    NODE_CALL,
-    NODE_RETURN,
-    NODE_YIELD,
-    
-    // Async
-    NODE_ASYNC_FUNC,
-    NODE_AWAIT,
-    NODE_SPAWN,
-    
-    // Classes
-    NODE_CLASS,
-    NODE_STRUCT,
-    NODE_ENUM,
-    NODE_NEW,
-    NODE_DELETE,
-    NODE_THIS,
-    NODE_SUPER,
-    NODE_CONSTRUCTOR,
-    NODE_MEMBER_ACCESS,
-    NODE_METHOD_CALL,
+    // Exception handling
+    NODE_TRY, NODE_CATCH, NODE_THROW, NODE_ASSERT,
     
     // Variables
-    NODE_VAR_DECL,
-    NODE_NET_DECL,
-    NODE_CLOG_DECL,
-    NODE_DOS_DECL,
-    NODE_SEL_DECL,
-    NODE_CONST_DECL,
+    NODE_VAR_DECL, NODE_NET_DECL, NODE_CLOG_DECL,
+    NODE_DOS_DECL, NODE_SEL_DECL, NODE_CONST_DECL,
+    NODE_STATIC_DECL, NODE_REF_DECL,
     
-    // Types
-    NODE_TYPE_DECL,
-    NODE_TYPEDEF,
-    NODE_GENERIC,
+    // Functions
+    NODE_FUNC_DECL, NODE_FUNC_CALL, NODE_LAMBDA,
+    NODE_PARAM_LIST, NODE_ARG_LIST,
     
     // Memory
-    NODE_SIZEOF,
-    NODE_ALLOC,
-    NODE_FREE,
+    NODE_SIZEOF, NODE_ALLOC, NODE_FREE,
+    NODE_MOVE, NODE_COPY, NODE_CLONE,
     
     // Modules
-    NODE_IMPORT,
-    NODE_EXPORT,
-    NODE_NAMESPACE,
-    NODE_USING,
+    NODE_IMPORT, NODE_EXPORT, NODE_MODULE,
+    NODE_PACKAGE, NODE_NAMESPACE,
+    
+    // Classes & Structs
+    NODE_CLASS_DECL, NODE_STRUCT_DECL,
+    NODE_ENUM_DECL, NODE_INTERFACE_DECL,
+    NODE_FIELD_DECL, NODE_METHOD_DECL,
     
     // Debug
-    NODE_DBVAR,
-    NODE_ASSERT,
+    NODE_DBVAR, NODE_PRINT_DB, NODE_DEBUG,
+    NODE_TEST, NODE_BENCHMARK,
     
     // I/O
-    NODE_PRINT,
-    NODE_INPUT,
-    NODE_READ,
-    NODE_WRITE,
+    NODE_PRINT, NODE_INPUT, NODE_READ, NODE_WRITE,
     
-    // Blocks
-    NODE_BLOCK,
-    NODE_SCOPE,
+    // Concurrency
+    NODE_ASYNC, NODE_AWAIT, NODE_SPAWN,
+    NODE_CHANNEL, NODE_MUTEX,
+    
+    // Time
+    NODE_SLEEP, NODE_DELAY, NODE_NOW,
     
     // Special
-    NODE_MAIN,
-    NODE_MODULE,
-    NODE_PROGRAM,
-    NODE_EMPTY
+    NODE_MAIN, NODE_THIS, NODE_SELF,
+    
+    // Blocks & Scopes
+    NODE_BLOCK, NODE_SCOPE,
+    
+    // Preprocessor
+    NODE_DEFINE, NODE_IFDEF, NODE_INCLUDE,
+    
+    // Empty
+    NODE_EMPTY, NODE_COMMENT, NODE_DOC_COMMENT
 } NodeType;
 
-// Structure AST Node
+// AST Node structure
 typedef struct ASTNode {
     NodeType type;
     struct ASTNode* left;
     struct ASTNode* right;
     struct ASTNode* third;
     struct ASTNode* fourth;
+    struct ASTNode* fifth;
     
-    // Données spécifiques au nœud
     union {
-        // Valeurs de base
+        // Basic values
         int64_t int_val;
         double float_val;
         char* str_val;
-        char char_val;
         bool bool_val;
         
-        // Identifiants
+        // Identifiers
         char* name;
         
         // Types
-        ValueType value_type;
         char* type_name;
-        
-        // Tableaux et collections
-        struct {
-            struct ASTNode** elements;
-            int element_count;
-        } array;
-        
-        // Maps
-        struct {
-            char** keys;
-            struct ASTNode** values;
-            int pair_count;
-        } map;
-        
-        // Fonctions
-        struct {
-            char** params;
-            int param_count;
-            struct ASTNode* body;
-            bool is_async;
-            bool is_generator;
-        } func;
-        
-        // Classes
-        struct {
-            char* class_name;
-            char* parent_class;
-            struct ASTNode** members;
-            int member_count;
-            struct ASTNode** methods;
-            int method_count;
-        } class_def;
         
         // Import/Export
         struct {
@@ -417,15 +352,23 @@ typedef struct ASTNode {
             char* alias;
             int module_count;
             bool is_wildcard;
-        } import_export;
+        } imports;
+        
+        // Export
+        struct {
+            char* symbol;
+            char* alias;
+            bool is_default;
+        } export;
         
         // Size info
         struct {
             char* var_name;
             int size_bytes;
+            int alignment;
         } size_info;
         
-        // Loop info
+        // For loop
         struct {
             struct ASTNode* init;
             struct ASTNode* condition;
@@ -433,114 +376,55 @@ typedef struct ASTNode {
             struct ASTNode* body;
         } loop;
         
-        // Async
+        // Function
         struct {
-            struct ASTNode* promise;
-            struct ASTNode* then_block;
-            struct ASTNode* catch_block;
-        } async_data;
+            char* func_name;
+            struct ASTNode* params;
+            struct ASTNode* body;
+            struct ASTNode* return_type;
+            bool is_async;
+            bool is_extern;
+        } func;
+        
+        // Class/Struct
+        struct {
+            char* class_name;
+            struct ASTNode* parent;
+            struct ASTNode* fields;
+            struct ASTNode* methods;
+            bool is_class; // true for class, false for struct
+        } class_def;
+        
+        // Array/Map
+        struct {
+            struct ASTNode** elements;
+            int element_count;
+            char* key_type;
+            char* value_type;
+        } collection;
+        
+        // Test/Benchmark
+        struct {
+            char* test_name;
+            struct ASTNode* setup;
+            struct ASTNode* teardown;
+            struct ASTNode* test_body;
+            bool is_benchmark;
+        } test;
     } data;
     
-    // Informations supplémentaires
+    // Additional info
     int line;
     int column;
     TokenKind op_type;
-    ValueType node_type;
-    bool is_constant;
-    bool is_mutable;
-    int scope_depth;
-    char* module_name;
+    char* doc_comment;
+    bool is_public;
+    bool is_private;
+    bool is_protected;
 } ASTNode;
 
 // ======================================================
-// [SECTION] STRUCTURES POUR LA VM
-// ======================================================
-typedef struct Value {
-    ValueType type;
-    union {
-        int64_t int_val;
-        double float_val;
-        char* str_val;
-        char char_val;
-        bool bool_val;
-        void* ptr_val;
-        struct {
-            struct Value** elements;
-            int length;
-            int capacity;
-        } array;
-        struct {
-            char** keys;
-            struct Value** values;
-            int count;
-            int capacity;
-        } map;
-        struct {
-            char* class_name;
-            struct Value** fields;
-            int field_count;
-        } object;
-        struct {
-            struct ASTNode* func_node;
-            struct Value* closure;
-        } func;
-        struct {
-            pthread_t thread;
-            struct Value* result;
-            bool resolved;
-            bool rejected;
-            struct Value* error;
-        } promise;
-    } as;
-    bool is_constant;
-    char* name;
-    int ref_count;
-} Value;
-
-typedef struct Variable {
-    char name[256];
-    Value* value;
-    ValueType declared_type;
-    bool is_constant;
-    bool is_mutable;
-    int scope_level;
-    char* module;
-    bool is_exported;
-    struct Variable* next;
-} Variable;
-
-typedef struct Scope {
-    Variable* variables;
-    int level;
-    struct Scope* parent;
-    struct Scope* child;
-} Scope;
-
-typedef struct ClassDefinition {
-    char name[256];
-    char* parent;
-    Variable** fields;
-    int field_count;
-    struct ASTNode** methods;
-    int method_count;
-    bool is_abstract;
-    bool is_sealed;
-    struct ClassDefinition* next;
-} ClassDefinition;
-
-typedef struct Package {
-    char name[256];
-    char* path;
-    Variable** exports;
-    int export_count;
-    ClassDefinition** classes;
-    int class_count;
-    bool loaded;
-    struct Package* next;
-} Package;
-
-// ======================================================
-// [SECTION] FONCTIONS UTILITAIRES
+// [SECTION] HELPER FUNCTIONS
 // ======================================================
 static inline char* str_copy(const char* src) {
     if (!src) return NULL;
@@ -552,8 +436,8 @@ static inline char* str_copy(const char* src) {
     return dest;
 }
 
-static inline char* str_ncopy(const char* src, size_t n) {
-    if (!src || n == 0) return NULL;
+static inline char* str_ncopy(const char* src, int n) {
+    if (!src || n <= 0) return NULL;
     char* dest = malloc(n + 1);
     if (dest) {
         strncpy(dest, src, n);
@@ -562,224 +446,91 @@ static inline char* str_ncopy(const char* src, size_t n) {
     return dest;
 }
 
-static inline char* str_format(const char* fmt, ...) {
-    va_list args;
-    va_start(args, fmt);
+static inline char* str_concat(const char* s1, const char* s2) {
+    if (!s1 && !s2) return NULL;
+    if (!s1) return str_copy(s2);
+    if (!s2) return str_copy(s1);
     
-    // Première passe pour obtenir la taille
+    size_t len1 = strlen(s1);
+    size_t len2 = strlen(s2);
+    char* result = malloc(len1 + len2 + 1);
+    if (result) {
+        strcpy(result, s1);
+        strcat(result, s2);
+    }
+    return result;
+}
+
+static inline char* str_format(const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    
+    // Determine length
     va_list args_copy;
     va_copy(args_copy, args);
-    int size = vsnprintf(NULL, 0, fmt, args_copy) + 1;
+    int length = vsnprintf(NULL, 0, format, args_copy);
     va_end(args_copy);
     
-    if (size <= 0) {
+    if (length < 0) {
         va_end(args);
         return NULL;
     }
     
-    char* buffer = malloc(size);
+    char* buffer = malloc(length + 1);
     if (buffer) {
-        vsnprintf(buffer, size, fmt, args);
+        vsnprintf(buffer, length + 1, format, args);
     }
     
     va_end(args);
     return buffer;
 }
 
-static inline bool str_equal(const char* a, const char* b) {
-    if (!a || !b) return a == b;
-    return strcmp(a, b) == 0;
-}
-
-static inline bool str_startswith(const char* str, const char* prefix) {
-    if (!str || !prefix) return false;
-    size_t len_str = strlen(str);
-    size_t len_prefix = strlen(prefix);
-    if (len_prefix > len_str) return false;
-    return strncmp(str, prefix, len_prefix) == 0;
-}
-
-static inline bool str_endswith(const char* str, const char* suffix) {
-    if (!str || !suffix) return false;
-    size_t len_str = strlen(str);
-    size_t len_suffix = strlen(suffix);
-    if (len_suffix > len_str) return false;
-    return strcmp(str + len_str - len_suffix, suffix) == 0;
-}
-
-static inline char* str_join(const char** strings, int count, const char* delimiter) {
-    if (count == 0) return str_copy("");
-    
-    // Calculer la longueur totale
-    size_t total_len = 0;
-    size_t delim_len = delimiter ? strlen(delimiter) : 0;
-    
-    for (int i = 0; i < count; i++) {
-        if (strings[i]) {
-            total_len += strlen(strings[i]);
-            if (i < count - 1 && delimiter) {
-                total_len += delim_len;
-            }
-        }
-    }
-    
-    // Allouer et construire
-    char* result = malloc(total_len + 1);
-    if (!result) return NULL;
-    
-    result[0] = '\0';
-    char* current = result;
-    
-    for (int i = 0; i < count; i++) {
-        if (strings[i]) {
-            size_t len = strlen(strings[i]);
-            memcpy(current, strings[i], len);
-            current += len;
-            
-            if (i < count - 1 && delimiter) {
-                memcpy(current, delimiter, delim_len);
-                current += delim_len;
-            }
-        }
-    }
-    
-    *current = '\0';
-    return result;
-}
-
 // ======================================================
-// [SECTION] FONCTIONS DE GESTION D'ERREUR
+// [SECTION] ERROR HANDLING
 // ======================================================
-#define ERROR_MAX_LENGTH 1024
-
 typedef struct {
-    char message[ERROR_MAX_LENGTH];
+    char* message;
     int line;
     int column;
-    char* module;
-} Error;
+    char* file;
+    bool is_warning;
+    bool is_fatal;
+} ErrorInfo;
 
-static inline void set_error(Error* err, int line, int column, const char* module, const char* fmt, ...) {
-    if (!err) return;
-    
-    err->line = line;
-    err->column = column;
-    
-    if (module) {
-        err->module = str_copy(module);
-    } else {
-        err->module = NULL;
-    }
-    
+static inline void log_error(const char* file, int line, int col, 
+                             const char* format, ...) {
     va_list args;
-    va_start(args, fmt);
-    vsnprintf(err->message, ERROR_MAX_LENGTH, fmt, args);
+    va_start(args, format);
+    
+    fprintf(stderr, RED "[ERROR]" RESET " %s:%d:%d: ", file, line, col);
+    vfprintf(stderr, format, args);
+    fprintf(stderr, "\n");
+    
     va_end(args);
 }
 
-static inline void print_error(Error* err) {
-    if (!err || !err->message[0]) return;
+static inline void log_warning(const char* file, int line, int col,
+                               const char* format, ...) {
+    va_list args;
+    va_start(args, format);
     
-    fprintf(stderr, RED "[ERROR]" RESET);
-    if (err->module) {
-        fprintf(stderr, " in %s", err->module);
-    }
-    if (err->line > 0) {
-        fprintf(stderr, " at line %d, col %d", err->line, err->column);
-    }
-    fprintf(stderr, ": %s\n", err->message);
+    fprintf(stderr, YELLOW "[WARNING]" RESET " %s:%d:%d: ", file, line, col);
+    vfprintf(stderr, format, args);
+    fprintf(stderr, "\n");
+    
+    va_end(args);
 }
 
-static inline void clear_error(Error* err) {
-    if (!err) return;
-    err->message[0] = '\0';
-    err->line = 0;
-    err->column = 0;
-    if (err->module) {
-        free(err->module);
-        err->module = NULL;
-    }
+static inline void log_info(const char* file, int line, int col,
+                            const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    
+    fprintf(stderr, CYAN "[INFO]" RESET " %s:%d:%d: ", file, line, col);
+    vfprintf(stderr, format, args);
+    fprintf(stderr, "\n");
+    
+    va_end(args);
 }
 
-// ======================================================
-// [SECTION] MACROS UTILES
-// ======================================================
-#define UNUSED(x) (void)(x)
-#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
-#define MIN(a, b) ((a) < (b) ? (a) : (b))
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
-#define CLAMP(x, min, max) ((x) < (min) ? (min) : ((x) > (max) ? (max) : (x)))
-
-#define CHECK_ALLOC(ptr) \
-    if (!(ptr)) { \
-        fprintf(stderr, RED "[FATAL]" RESET " Memory allocation failed at %s:%d\n", __FILE__, __LINE__); \
-        exit(EXIT_FAILURE); \
-    }
-
-#define RETURN_IF_ERROR(err) \
-    if ((err) && (err)->message[0]) { \
-        print_error(err); \
-        return; \
-    }
-
-#define RETURN_VALUE_IF_ERROR(err, retval) \
-    if ((err) && (err)->message[0]) { \
-        print_error(err); \
-        return retval; \
-    }
-
-// ======================================================
-// [SECTION] DÉCLARATIONS DES FONCTIONS PRINCIPALES
-// ======================================================
-// Lexer
-void init_lexer(const char* source);
-Token scan_token();
-Token peek_token();
-Token previous_token();
-bool is_at_end();
-
-// Parser
-ASTNode** parse(const char* source, int* node_count, Error* error);
-ASTNode* parse_statement();
-ASTNode* parse_expression();
-ASTNode* parse_declaration();
-
-// VM
-void execute(ASTNode* node, Error* error);
-Value* evaluate(ASTNode* node, Error* error);
-void run(const char* source, const char* filename, Error* error);
-
-// Types
-Value* create_value(ValueType type);
-void free_value(Value* value);
-Value* copy_value(const Value* value);
-char* value_to_string(const Value* value);
-bool values_equal(const Value* a, const Value* b);
-
-// Classes
-ClassDefinition* create_class(const char* name);
-void add_class_method(ClassDefinition* cls, ASTNode* method);
-void add_class_field(ClassDefinition* cls, const char* name, Value* value);
-ClassDefinition* find_class(const char* name);
-
-// Packages
-Package* create_package(const char* name, const char* path);
-void add_package_export(Package* pkg, Variable* var);
-void add_package_class(Package* pkg, ClassDefinition* cls);
-Package* find_package(const char* name);
-void load_package(const char* name, Error* error);
-
-// Async
-Value* create_promise();
-void resolve_promise(Value* promise, Value* result);
-void reject_promise(Value* promise, Value* error);
-Value* await_promise(Value* promise, Error* error);
-void* async_thread_func(void* arg);
-
-// Utilitaires
-char* read_file(const char* filename, Error* error);
-void print_ast(ASTNode* node, int depth);
-void print_value(const Value* value);
-void print_stack_trace();
-
-#endif // SWIFTFLOW_COMMON_H
+#endif // COMMON_H
