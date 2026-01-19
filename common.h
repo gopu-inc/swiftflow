@@ -10,6 +10,7 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <math.h>
+#include <errno.h>
 
 // ======================================================
 // [SECTION] COULEURS POUR LE TERMINAL
