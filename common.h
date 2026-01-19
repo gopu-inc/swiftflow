@@ -8,17 +8,48 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <math.h>
 
 // ======================================================
-// [SECTION] COULEURS POUR LE TERMINAL
+// [SECTION] COULEURS POUR LE TERMINAL - AMÉLIORÉ
 // ======================================================
-#define RED     "\033[1;31m"
-#define GREEN   "\033[1;32m"
-#define YELLOW  "\033[1;33m"
-#define BLUE    "\033[1;34m"
-#define MAGENTA "\033[1;35m"
-#define CYAN    "\033[1;36m"
 #define RESET   "\033[0m"
+#define BOLD    "\033[1m"
+#define DIM     "\033[2m"
+#define ITALIC  "\033[3m"
+#define UNDERLINE "\033[4m"
+
+#define BLACK   "\033[30m"
+#define RED     "\033[31m"
+#define GREEN   "\033[32m"
+#define YELLOW  "\033[33m"
+#define BLUE    "\033[34m"
+#define MAGENTA "\033[35m"
+#define CYAN    "\033[36m"
+#define WHITE   "\033[37m"
+
+#define BG_BLACK   "\033[40m"
+#define BG_RED     "\033[41m"
+#define BG_GREEN   "\033[42m"
+#define BG_YELLOW  "\033[43m"
+#define BG_BLUE    "\033[44m"
+#define BG_MAGENTA "\033[45m"
+#define BG_CYAN    "\033[46m"
+#define BG_WHITE   "\033[47m"
+
+// Couleurs vives
+#define BRIGHT_BLACK   "\033[90m"
+#define BRIGHT_RED     "\033[91m"
+#define BRIGHT_GREEN   "\033[92m"
+#define BRIGHT_YELLOW  "\033[93m"
+#define BRIGHT_BLUE    "\033[94m"
+#define BRIGHT_MAGENTA "\033[95m"
+#define BRIGHT_CYAN    "\033[96m"
+#define BRIGHT_WHITE   "\033[97m"
+
+// Couleurs hexadécimales
+#define HEX_COLOR(r, g, b) "\033[38;2;" #r ";" #g ";" #b "m"
+#define BG_HEX_COLOR(r, g, b) "\033[48;2;" #r ";" #g ";" #b "m"
 
 // ======================================================
 // [SECTION] TOKEN DEFINITIONS
@@ -27,6 +58,9 @@ typedef enum {
     // Literals
     TK_INT, TK_FLOAT, TK_STRING, TK_TRUE, TK_FALSE,
     TK_NULL, TK_UNDEFINED,
+    
+    // JSON Types
+    TK_JSON_OBJECT, TK_JSON_ARRAY, TK_JSON_PAIR,
     
     // Identifiers
     TK_IDENT,
@@ -42,7 +76,7 @@ typedef enum {
     // Comparison
     TK_EQ, TK_NEQ, TK_GT, TK_LT, TK_GTE, TK_LTE,
     TK_AND, TK_OR, TK_NOT,
-    TK_SPACESHIP, // <=>
+    TK_SPACESHIP, // ===
     
     // Bitwise
     TK_BIT_AND, TK_BIT_OR, TK_BIT_XOR, TK_BIT_NOT,
@@ -51,9 +85,14 @@ typedef enum {
     // Arrow operators
     TK_LARROW,    // <
     TK_RARROW,    // >
-    TK_DARROW,    // ==>
+    TK_DARROW,    // =>
     TK_LDARROW,   // <==
     TK_RDARROW,   // ==>
+    
+    // Range operators
+    TK_ELLIPSIS,  // ...
+    TK_RANGE,     // ..
+    TK_SCOPE,     // ::
     
     // Punctuation
     TK_LPAREN, TK_RPAREN, TK_LBRACE, TK_RBRACE,
@@ -67,7 +106,7 @@ typedef enum {
     TK_NET, TK_CLOG, TK_DOS, TK_SEL,
     
     // Control flow
-    TK_IF, TK_ELSE, TK_ELIF,
+    TK_IF, TK_ELSE, TK_ELIF, TK_THEN,
     TK_WHILE, TK_FOR, TK_DO,
     TK_SWITCH, TK_CASE, TK_DEFAULT,
     TK_BREAK, TK_CONTINUE, TK_RETURN,
@@ -82,6 +121,7 @@ typedef enum {
     TK_TYPE_INT, TK_TYPE_FLOAT, TK_TYPE_STR,
     TK_TYPE_BOOL, TK_TYPE_CHAR, TK_TYPE_VOID,
     TK_TYPE_ANY, TK_TYPE_AUTO,
+    TK_TYPE_JSON, TK_TYPE_ARRAY,
     
     // Special types
     TK_TYPE_NET, TK_TYPE_CLOG, TK_TYPE_DOS,
@@ -101,10 +141,7 @@ typedef enum {
     // Special
     TK_MAIN, TK_THIS, TK_SUPER, TK_SELF,
     TK_INIT, TK_DEINIT, TK_CONSTRUCTOR, TK_DESTRUCTOR,
-    // Dans l'énumération TokenKind (common.h), ajoutez :
-    TK_ELLIPSIS,    // ...
-    TK_RANGE,       // ..
-    TK_SCOPE,       // ::
+    
     // End markers
     TK_EOF, TK_ERROR, TK_UNKNOWN
 } TokenKind;
@@ -138,9 +175,10 @@ static const Keyword keywords[] = {
     
     // Control flow
     {"if", TK_IF}, {"else", TK_ELSE}, {"elif", TK_ELIF},
-    {"while", TK_WHILE}, {"for", TK_FOR}, {"do", TK_DO},
-    {"switch", TK_SWITCH}, {"case", TK_CASE}, {"default", TK_DEFAULT},
-    {"break", TK_BREAK}, {"continue", TK_CONTINUE}, {"return", TK_RETURN},
+    {"then", TK_THEN}, {"while", TK_WHILE}, {"for", TK_FOR}, 
+    {"do", TK_DO}, {"switch", TK_SWITCH}, {"case", TK_CASE}, 
+    {"default", TK_DEFAULT}, {"break", TK_BREAK}, {"continue", TK_CONTINUE}, 
+    {"return", TK_RETURN},
     
     // Functions
     {"func", TK_FUNC}, {"import", TK_IMPORT}, {"export", TK_EXPORT},
@@ -155,6 +193,7 @@ static const Keyword keywords[] = {
     {"int", TK_TYPE_INT}, {"float", TK_TYPE_FLOAT}, {"string", TK_TYPE_STR},
     {"bool", TK_TYPE_BOOL}, {"char", TK_TYPE_CHAR}, {"void", TK_TYPE_VOID},
     {"any", TK_TYPE_ANY}, {"auto", TK_TYPE_AUTO},
+    {"json", TK_TYPE_JSON}, {"array", TK_TYPE_ARRAY},
     {"netvar", TK_TYPE_NET}, {"clogvar", TK_TYPE_CLOG}, {"dosvar", TK_TYPE_DOS},
     {"selvar", TK_TYPE_SEL}, {"module", TK_TYPE_MODULE},
     
@@ -185,6 +224,47 @@ static const Keyword keywords[] = {
 };
 
 // ======================================================
+// [SECTION] JSON SUPPORT
+// ======================================================
+typedef enum {
+    JSON_NULL,
+    JSON_BOOL,
+    JSON_INT,
+    JSON_FLOAT,
+    JSON_STRING,
+    JSON_ARRAY,
+    JSON_OBJECT
+} JsonType;
+
+typedef struct JsonValue JsonValue;
+typedef struct JsonPair JsonPair;
+
+struct JsonValue {
+    JsonType type;
+    union {
+        bool bool_val;
+        int64_t int_val;
+        double float_val;
+        char* str_val;
+        struct {
+            JsonValue* items;
+            int count;
+            int capacity;
+        } array;
+        struct {
+            JsonPair* pairs;
+            int count;
+            int capacity;
+        } object;
+    } value;
+};
+
+struct JsonPair {
+    char* key;
+    JsonValue* value;
+};
+
+// ======================================================
 // [SECTION] AST NODE DEFINITIONS
 // ======================================================
 typedef enum {
@@ -197,6 +277,11 @@ typedef enum {
     NODE_NULL,
     NODE_UNDEFINED,
     
+    // JSON Nodes
+    NODE_JSON_OBJECT,
+    NODE_JSON_ARRAY,
+    NODE_JSON_PAIR,
+    
     // Operations
     NODE_BINARY,
     NODE_UNARY,
@@ -206,6 +291,8 @@ typedef enum {
     
     // Control flow
     NODE_IF,
+    NODE_IF_ELSE,
+    NODE_ELIF,
     NODE_WHILE,
     NODE_FOR,
     NODE_DO_WHILE,
@@ -305,6 +392,9 @@ typedef struct ASTNode {
         // Types
         char* type_name;
         
+        // JSON data
+        JsonValue* json_value;
+        
         // Function/Class data
         struct {
             char* name;
@@ -335,6 +425,14 @@ typedef struct ASTNode {
             char* var_name;
             int size_bytes;
         } size_info;
+        
+        // For/While loops
+        struct {
+            struct ASTNode* init;
+            struct ASTNode* condition;
+            struct ASTNode* update;
+            struct ASTNode* body;
+        } loop;
     } data;
     
     // Additional info
@@ -373,6 +471,7 @@ typedef struct Symbol {
         double float_val;
         char* str_val;
         bool bool_val;
+        JsonValue* json_val;
         ASTNode* func_node;
         ASTNode* class_node;
     } value;
