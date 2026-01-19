@@ -9,7 +9,17 @@
 #include "common.h"
 
 extern ASTNode** parse(const char* source, int* count);
+// ======================================================
+// [SECTION] FORWARD DECLARATIONS
+// ======================================================
+static void execute(ASTNode* node);
+static char* evalString(ASTNode* node);
+static double evalFloat(ASTNode* node);
 
+// ======================================================
+// [SECTION] VM STATE
+// ======================================================
+// 
 // ======================================================
 // [SECTION] VM STATE
 // ======================================================
