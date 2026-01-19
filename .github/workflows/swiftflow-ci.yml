@@ -1,0 +1,603 @@
+name: SwiftFlow CI/CD
+
+on:
+  push:
+    branches: [main, master, develop]
+    paths:
+      - 'src/**'
+      - '*.c'
+      - '*.h'
+      - 'Makefile'
+      - 'tests/**'
+      - 'examples/**'
+  pull_request:
+    branches: [main, master]
+  release:
+    types: [published, created]
+  schedule:
+    - cron: '0 2 * * *'  # Daily at 2 AM
+  workflow_dispatch:
+    inputs:
+      deploy_env:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      build_target:
+        description: 'Build target'
+        required: false
+        default: 'all'
+        type: string
+
+env:
+  REGISTRY_URL: "https://zenv-hub.onrender.com"
+  PACKAGE_NAME: "swiftflow"
+  SWIFTVELOX_LIB_PATH: "/usr/local/lib/swiftvelox"
+  BUILD_DIR: "build"
+  RELEASE_DIR: "release"
+  VERSION_FILE: "VERSION"
+  
+jobs:
+  # ============================================
+  # JOB 1: Build & Test
+  # ============================================
+  build-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        gcc-version: [9, 10, 11]
+        
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Setup Build Environment
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc-${{ matrix.gcc-version }} make valgrind gdb
+        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-${{ matrix.gcc-version }} 100
+        
+    - name: Build SwiftFlow
+      run: |
+        make clean
+        make all
+        ls -la swiftflow
+        
+    - name: Run Tests
+      run: |
+        mkdir -p test_output
+        echo "Running basic tests..."
+        ./swiftflow --version || true
+        ./swiftflow examples/hello.swf 2>&1 | tee test_output/hello.log
+        
+        # Run test suite if exists
+        if [ -d "tests" ]; then
+          for test_file in tests/*.swf; do
+            if [ -f "$test_file" ]; then
+              echo "Running test: $test_file"
+              ./swiftflow "$test_file" 2>&1 | tee "test_output/$(basename "$test_file").log"
+            fi
+          done
+        fi
+        
+    - name: Run Memory Check
+      run: |
+        if command -v valgrind &> /dev/null; then
+          valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes \
+            --verbose ./swiftflow examples/hello.swf 2>&1 | tee test_output/valgrind.log
+        fi
+        
+    - name: Upload Test Results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results-${{ matrix.gcc-version }}
+        path: test_output/
+        retention-days: 7
+        
+  # ============================================
+  # JOB 2: Package Creation
+  # ============================================
+  create-package:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+    
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      
+    - name: Build Release Version
+      run: |
+        make clean
+        make release
+        strip swiftflow || true
+        
+    - name: Get Version
+      id: get_version
+      run: |
+        if [ -f "$VERSION_FILE" ]; then
+          VERSION=$(cat $VERSION_FILE)
+        else
+          # Extract version from source
+          VERSION=$(grep -i 'version' common.h | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+' | head -1)
+          if [ -z "$VERSION" ]; then
+            VERSION="2.0.0"
+          fi
+        fi
+        echo "VERSION=$VERSION" >> $GITHUB_ENV
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        
+    - name: Create Package Structure
+      run: |
+        mkdir -p $BUILD_DIR/package
+        mkdir -p $BUILD_DIR/package/bin
+        mkdir -p $BUILD_DIR/package/lib
+        mkdir -p $BUILD_DIR/package/include
+        mkdir -p $BUILD_DIR/package/examples
+        
+        # Copy binaries
+        cp swiftflow $BUILD_DIR/package/bin/
+        cp *.o $BUILD_DIR/package/lib/ 2>/dev/null || true
+        
+        # Copy headers
+        cp common.h $BUILD_DIR/package/include/
+        
+        # Copy examples
+        cp -r examples/* $BUILD_DIR/package/examples/ 2>/dev/null || true
+        
+        # Create package manifest
+        cat > $BUILD_DIR/package/zarch.json << EOF
+        {
+          "name": "swiftflow",
+          "version": "${{ env.VERSION }}",
+          "description": "SwiftFlow - Language de programmation fusion CLAIR & SYM",
+          "main": "swiftflow",
+          "author": "GoPU.inc",
+          "license": "MIT",
+          "scope": "global",
+          "dependencies": [],
+          "bin": {
+            "swiftflow": "./bin/swiftflow"
+          },
+          "files": [
+            "bin/swiftflow",
+            "include/common.h",
+            "lib/*.o",
+            "examples/*.swf"
+          ],
+          "repository": "https://github.com/gopu-inc/swiftflow"
+        }
+        EOF
+        
+        # Create README
+        cat > $BUILD_DIR/package/README.md << EOF
+        # SwiftFlow v${{ env.VERSION }}
+        
+        ## Installation
+        
+        \`\`\`bash
+        # Using Zarch CLI
+        zarch install swiftflow
+        
+        # Or manually
+        cp bin/swiftflow /usr/local/bin/
+        cp include/common.h /usr/local/include/swiftflow/
+        \`\`\`
+        
+        ## Usage
+        
+        \`\`\`bash
+        swiftflow program.swf
+        swiftflow  # REPL mode
+        \`\`\`
+        
+        ## Examples
+        
+        See examples/ directory for sample programs.
+        
+        ## Documentation
+        
+        Full documentation: https://github.com/gopu-inc/swiftflow
+        \`\`\`
+        
+    - name: Create Archive
+      run: |
+        cd $BUILD_DIR/package
+        tar -czf ../swiftflow-${{ env.VERSION }}.tar.gz .
+        
+    - name: Calculate SHA256
+      id: sha256
+      run: |
+        cd $BUILD_DIR
+        sha256sum swiftflow-${{ env.VERSION }}.tar.gz > swiftflow-${{ env.VERSION }}.sha256
+        SHA256=$(cut -d' ' -f1 swiftflow-${{ env.VERSION }}.sha256)
+        echo "sha256=$SHA256" >> $GITHUB_OUTPUT
+        
+    - name: Upload Package Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: swiftflow-package-${{ env.VERSION }}
+        path: |
+          ${{ env.BUILD_DIR }}/swiftflow-${{ env.VERSION }}.tar.gz
+          ${{ env.BUILD_DIR }}/swiftflow-${{ env.VERSION }}.sha256
+        retention-days: 30
+        
+  # ============================================
+  # JOB 3: Publish to Zarch Hub
+  # ============================================
+  publish-to-zarch:
+    needs: create-package
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+    
+    steps:
+    - name: Download Package Artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: swiftflow-package-${{ needs.create-package.outputs.version }}
+        
+    - name: Publish to Zarch Hub
+      env:
+        ZARCH_TOKEN: ${{ secrets.ZARCH_TOKEN }}
+        ZARCH_USERNAME: ${{ secrets.ZARCH_USERNAME }}
+        ZARCH_PERSONAL_CODE: ${{ secrets.ZARCH_PERSONAL_CODE }}
+      run: |
+        # Login to Zarch Hub
+        echo "Logging into Zarch Hub..."
+        LOGIN_RESPONSE=$(curl -s -X POST "$REGISTRY_URL/api/auth/login" \
+          -H "Content-Type: application/json" \
+          -d "{\"username\": \"$ZARCH_USERNAME\", \"password\": \"$ZARCH_TOKEN\"}")
+        
+        TOKEN=$(echo $LOGIN_RESPONSE | jq -r '.token')
+        
+        if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+          echo "Failed to login to Zarch Hub"
+          exit 1
+        fi
+        
+        echo "Successfully logged in"
+        
+        # Upload package
+        echo "Uploading package to Zarch Hub..."
+        UPLOAD_RESPONSE=$(curl -s -X POST \
+          "$REGISTRY_URL/api/package/upload/global/swiftflow" \
+          -H "Authorization: Bearer $TOKEN" \
+          -F "version=${{ needs.create-package.outputs.version }}" \
+          -F "description=SwiftFlow Programming Language v${{ needs.create-package.outputs.version }}" \
+          -F "license=MIT" \
+          -F "personal_code=$ZARCH_PERSONAL_CODE" \
+          -F "file=@swiftflow-${{ needs.create-package.outputs.version }}.tar.gz")
+        
+        echo "Upload response: $UPLOAD_RESPONSE"
+        
+        if echo "$UPLOAD_RESPONSE" | grep -q "success.*true"; then
+          echo "✅ Package published successfully to Zarch Hub!"
+          
+          # Also publish as SwiftVelox package
+          echo "Publishing as SwiftVelox package..."
+          SWIFTVELOX_RESPONSE=$(curl -s -X POST \
+            "$REGISTRY_URL/api/package/upload/swiftvelox/swiftflow" \
+            -H "Authorization: Bearer $TOKEN" \
+            -F "version=${{ needs.create-package.outputs.version }}" \
+            -F "description=SwiftFlow for SwiftVelox ecosystem" \
+            -F "license=MIT" \
+            -F "personal_code=$ZARCH_PERSONAL_CODE" \
+            -F "file=@swiftflow-${{ needs.create-package.outputs.version }}.tar.gz")
+            
+          echo "SwiftVelox response: $SWIFTVELOX_RESPONSE"
+        else
+          echo "❌ Failed to publish package"
+          exit 1
+        fi
+        
+    - name: Update Package Index
+      run: |
+        # Trigger Zarch Hub to update its index
+        curl -s "$REGISTRY_URL/zarch/INDEX" > /dev/null
+        echo "Package index updated"
+        
+  # ============================================
+  # JOB 4: Documentation & Website
+  # ============================================
+  documentation:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'release'
+    
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install Documentation Tools
+      run: |
+        npm install -g typedoc @11ty/elevent
+        
+    - name: Generate API Documentation
+      run: |
+        mkdir -p docs/api
+        # Generate documentation from source code
+        echo "# SwiftFlow API Documentation" > docs/api/README.md
+        echo "" >> docs/api/README.md
+        echo "## Version: ${{ needs.create-package.outputs.version }}" >> docs/api/README.md
+        echo "" >> docs/api/README.md
+        echo "Generated on $(date)" >> docs/api/README.md
+        
+        # Extract function documentation from C files
+        for file in *.c; do
+          if [ -f "$file" ]; then
+            echo "## $file" >> docs/api/functions.md
+            echo '```c' >> docs/api/functions.md
+            grep -n "static.*(" "$file" | head -20 >> docs/api/functions.md
+            echo '```' >> docs/api/functions.md
+            echo "" >> docs/api/functions.md
+          fi
+        done
+        
+    - name: Build Website
+      run: |
+        mkdir -p _site
+        cp -r docs/* _site/
+        cp README.md _site/index.md
+        
+        # Create package listing page
+        cat > _site/packages.md << EOF
+        # SwiftFlow Packages
+        
+        ## Available on Zarch Hub
+        
+        SwiftFlow and its packages are available on the Zarch Package Registry.
+        
+        ### Installation
+        
+        \`\`\`bash
+        # Install SwiftFlow
+        zarch install swiftflow
+        
+        # Search for packages
+        zarch search "swiftflow"
+        
+        # View available packages
+        curl $REGISTRY_URL/swiftvelox/packages
+        \`\`\`
+        
+        ### Package Registry
+        
+        - **URL**: $REGISTRY_URL
+        - **Packages**: $(curl -s "$REGISTRY_URL/swiftvelox/packages" | jq '.total' 2>/dev/null || echo "N/A")
+        - **Status**: $(curl -s "$REGISTRY_URL/health" | jq '.status' 2>/dev/null || echo "unknown")
+        \`\`\`
+        
+    - name: Deploy to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v3
+      if: github.ref == 'refs/heads/main'
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./_site
+        publish_branch: gh-pages
+        keep_files: false
+        
+  # ============================================
+  # JOB 5: Integration Tests with Zarch Hub
+  # ============================================
+  integration-tests:
+    needs: [build-and-test, publish-to-zarch]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+    
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      
+    - name: Build SwiftFlow
+      run: |
+        make clean
+        make
+        
+    - name: Test Zarch Hub Connection
+      run: |
+        echo "Testing connection to Zarch Hub..."
+        
+        # Test basic connectivity
+        curl -s "$REGISTRY_URL/health" | jq .
+        
+        # Test package listing
+        PACKAGES=$(curl -s "$REGISTRY_URL/swiftvelox/packages")
+        echo "Available packages:"
+        echo "$PACKAGES" | jq .
+        
+        # Test SwiftFlow package exists
+        if echo "$PACKAGES" | grep -q "swiftflow"; then
+          echo "✅ SwiftFlow package found in registry"
+        else
+          echo "❌ SwiftFlow package not found"
+          exit 1
+        fi
+        
+    - name: Test Package Installation
+      run: |
+        echo "Testing package installation..."
+        
+        # Create test script
+        cat > test_install.sh << 'EOF'
+        #!/bin/bash
+        set -e
+        
+        # Download SwiftFlow from Zarch Hub
+        VERSION="$1"
+        URL="$2/package/download/global/swiftflow/$VERSION"
+        
+        echo "Downloading SwiftFlow v$VERSION from $URL..."
+        curl -L "$URL" -o swiftflow.tar.gz
+        
+        # Extract
+        tar -xzf swiftflow.tar.gz
+        
+        # Test binary
+        if [ -f "bin/swiftflow" ]; then
+          chmod +x bin/swiftflow
+          ./bin/swiftflow --version
+          echo "✅ Installation test passed"
+        else
+          echo "❌ Installation test failed"
+          exit 1
+        fi
+        EOF
+        
+        chmod +x test_install.sh
+        ./test_install.sh "${{ needs.create-package.outputs.version }}" "$REGISTRY_URL"
+        
+    - name: Run Integration Tests
+      run: |
+        echo "Running integration tests..."
+        
+        # Test SwiftFlow with Zarch packages
+        cat > test_integration.swf << 'EOF'
+        // integration_test.swf
+        print("Testing SwiftFlow + Zarch Hub integration");
+        print("Registry URL: $REGISTRY_URL");
+        
+        // Test basic functionality
+        var x = 10;
+        var y = 20;
+        var z = x + y;
+        
+        print("x + y = " + z);
+        
+        if (z == 30) {
+            print("✅ Basic arithmetic works");
+        } else {
+            print("❌ Arithmetic failed");
+        }
+        
+        // Test package import concept
+        print("Package registry integration test complete");
+        EOF
+        
+        ./swiftflow test_integration.swf
+        
+  # ============================================
+  # JOB 6: Create Release
+  # ============================================
+  create-release:
+    needs: [integration-tests, documentation]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      
+    - name: Download Package Artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: swiftflow-package-${{ needs.create-package.outputs.version }}
+        
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        name: SwiftFlow v${{ needs.create-package.outputs.version }}
+        tag_name: v${{ needs.create-package.outputs.version }}
+        body: |
+          # SwiftFlow v${{ needs.create-package.outputs.version }}
+          
+          ## New Features
+          
+          - Integration with Zarch Package Registry
+          - Improved package management
+          - Enhanced SwiftVelox compatibility
+          
+          ## Installation
+          
+          ### From Zarch Hub
+          ```bash
+          zarch install swiftflow
+          ```
+          
+          ### Manual Installation
+          ```bash
+          # Download from release
+          curl -L https://github.com/gopu-inc/swiftflow/releases/download/v${{ needs.create-package.outputs.version }}/swiftflow-${{ needs.create-package.outputs.version }}.tar.gz | tar -xz
+          sudo cp swiftflow/bin/swiftflow /usr/local/bin/
+          ```
+          
+          ## Documentation
+          
+          - [Website](https://gopu-inc.github.io/swiftflow)
+          - [API Docs](https://gopu-inc.github.io/swiftflow/api)
+          - [Zarch Hub](https://zenv-hub.onrender.com)
+          
+          ## SHA256 Checksum
+          
+          ```
+          ${{ needs.create-package.outputs.sha256 }}
+          ```
+          
+          ## Registry Integration
+          
+          This release is automatically published to:
+          - **Zarch Hub**: $REGISTRY_URL
+          - **Package**: `global/swiftflow@${{ needs.create-package.outputs.version }}`
+          
+        files: |
+          swiftflow-${{ needs.create-package.outputs.version }}.tar.gz
+          swiftflow-${{ needs.create-package.outputs.version }}.sha256
+        draft: false
+        prerelease: false
+        
+  # ============================================
+  # JOB 7: Monitor Zarch Hub
+  # ============================================
+  monitor-zarch:
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Check Zarch Hub Health
+      run: |
+        echo "Checking Zarch Hub status..."
+        
+        HEALTH=$(curl -s "$REGISTRY_URL/health" || echo '{"status":"unreachable"}')
+        STATUS=$(echo "$HEALTH" | jq -r '.status' 2>/dev/null || echo "error")
+        
+        echo "Zarch Hub Status: $STATUS"
+        
+        if [ "$STATUS" = "healthy" ]; then
+          echo "✅ Zarch Hub is healthy"
+        else
+          echo "❌ Zarch Hub may have issues"
+          echo "Health response: $HEALTH"
+        fi
+        
+    - name: Report Metrics
+      if: always()
+      run: |
+        # Get package count
+        PACKAGES_JSON=$(curl -s "$REGISTRY_URL/swiftvelox/packages" || echo '{"total":0}')
+        PACKAGE_COUNT=$(echo "$PACKAGES_JSON" | jq -r '.total' 2>/dev/null || echo 0)
+        
+        # Get SwiftFlow package info
+        SWIFTFLOW_INFO=$(curl -s "$REGISTRY_URL/api/package/info/global/swiftflow" 2>/dev/null || echo '{}')
+        
+        echo "## Zarch Hub Metrics" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- **Total Packages**: $PACKAGE_COUNT" >> $GITHUB_STEP_SUMMARY
+        echo "- **SwiftFlow Version**: $(echo "$SWIFTFLOW_INFO" | jq -r '.latest_version // "Not published"' 2>/dev/null)" >> $GITHUB_STEP_SUMMARY
+        echo "- **Registry URL**: $REGISTRY_URL" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Update README badge
+        BADGE_URL="https://img.shields.io/badge/Zarch%20Hub-$PACKAGE_COUNT%20packages-blue"
+        echo "![Zarch Hub]($BADGE_URL)" >> $GITHUB_STEP_SUMMARY
