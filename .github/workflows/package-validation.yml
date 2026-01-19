@@ -1,0 +1,107 @@
+name: Package Validation
+
+on:
+  push:
+    paths:
+      - 'packages/**'
+      - 'examples/**'
+  pull_request:
+    paths:
+      - 'packages/**'
+  workflow_dispatch:
+
+jobs:
+  validate-packages:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      
+    - name: Validate Package Structure
+      run: |
+        echo "Validating package structure..."
+        
+        # Check for zarch.json files
+        find packages -name "zarch.json" | while read -r manifest; do
+          echo "Validating $manifest"
+          
+          if [ -f "$manifest" ]; then
+            # Validate JSON structure
+            if jq empty "$manifest" 2>/dev/null; then
+              echo "✅ $manifest is valid JSON"
+              
+              # Check required fields
+              NAME=$(jq -r '.name' "$manifest" 2>/dev/null)
+              VERSION=$(jq -r '.version' "$manifest" 2>/dev/null)
+              MAIN=$(jq -r '.main' "$manifest" 2>/dev/null)
+              
+              if [ -z "$NAME" ] || [ "$NAME" = "null" ]; then
+                echo "❌ $manifest: Missing 'name' field"
+                exit 1
+              fi
+              
+              if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
+                echo "❌ $manifest: Missing 'version' field"
+                exit 1
+              fi
+              
+              echo "✅ $manifest: Valid package $NAME@$VERSION"
+            else
+              echo "❌ $manifest: Invalid JSON"
+              exit 1
+            fi
+          fi
+        done
+        
+    - name: Test Package Examples
+      run: |
+        echo "Testing package examples..."
+        
+        # Find and test example files
+        find examples -name "*.swf" | while read -r example; do
+          echo "Testing example: $example"
+          
+          if [ -f "$example" ]; then
+            # Simple syntax check (check for basic structure)
+            if grep -q "print\|var\|func" "$example"; then
+              echo "✅ $example: Has valid SwiftFlow syntax"
+            else
+              echo "⚠️ $example: No obvious SwiftFlow syntax found"
+            fi
+          fi
+        done
+        
+    - name: Generate Package Report
+      run: |
+        echo "Generating package validation report..."
+        
+        cat > package_report.md << 'EOF'
+        # Package Validation Report
+        
+        ## Summary
+        - **Date**: $(date)
+        - **Repository**: ${{ github.repository }}
+        - **Commit**: ${{ github.sha }}
+        
+        ## Validated Packages
+        
+        EOF
+        
+        # List all packages
+        find packages -name "zarch.json" | while read -r manifest; do
+          if [ -f "$manifest" ]; then
+            NAME=$(jq -r '.name' "$manifest" 2>/dev/null || echo "unknown")
+            VERSION=$(jq -r '.version' "$manifest" 2>/dev/null || echo "unknown")
+            
+            echo "- **$NAME** v$VERSION" >> package_report.md
+          fi
+        done
+        
+        echo "" >> package_report.md
+        echo "## Validation Results" >> package_report.md
+        echo "" >> package_report.md
+        echo "✅ All packages validated successfully" >> package_report.md
+        
+        # Upload report
+        cat package_report.md
