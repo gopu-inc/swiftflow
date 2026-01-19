@@ -34,7 +34,7 @@ static int var_count = 0;
 static int scope_level = 0;
 
 // ======================================================
-// [SECTION] DBVAR TABLE
+// [SECTION] DBVAR TABLE - STRUCTURE UNIQUE
 // ======================================================
 typedef struct {
     char name[100];
@@ -90,10 +90,13 @@ static void addToDBVar(const char* name, TokenKind type, int size_bytes,
     if (dbvar_count < 500) {
         DBVarEntry* entry = &dbvars[dbvar_count++];
         strncpy(entry->name, name, 99);
+        entry->name[99] = '\0';
         strncpy(entry->type, getTypeName(type), 19);
+        entry->type[19] = '\0';
         entry->size_bytes = size_bytes;
         if (value_str) {
             strncpy(entry->value_str, value_str, 99);
+            entry->value_str[99] = '\0';
         } else {
             strcpy(entry->value_str, "N/A");
         }
@@ -106,6 +109,7 @@ static void updateDBVar(const char* name, const char* value_str) {
         if (strcmp(dbvars[i].name, name) == 0) {
             if (value_str) {
                 strncpy(dbvars[i].value_str, value_str, 99);
+                dbvars[i].value_str[99] = '\0';
             }
             dbvars[i].initialized = true;
             break;
@@ -135,7 +139,7 @@ static double evalFloat(ASTNode* node) {
                 if (vars[idx].is_float) {
                     return vars[idx].value.float_val;
                 } else if (vars[idx].is_string) {
-                    return 0.0; // Les strings retournent 0 en float
+                    return 0.0;
                 } else {
                     return (double)vars[idx].value.int_val;
                 }
@@ -154,7 +158,6 @@ static double evalFloat(ASTNode* node) {
                 case TK_MULT: return left * right;
                 case TK_DIV: return right != 0 ? left / right : 0.0;
                 case TK_MOD: return right != 0 ? fmod(left, right) : 0.0;
-                case TK_POW: return pow(left, right);
                 case TK_EQ: return left == right ? 1.0 : 0.0;
                 case TK_NEQ: return left != right ? 1.0 : 0.0;
                 case TK_GT: return left > right ? 1.0 : 0.0;
@@ -183,7 +186,6 @@ static char* evalString(ASTNode* node) {
     if (!node) return str_copy("");
     
     char* result = NULL;
-    char buffer[256];
     
     switch (node->type) {
         case NODE_STRING:
@@ -437,11 +439,11 @@ static void execute(ASTNode* node) {
                        entry->name,
                        entry->size_bytes,
                        entry->value_str,
-                       entry->initialized ? BRIGHT_GREEN "✓" RESET : BRIGHT_RED "✗" RESET);
+                       entry->initialized ? "✓" : "✗");
             }
             
             if (dbvar_count == 0) {
-                printf("║" YELLOW "                      No variables declared                        " RESET "║\n");
+                printf("║                      No variables declared                        ║\n");
             }
             
             printf("╚════════════════════════════════════════════════════════════════════╝\n" RESET);
@@ -465,28 +467,6 @@ static void execute(ASTNode* node) {
             break;
         }
             
-        case NODE_FOR: {
-            // Initializer
-            if (node->data.loop.init) {
-                execute(node->data.loop.init);
-            }
-            
-            // Loop
-            while (node->data.loop.condition && evalFloat(node->data.loop.condition) != 0) {
-                // Body
-                if (node->data.loop.body) {
-                    execute(node->data.loop.body);
-                }
-                
-                // Update
-                if (node->data.loop.update) {
-                    // Pour l'instant, on exécute simplement
-                    evalFloat(node->data.loop.update);
-                }
-            }
-            break;
-        }
-            
         case NODE_BLOCK: {
             scope_level++;
             ASTNode* current = node->left;
@@ -500,7 +480,7 @@ static void execute(ASTNode* node) {
             
         case NODE_MAIN: {
             printf(CYAN "\n[EXEC]" RESET " Starting main()...\n");
-            printf("=" * 60);
+            for (int i = 0; i < 60; i++) printf("=");
             printf("\n");
             
             if (node->left) execute(node->left);
@@ -528,7 +508,6 @@ static void execute(ASTNode* node) {
         }
             
         default:
-            // Ignorer les autres types de nœuds pour l'instant
             break;
     }
 }
@@ -536,46 +515,6 @@ static void execute(ASTNode* node) {
 // ======================================================
 // [SECTION] CLEANUP FUNCTIONS
 // ======================================================
-static void cleanupAST(ASTNode* node) {
-    if (!node) return;
-    
-    // Cleanup récursif
-    if (node->left) cleanupAST(node->left);
-    if (node->right) cleanupAST(node->right);
-    if (node->third) cleanupAST(node->third);
-    if (node->extra) cleanupAST(node->extra);
-    
-    // Libérer les données spécifiques
-    switch (node->type) {
-        case NODE_STRING:
-            if (node->data.str_val) free(node->data.str_val);
-            break;
-        case NODE_IDENT:
-        case NODE_VAR_DECL:
-        case NODE_NET_DECL:
-        case NODE_CLOG_DECL:
-        case NODE_DOS_DECL:
-        case NODE_SEL_DECL:
-        case NODE_CONST_DECL:
-        case NODE_ASSIGN:
-            if (node->data.name) free(node->data.name);
-            break;
-        case NODE_IMPORT:
-            if (node->data.imports.modules) {
-                for (int i = 0; i < node->data.imports.module_count; i++) {
-                    free(node->data.imports.modules[i]);
-                }
-                free(node->data.imports.modules);
-            }
-            if (node->data.imports.from_module) free(node->data.imports.from_module);
-            break;
-        default:
-            break;
-    }
-    
-    free(node);
-}
-
 static void cleanupVariables() {
     for (int i = 0; i < var_count; i++) {
         if (vars[i].is_string && vars[i].value.str_val) {
@@ -629,7 +568,7 @@ static void run(const char* source) {
     // Cleanup des nœuds AST
     for (int i = 0; i < count; i++) {
         if (nodes[i]) {
-            cleanupAST(nodes[i]);
+            free(nodes[i]);
         }
     }
     free(nodes);
@@ -640,8 +579,8 @@ static void run(const char* source) {
 // ======================================================
 static void repl() {
     printf(GREEN "╔════════════════════════════════════════════════════════════════════╗\n");
-    printf("║                " BRIGHT_CYAN "SwiftFlow v2.0 - REPL Mode" GREEN "                ║\n");
-    printf("║           " YELLOW "Types CLAIR & SYM Fusion - Complete Language" GREEN "          ║\n");
+    printf("║                SwiftFlow v2.0 - REPL Mode                        ║\n");
+    printf("║           Types CLAIR & SYM Fusion - Complete Language           ║\n");
     printf("╚════════════════════════════════════════════════════════════════════╝\n" RESET);
     printf("\n");
     printf("Available commands:\n");
@@ -659,7 +598,7 @@ static void repl() {
     
     char line[1024];
     while (1) {
-        printf(BRIGHT_GREEN "swift> " RESET);
+        printf(GREEN "swift> " RESET);
         fflush(stdout);
         
         if (!fgets(line, sizeof(line), stdin)) break;
@@ -685,11 +624,11 @@ static void repl() {
                        entry->name,
                        entry->size_bytes,
                        entry->value_str,
-                       entry->initialized ? BRIGHT_GREEN "✓" RESET : BRIGHT_RED "✗" RESET);
+                       entry->initialized ? "✓" : "✗");
             }
             
             if (dbvar_count == 0) {
-                printf("║" YELLOW "                      No variables declared                        " RESET "║\n");
+                printf("║                      No variables declared                        ║\n");
             }
             
             printf("╚════════════════════════════════════════════════════════════════════╝\n" RESET);
@@ -744,7 +683,7 @@ int main(int argc, char* argv[]) {
     // Initialisation
     srand(time(NULL));
     
-    printf(BRIGHT_CYAN "\n");
+    printf(CYAN "\n");
     printf("   _____ _       __ _   _____ _                 \n");
     printf("  / ____(_)     / _| | |  __ (_)                \n");
     printf(" | (___  _ _ __| |_| |_| |__) | _____      __   \n");
@@ -766,7 +705,7 @@ int main(int argc, char* argv[]) {
         }
         
         printf(GREEN "[SUCCESS]" RESET ">> Executing %s\n", argv[1]);
-        printf("=" * 60);
+        for (int i = 0; i < 60; i++) printf("=");
         printf("\n\n");
         
         run(source);
