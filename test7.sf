@@ -1,0 +1,4 @@
+// Test ultra simple
+var x = 10;
+print(x);
+dbvar;
