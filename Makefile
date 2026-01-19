@@ -4,7 +4,7 @@ LDFLAGS = -lm
 
 SOURCES = lexer.c parser.c swf.c
 OBJECTS = $(SOURCES:.c=.o)
-TARGET = swiftflow
+TARGET = swift
 
 all: $(TARGET)
 
