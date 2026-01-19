@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <math.h>
+#include <stdarg.h>
 
 // ======================================================
 // [SECTION] COULEURS POUR LE TERMINAL - AMÉLIORÉ
