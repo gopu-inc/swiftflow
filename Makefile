@@ -1,26 +1,23 @@
 CC = gcc
-CFLAGS = -std=c99 -Wall -Wextra -pedantic -g -I.
-LDFLAGS = -lm
-
-SOURCES = lexer.c parser.c swf.c
+CFLAGS = -Wall -Wextra -std=c99 -g
+TARGET = swf
+SOURCES = swf.c lexer.c parser.c
+HEADERS = common.h
 OBJECTS = $(SOURCES:.c=.o)
-TARGET = swift
 
 all: $(TARGET)
 
 $(TARGET): $(OBJECTS)
-	$(CC) $(CFLAGS) -o $(TARGET) $(OBJECTS) $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $(TARGET) $(OBJECTS)
 
-%.o: %.c common.h
+%.o: %.c $(HEADERS)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
 	rm -f $(OBJECTS) $(TARGET)
 
 test: $(TARGET)
-	./$(TARGET) test.sf
+	@echo "=== Testing ==="
+	@./$(TARGET) test1.swf
 
-repl: $(TARGET)
-	./$(TARGET)
-
-.PHONY: all clean test repl
+.PHONY: all clean test
