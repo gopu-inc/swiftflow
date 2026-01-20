@@ -101,7 +101,7 @@ static void synchronize() {
 // ======================================================
 // [SECTION] AST NODE CREATION
 // ======================================================
-static ASTNode* newNode(NodeType type) {
+ASTNode* newNode(NodeType type) {
     ASTNode* node = calloc(1, sizeof(ASTNode));
     if (node) {
         node->type = type;
