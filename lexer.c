@@ -45,7 +45,7 @@ void initLexer(const char* source, const char* filename) {
     lexer.bracket_depth = 0;
 }
 
-static bool isAtEnd() { 
+bool isAtEnd() { 
     return *lexer.current == '\0'; 
 }
 
