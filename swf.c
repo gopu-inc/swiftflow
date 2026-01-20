@@ -415,6 +415,88 @@ static void addExportToPackage(const char* package_name, const char* alias,
 }
 
 // ======================================================
+// [SECTION] LOAD PACKAGE MANIFEST
+// ======================================================
+static void loadPackageManifest(const char* manifest_path, const char* package_name) {
+    FILE* f = fopen(manifest_path, "r");
+    if (!f) {
+        printf(RED "[ERROR]" RESET " Cannot open package manifest: %s\n", manifest_path);
+        return;
+    }
+    
+    fseek(f, 0, SEEK_END);
+    long size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    
+    char* source = malloc(size + 1);
+    if (!source) {
+        fclose(f);
+        printf(RED "[ERROR]" RESET " Memory allocation failed\n");
+        return;
+    }
+    
+    fread(source, 1, size, f);
+    source[size] = '\0';
+    fclose(f);
+    
+    // Parse the manifest
+    int node_count = 0;
+    ASTNode** nodes = parse(source, manifest_path, &node_count);
+    
+    if (!nodes) {
+        printf(RED "[ERROR]" RESET " Failed to parse package manifest\n");
+        free(source);
+        return;
+    }
+    
+    // Find or create package
+    Package* pkg = findPackage(package_name);
+    if (!pkg) {
+        pkg = createPackage(package_name);
+        if (!pkg) {
+            free(source);
+            return;
+        }
+    }
+    
+    pkg->loaded = true;
+    pkg->load_time = time(NULL);
+    pkg->manifest_path = strdup(manifest_path);
+    
+    printf(CYAN "[PACKAGE]" RESET " Loading package: %s\n", package_name);
+    
+    // Execute exports from manifest
+    for (int i = 0; i < node_count; i++) {
+        if (nodes[i] && nodes[i]->type == NODE_EXPORT) {
+            // Register export in package
+            addExportToPackage(package_name,
+                              nodes[i]->data.export.alias,
+                              nodes[i]->data.export.symbol,
+                              NULL,
+                              nodes[i]->data.export.is_default);
+            
+            // If this is a variable export, mark it as exported
+            if (nodes[i]->data.export.symbol) {
+                int idx = findVar(nodes[i]->data.export.symbol);
+                if (idx >= 0) {
+                    vars[idx].is_exported = true;
+                }
+            }
+        }
+    }
+    
+    // Cleanup
+    for (int i = 0; i < node_count; i++) {
+        if (nodes[i]) free(nodes[i]);
+    }
+    free(nodes);
+    free(source);
+    
+    printf(CYAN "[PACKAGE]" RESET " Package %s loaded successfully (%d exports)\n", 
+           package_name, pkg->export_count);
+}
+
+// ======================================================
 // [SECTION] EXPRESSION EVALUATION
 // ======================================================
 static double evalFloat(ASTNode* node) {
@@ -659,7 +741,7 @@ static char* evalString(ASTNode* node) {
 }
 
 // ======================================================
-// [SECTION] MODULE IMPORT
+// [SECTION] MODULE IMPORT (CORRIGÉ)
 // ======================================================
 static void importModule(const char* module_name, const char* from_package, const char* alias);
 
@@ -686,7 +768,18 @@ static void importModule(const char* module_name, const char* from_package, cons
     // Handle wildcard import
     if (strcmp(module_name, "*") == 0 && from_package) {
         printf(CYAN "[IMPORT]" RESET " Wildcard import from package: %s\n", from_package);
-        // In a full implementation, we would import all exports from the package
+        
+        // Try to load package manifest first
+        char manifest_path[512];
+        snprintf(manifest_path, sizeof(manifest_path), 
+                "/usr/local/lib/swift/%s/%s.svlib", from_package, from_package);
+        
+        struct stat st;
+        if (stat(manifest_path, &st) == 0) {
+            loadPackageManifest(manifest_path, from_package);
+        } else {
+            printf(RED "[ERROR]" RESET " Package manifest not found: %s\n", manifest_path);
+        }
         return;
     }
     
@@ -716,10 +809,53 @@ static void importModule(const char* module_name, const char* from_package, cons
             }
         }
     } else {
-        // System module
+        // System module - CORRIGÉ: chercher dans /usr/local/lib/swift/
         char system_path[512];
-        snprintf(system_path, sizeof(system_path), 
-                "/usr/local/lib/swiftflow/%s.swf", module_name);
+        
+        if (from_package) {
+            // Si on a un package, chercher d'abord le manifeste .svlib
+            snprintf(system_path, sizeof(system_path), 
+                    "/usr/local/lib/swift/%s/%s.svlib", from_package, from_package);
+            
+            printf(CYAN "[PACKAGE]" RESET " Looking for package manifest: %s\n", system_path);
+            
+            // Vérifier si le manifeste existe
+            struct stat st;
+            if (stat(system_path, &st) == 0) {
+                // Manifeste trouvé, charger le package
+                loadPackageManifest(system_path, from_package);
+                
+                // Maintenant chercher le module spécifique dans le package
+                if (strcmp(module_name, "*") != 0) {
+                    snprintf(system_path, sizeof(system_path), 
+                            "/usr/local/lib/swift/%s/%s.swf", from_package, module_name);
+                    printf(CYAN "[MODULE]" RESET " Looking for module in package: %s\n", system_path);
+                }
+            } else {
+                printf(RED "[ERROR]" RESET " Package manifest not found: %s\n", system_path);
+                
+                // Essayer directement le module
+                snprintf(system_path, sizeof(system_path), 
+                        "/usr/local/lib/swift/%s/%s.swf", from_package, module_name);
+            }
+        } else {
+            // Module seul, chercher directement dans swift/
+            // D'abord essayer comme package (.svlib)
+            snprintf(system_path, sizeof(system_path), 
+                    "/usr/local/lib/swift/%s/%s.svlib", module_name, module_name);
+            
+            struct stat st;
+            if (stat(system_path, &st) == 0) {
+                // C'est un package, charger le manifeste
+                loadPackageManifest(system_path, module_name);
+                return;
+            } else {
+                // Essayer comme module simple (.swf)
+                snprintf(system_path, sizeof(system_path), 
+                        "/usr/local/lib/swift/%s.swf", module_name);
+            }
+        }
+        
         module_path = strdup(system_path);
     }
     
@@ -731,7 +867,63 @@ static void importModule(const char* module_name, const char* from_package, cons
     // Check if file exists
     struct stat st;
     if (stat(module_path, &st) != 0) {
+        // Essayer avec .svlib si .swf n'existe pas
+        if (strstr(module_path, ".swf")) {
+            char* svlib_path = malloc(strlen(module_path) + 1);
+            strcpy(svlib_path, module_path);
+            char* dot = strrchr(svlib_path, '.');
+            if (dot) {
+                strcpy(dot, ".svlib");
+                if (stat(svlib_path, &st) == 0) {
+                    printf(CYAN "[PACKAGE]" RESET " Found package manifest instead: %s\n", svlib_path);
+                    
+                    // Extraire le nom du package
+                    char* pkg_name = strrchr(svlib_path, '/');
+                    if (pkg_name) pkg_name++;
+                    else pkg_name = svlib_path;
+                    
+                    char* ext_dot = strrchr(pkg_name, '.');
+                    if (ext_dot) *ext_dot = '\0';
+                    
+                    loadPackageManifest(svlib_path, pkg_name);
+                    free(svlib_path);
+                    free(module_path);
+                    return;
+                } else {
+                    free(svlib_path);
+                }
+            }
+        }
+        
         printf(RED "[ERROR]" RESET " Module not found: %s\n", module_path);
+        free(module_path);
+        return;
+    }
+    
+    // Vérifier si c'est un fichier .svlib (manifeste de package)
+    const char* ext = strrchr(module_path, '.');
+    if (ext && strcmp(ext, ".svlib") == 0) {
+        // C'est un manifeste de package
+        printf(CYAN "[PACKAGE]" RESET " Loading package manifest: %s\n", module_path);
+        
+        // Extraire le nom du package du chemin
+        char* package_name = strrchr(module_path, '/');
+        if (package_name) package_name++;
+        else package_name = (char*)module_path;
+        
+        // Faire une copie pour modifier
+        char* pkg_name_copy = strdup(package_name);
+        if (!pkg_name_copy) {
+            free(module_path);
+            return;
+        }
+        
+        // Retirer l'extension .svlib
+        char* dot = strrchr(pkg_name_copy, '.');
+        if (dot) *dot = '\0';
+        
+        loadPackageManifest(module_path, pkg_name_copy);
+        free(pkg_name_copy);
         free(module_path);
         return;
     }
