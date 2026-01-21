@@ -73,7 +73,6 @@ static Token makeToken(TokenKind kind) {
     token.line = lexer.line;
     token.column = lexer.start_column;
     
-    // Initialize value
     token.value.int_val = 0;
     return token;
 }
@@ -124,13 +123,13 @@ static void skipWhitespace() {
                 lexer.column = 1;
                 advance();
                 break;
-            case '#': // Commentaire avec #
+            case '#': // Comment
                 while (peek() != '\n' && !isAtEnd()) advance();
                 break;
             case '/':
-                if (peekNext() == '/') { // Commentaire //
+                if (peekNext() == '/') { // Line comment
                     while (peek() != '\n' && !isAtEnd()) advance();
-                } else if (peekNext() == '*') { // Commentaire /* */
+                } else if (peekNext() == '*') { // Block comment
                     advance(); // Skip '/'
                     advance(); // Skip '*'
                     while (!(peek() == '*' && peekNext() == '/') && !isAtEnd()) {
@@ -158,8 +157,7 @@ static void skipWhitespace() {
 // [SECTION] STRING LEXING
 // ======================================================
 static Token string(char quote_char) {
-    // Skip opening quote (already consumed)
-    
+    // Skip opening quote
     while (peek() != quote_char && !isAtEnd()) {
         if (peek() == '\n') {
             lexer.line++;
@@ -174,7 +172,7 @@ static Token string(char quote_char) {
                     advance();
                     break;
                 default:
-                    advance(); // Just skip unknown escape
+                    advance();
                     break;
             }
         } else {
@@ -192,16 +190,15 @@ static Token string(char quote_char) {
     advance();
     
     // Extract string without quotes
-    int length = (int)(lexer.current - lexer.start - 2); // -2 for quotes
+    int length = (int)(lexer.current - lexer.start - 2);
     char* str = malloc(length + 1);
     if (str) {
-        // Copy string content (skip quotes)
         const char* src = lexer.start + 1;
         int dest_idx = 0;
         
         for (int i = 0; i < length; i++) {
             if (src[i] == '\\') {
-                i++; // Skip backslash
+                i++;
                 if (i < length) {
                     switch (src[i]) {
                         case 'n': str[dest_idx++] = '\n'; break;
@@ -255,22 +252,26 @@ static Token number() {
     }
     
     if (is_hex) {
-        // Parse hexadecimal
         while (isxdigit(peek())) advance();
     } else if (is_binary) {
-        // Parse binary
         while (peek() == '0' || peek() == '1') advance();
     } else if (is_octal) {
-        // Parse octal
         while (peek() >= '0' && peek() <= '7') advance();
     } else {
-        // Parse decimal
         while (isdigit(peek())) advance();
         
         // Decimal part
         if (peek() == '.' && isdigit(peekNext())) {
             is_float = true;
             advance(); // Consume '.'
+            while (isdigit(peek())) advance();
+        }
+        
+        // Exponent part
+        if (peek() == 'e' || peek() == 'E') {
+            is_float = true;
+            advance(); // Consume 'e' or 'E'
+            if (peek() == '+' || peek() == '-') advance();
             while (isdigit(peek())) advance();
         }
     }
@@ -285,6 +286,16 @@ static Token number() {
         if (is_float) {
             double value = atof(num_str);
             free(num_str);
+            
+            // Check for special values
+            if (strcasecmp(num_str, "nan") == 0) {
+                return makeToken(TK_NAN);
+            } else if (strcasecmp(num_str, "inf") == 0 || 
+                      strcasecmp(num_str, "+inf") == 0 ||
+                      strcasecmp(num_str, "-inf") == 0) {
+                return makeToken(TK_INF);
+            }
+            
             return makeFloatToken(value);
         } else {
             // Determine base
@@ -334,6 +345,16 @@ static Token identifier() {
             }
         }
         
+        // Check for special literals
+        if (strcmp(text, "NaN") == 0 || strcmp(text, "nan") == 0) {
+            free(text);
+            return makeToken(TK_NAN);
+        }
+        if (strcmp(text, "Infinity") == 0 || strcmp(text, "inf") == 0) {
+            free(text);
+            return makeToken(TK_INF);
+        }
+        
         // If not a keyword, it's an identifier
         Token token = makeToken(TK_IDENT);
         token.value.str_val = text;
@@ -349,9 +370,7 @@ static Token identifier() {
 // ======================================================
 static Token operatorLexer() {
     char c = peek();
-    char error_msg[32];
     
-    // Multi-character operators
     switch (c) {
         case '=':
             advance();
@@ -375,9 +394,13 @@ static Token operatorLexer() {
             advance();
             if (match('=')) {
                 if (match('=')) return makeToken(TK_LDARROW); // <==
+                if (match('>')) return makeToken(TK_SPACESHIP); // <=>
                 return makeToken(TK_LTE); // <=
             }
-            if (match('<')) return makeToken(TK_SHL); // <<
+            if (match('<')) {
+                if (match('=')) return makeToken(TK_SHL); // <<=
+                return makeToken(TK_SHL); // <<
+            }
             return makeToken(TK_LT); // <
             
         case '>':
@@ -386,36 +409,58 @@ static Token operatorLexer() {
                 if (match('=')) return makeToken(TK_RDARROW); // ==>
                 return makeToken(TK_GTE); // >=
             }
-            if (match('>')) return makeToken(TK_SHR); // >>
+            if (match('>')) {
+                if (match('>')) {
+                    if (match('=')) return makeToken(TK_USHR); // >>>=
+                    return makeToken(TK_USHR); // >>>
+                }
+                if (match('=')) return makeToken(TK_SHR); // >>=
+                return makeToken(TK_SHR); // >>
+            }
             return makeToken(TK_GT); // >
             
         case '&':
             advance();
             if (match('&')) return makeToken(TK_AND); // &&
+            if (match('=')) return makeToken(TK_BIT_AND); // &=
             return makeToken(TK_BIT_AND); // &
             
         case '|':
             advance();
             if (match('|')) return makeToken(TK_OR); // ||
+            if (match('=')) return makeToken(TK_BIT_OR); // |=
             return makeToken(TK_BIT_OR); // |
+            
+        case '^':
+            advance();
+            if (match('=')) return makeToken(TK_BIT_XOR); // ^=
+            return makeToken(TK_BIT_XOR); // ^
+            
+        case '~':
+            advance();
+            if (match('=')) return makeToken(TK_BIT_NOT); // ~=
+            return makeToken(TK_BIT_NOT); // ~
             
         case '+':
             advance();
             if (match('=')) return makeToken(TK_PLUS_ASSIGN); // +=
-            if (match('+')) return makeToken(TK_PLUS); // ++ (treated as plus)
+            if (match('+')) return makeToken(TK_PLUS); // ++
             return makeToken(TK_PLUS); // +
             
         case '-':
             advance();
             if (match('=')) return makeToken(TK_MINUS_ASSIGN); // -=
-            if (match('-')) return makeToken(TK_MINUS); // -- (treated as minus)
+            if (match('-')) return makeToken(TK_MINUS); // --
             if (match('>')) return makeToken(TK_RARROW); // ->
             return makeToken(TK_MINUS); // -
             
         case '*':
             advance();
             if (match('=')) return makeToken(TK_MULT_ASSIGN); // *=
-            if (match('*')) return makeToken(TK_POW); // **
+            if (match('*')) {
+                if (match('=')) return makeToken(TK_POW_ASSIGN); // **=
+                return makeToken(TK_POW); // **
+            }
             return makeToken(TK_MULT); // *
             
         case '/':
@@ -428,25 +473,20 @@ static Token operatorLexer() {
             if (match('=')) return makeToken(TK_MOD_ASSIGN); // %=
             return makeToken(TK_MOD); // %
             
-        case '^':
-            advance();
-            if (match('=')) return makeToken(TK_BIT_XOR); // ^= (treated as xor)
-            return makeToken(TK_BIT_XOR); // ^
-            
-        case '~':
-            advance();
-            return makeToken(TK_BIT_NOT); // ~
-            
         case '.':
             advance();
             if (match('.')) {
                 if (match('.')) return makeToken(TK_ELLIPSIS); // ...
-                return makeToken(TK_RANGE); // .. (treated as range)
+                if (match('=')) return makeToken(TK_RANGE_INCL); // ..=
+                return makeToken(TK_RANGE); // ..
             }
+            if (match('?')) return makeToken(TK_SAFE_NAV); // .?
             return makeToken(TK_PERIOD); // .
             
         case '?':
             advance();
+            if (match('.')) return makeToken(TK_SAFE_NAV); // ?.
+            if (match('?')) return makeToken(TK_NULLISH); // ??
             return makeToken(TK_QUESTION); // ?
             
         case ':':
@@ -465,6 +505,10 @@ static Token operatorLexer() {
         case '#':
             advance();
             return makeToken(TK_HASH); // #
+            
+        case '`':
+            advance();
+            return makeToken(TK_BACKTICK); // `
             
         case ';':
             advance();
@@ -501,6 +545,7 @@ static Token operatorLexer() {
         default:
             // Unknown character
             advance();
+            char error_msg[32];
             snprintf(error_msg, sizeof(error_msg), "Unexpected character: '%c'", c);
             return errorToken(error_msg);
     }
@@ -529,7 +574,7 @@ Token scanToken() {
     }
     
     // Strings
-    if (c == '"' || c == '\'') {
+    if (c == '"' || c == '\'' || c == '`') {
         advance(); // Skip quote
         return string(c);
     }
