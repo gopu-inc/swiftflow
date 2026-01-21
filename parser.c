@@ -5,6 +5,8 @@
 #include <unistd.h>
 #include "common.h"
 
+
+extern void execute(ASTNode* node);
 extern Token scanToken();
 extern void initLexer(const char* source);
 extern bool isAtEnd();
