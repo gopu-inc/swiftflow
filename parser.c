@@ -164,6 +164,8 @@ static ASTNode* unary();
 static ASTNode* call();
 static ASTNode* memberAccess();
 static ASTNode* primary();
+static ASTNode* variableDeclaration();  // Déclaration ajoutée
+static ASTNode* functionDeclaration();  // Déclaration ajoutée
 
 // Main expression entry point
 static ASTNode* expression() {
