@@ -1,0 +1,22 @@
+// Module local pour tests
+// local_module.swf
+
+var local_var = "I'm a local variable";
+
+func local_greet() {
+    return "Hello from local module!";
+}
+
+func multiply(x, y) {
+    return x * y;
+}
+
+func print_table(n) {
+    var i = 1;
+    while (i <= 10) {
+        print(n + " x " + i + " = " + (n * i));
+        i = i + 1;
+    }
+}
+
+print("✅ Local module loaded!");

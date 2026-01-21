@@ -1,0 +1,26 @@
+import "add" from "stdlib";
+
+print("la valeur de PI:");
+var nde = weld("taper weld");
+
+// Déclaration correcte de variables
+var i = 10;
+var s = 5;
+
+// Condition correcte : if (condition)
+if (i > s) {
+    i = i + 1;
+    print("i augmenté: " + i);
+}
+
+// Déclaration de fonction correcte
+func load(count) {
+    // Appel d'une fonction qui existe
+    return count * 2;
+}
+
+// Utiliser la fonction
+var result = load(i);
+print("Résultat: " + result);
+print(nde);
+print(size(result);

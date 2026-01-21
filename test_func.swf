@@ -1,0 +1,7 @@
+func test() {
+    print("Fonction test");
+    return 42;
+}
+
+var result = test();
+print("Result = " + result);

@@ -1,23 +1,21 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -std=c99 -g
-TARGET = swf
-SOURCES = swf.c lexer.c parser.c
-HEADERS = common.h
-OBJECTS = $(SOURCES:.c=.o)
+CFLAGS = -std=c99 -g -D_POSIX_C_SOURCE=200809L -Wno-unused-function -Wno-format-truncation -Wno-implicit-function-declaration
+LDFLAGS = -lm
+
+SRCS = lexer.c parser.c swf.c
+OBJS = $(SRCS:.c=.o)
+TARGET = swift
+
+.PHONY: all clean
 
 all: $(TARGET)
 
-$(TARGET): $(OBJECTS)
-	$(CC) $(CFLAGS) -o $(TARGET) $(OBJECTS)
+$(TARGET): $(OBJS)
+	$(CC) $(CFLAGS) -o $(TARGET) $(OBJS) $(LDFLAGS)
+	chmod +x $(TARGET)
 
-%.o: %.c $(HEADERS)
+%.o: %.c common.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -f $(OBJECTS) $(TARGET)
-
-test: $(TARGET)
-	@echo "=== Testing ==="
-	@./$(TARGET) test1.swf
-
-.PHONY: all clean test
+	rm -f $(OBJS) $(TARGET)

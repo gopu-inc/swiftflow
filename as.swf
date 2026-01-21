@@ -1,0 +1,65 @@
+// Module de test pour la bibliothèque standard
+// test_stdlib.swf
+
+// Variables globales
+var global_counter = 0;
+
+// Fonction simple
+func greet(name) {
+    print("Hello, " + name + "!");
+    return "Greeted " + name;
+}
+
+// Fonction avec paramètres multiples
+func add(a, b) {
+    return a + b;
+}
+
+// Fonction avec logique conditionnelle
+func max(a, b) {
+    if (a > b) {
+        return a;
+    } else {
+        return b;
+    }
+}
+
+// Fonction qui modifie une variable globale
+func increment_counter() {
+    global_counter = global_counter + 1;
+    return global_counter;
+}
+
+// Fonction récursive (factorielle)
+func factorial(n) {
+    if (n <= 1) {
+        return 1;
+    } else {
+        return n * factorial(n - 1);
+    }
+}
+
+// Test des différents types
+func test_types() {
+    var int_val = 42;
+    var float_val = 3.14;
+    var str_val = "test";
+    var bool_val = true;
+    
+    print("int: " + int_val);
+    print("float: " + float_val);
+    print("string: " + str_val);
+    print("bool: " + bool_val);
+    
+    return "Types test completed";
+}
+
+// Exporter quelques fonctions
+export "greet" as "greet";
+export "add" as "add";
+export "max" as "maximum";
+export "test_types" as "type_test";
+
+print("✅ Standard library module loaded successfully!");
+print("   Available functions: greet(), add(), max(), increment_counter(), factorial(), test_types()");
+
