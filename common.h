@@ -8,7 +8,8 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/stat.h>
-#include <stdarg.h>
+#include <stdarg.h>  // Ajouté pour va_list
+
 // ======================================================
 // [SECTION] ANSI COLOR CODES
 // ======================================================
