@@ -1,21 +1,25 @@
 CC = gcc
-CFLAGS = -std=c99 -g -D_POSIX_C_SOURCE=200809L -Wno-unused-function -Wno-format-truncation -Wno-implicit-function-declaration
+CFLAGS = -std=c99 -g -D_POSIX_C_SOURCE=200809L -Wall -Wextra
 LDFLAGS = -lm
-
-SRCS = lexer.c parser.c swf.c
-OBJS = $(SRCS:.c=.o)
 TARGET = swift
-
-.PHONY: all clean
+SOURCES = swf.c lexer.c parser.c
+OBJECTS = $(SOURCES:.c=.o)
 
 all: $(TARGET)
 
-$(TARGET): $(OBJS)
-	$(CC) $(CFLAGS) -o $(TARGET) $(OBJS) $(LDFLAGS)
-	chmod +x $(TARGET)
+$(TARGET): $(OBJECTS)
+	$(CC) $(CFLAGS) -o $(TARGET) $(OBJECTS) $(LDFLAGS)
 
 %.o: %.c common.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -f $(OBJS) $(TARGET)
+	rm -f $(OBJECTS) $(TARGET)
+
+run: all
+	./$(TARGET)
+
+test: all
+	./$(TARGET) test.swf
+
+.PHONY: all clean run test
