@@ -847,23 +847,35 @@ static void execute(ASTNode* node) {
         }
         
         case NODE_ASSIGN: {
-            int idx = findVar(node->data.name);
-            if (idx >= 0) {
-                if (vars[idx].is_constant) {
-                    printf("[ERROR] Cannot assign to constant: %s\n", node->data.name);
-                    break;
-                }
-                
-                if (node->left) {
-                    double val = evalFloat(node->left);
-                    vars[idx].value.float_val = val;
-                    vars[idx].is_initialized = true;
-                }
-            } else {
-                printf("[ERROR] Variable not found: %s\n", node->data.name);
-            }
+            if (node->data.name) {
+                int idx = findVar(node->data.name);
+                if (idx >= 0) {
+                     if (vars[idx].is_constant) {
+                          printf("%s[EXEC ERROR]%s Cannot assign to constant '%s'\n",  COLOR_RED, COLOR_RESET, node->data.name);
             break;
         }
+            
+            // ICI EST LE PROBLÈME : il faut ÉVALUER node->left
+                           if (node->left) {
+                               vars[idx].is_initialized = true;
+                
+                // ÉVALUER l'expression à droite du '='
+                               double new_value = evalFloat(node->left);  // <-- CE MANQUE PEUT-ÊTRE
+                
+                // Mettre à jour la variable
+                               vars[idx].is_float = true;
+                               vars[idx].is_string = false;
+                               vars[idx].value.float_val = new_value;  // <-- METTRE À JOUR LA VALEUR
+                
+                // Debug
+                                printf("%s[DEBUG]%s Assign: %s = %f\n", COLOR_YELLOW, COLOR_RESET, node->data.name, new_value);
+                     }
+                  } else {
+                     printf("%s[EXEC ERROR]%s Variable '%s' not found\n", COLOR_RED, COLOR_RESET, node->data.name);
+        }
+    }
+    break;
+}
         
         case NODE_FUNC:
             // Already registered during parsing
