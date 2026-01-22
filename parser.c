@@ -218,7 +218,6 @@ static ASTNode* assignment() {
         
         TokenKind op = previous.kind;
         
-        // Check for compound assignment operators
         bool is_compound = false;
         if (op == TK_PLUS_ASSIGN || op == TK_MINUS_ASSIGN || 
             op == TK_MULT_ASSIGN || op == TK_DIV_ASSIGN ||
@@ -229,7 +228,8 @@ static ASTNode* assignment() {
             is_compound = true;
         }
         
-        ASTNode* value = assignment();
+        // CORRECTION : utiliser ternary() au lieu de assignment()
+        ASTNode* value = ternary();
         
         if (expr->type != NODE_IDENT && 
             expr->type != NODE_MEMBER_ACCESS &&
@@ -237,6 +237,29 @@ static ASTNode* assignment() {
             error("Invalid assignment target");
             return expr;
         }
+        
+        ASTNode* node = is_compound ? newNode(NODE_COMPOUND_ASSIGN) : newNode(NODE_ASSIGN);
+        if (node) {
+            node->left = expr;
+            node->right = value;
+            node->op_type = op;
+            
+            if (expr->type == NODE_IDENT && expr->data.name) {
+                node->data.name = str_copy(expr->data.name);
+            }
+            
+            printf("%s[PARSER DEBUG]%s Created assignment node:\n", COLOR_CYAN, COLOR_RESET);
+            printf("  Type: %s (%d)\n", is_compound ? "COMPOUND_ASSIGN" : "ASSIGN", node->type);
+            printf("  Target: %s (type: %d)\n", 
+                   expr->type == NODE_IDENT && expr->data.name ? expr->data.name : "unknown",
+                   expr->type);
+            printf("  Value type: %d\n", value ? value->type : -1);
+        }
+        return node;
+    }
+    
+    return expr;
+}
         
         ASTNode* node = is_compound ? newNode(NODE_COMPOUND_ASSIGN) : newNode(NODE_ASSIGN);
         if (node) {
@@ -275,7 +298,7 @@ static ASTNode* ternary() {
     
     if (match(TK_QUESTION)) {
         ASTNode* trueExpr = expression();
-        consume(TK_COLON, "Expected ':' in ternary operator");
+        consume(TK_COLON, "[NOT TOKEN]Expected ':' in ternary operator");
         ASTNode* falseExpr = ternary();
         
         ASTNode* node = newNode(NODE_TERNARY);
