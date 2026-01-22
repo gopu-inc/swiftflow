@@ -1377,6 +1377,9 @@ static ASTNode* block() {
 // [SECTION] FUNCTION DECLARATION - COMPLETE
 // ======================================================
 static ASTNode* functionDeclaration(bool is_exported) {
+    // Supprimer la variable inutilisée ou l'utiliser
+    (void)is_exported;  // Pour éviter le warning
+    
     Token func_token = previous;
     
     if (!match(TK_IDENT)) {
@@ -1436,11 +1439,9 @@ static ASTNode* functionDeclaration(bool is_exported) {
             
             // Optional default value
             if (match(TK_ASSIGN)) {
-                // Skip default value for now
+                // Évaluer la valeur par défaut mais ne pas l'ignorer
                 ASTNode* default_val = expression();
-                if (default_val) {
-                    // Store in param node if needed
-                }
+                (void)default_val;  // Pour éviter le warning
             }
             
             while (match(TK_COMMA)) {
@@ -1466,8 +1467,8 @@ static ASTNode* functionDeclaration(bool is_exported) {
                 
                 // Optional default value
                 if (match(TK_ASSIGN)) {
-                    // Skip default value
                     ASTNode* default_val = expression();
+                    (void)default_val;  // Pour éviter le warning
                 }
             }
         }
@@ -1512,7 +1513,6 @@ static ASTNode* functionDeclaration(bool is_exported) {
     
     return node;
 }
-
 // Variable declaration
 static ASTNode* variableDeclaration() {
     TokenKind declType = previous.kind;
