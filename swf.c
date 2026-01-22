@@ -550,35 +550,221 @@ static double evalFloat(ASTNode* node) {
         case NODE_IDENT: {
             int idx = findVar(node->data.name);
             if (idx >= 0) {
-                if (vars[idx].is_float) return vars[idx].value.float_val;
-                if (vars[idx].is_string) return strtod(vars[idx].value.str_val, NULL);
-                return (double)vars[idx].value.int_val;
+                printf("[DEBUG evalFloat] Reading var '%s' = ", node->data.name);
+        
+                if (vars[idx].is_float) {
+                    printf("%f\n", vars[idx].value.float_val);
+                   return vars[idx].value.float_val;
+              } else if (vars[idx].is_string) {
+                  printf("\"%s\"\n", vars[idx].value.str_val);
+            // Conversion string vers float
+                  char* endptr;
+                  double val = strtod(vars[idx].value.str_val, &endptr);
+                  return val;
+              } else {
+                  printf("%lld\n", vars[idx].value.int_val);
+                  return (double)vars[idx].value.int_val;
+         }
+    }
+        printf("[DEBUG evalFloat] Variable '%s' NOT FOUND\n", node->data.name);
+        return 0.0;
+}
+        case NODE_BINARY: {
+    printf("[DEBUG BINARY] Starting binary operation, operator type: %d\n", node->op_type);
+    
+    // Évaluer les côtés gauche et droit
+    double left_val = evalFloat(node->left);
+    double right_val = evalFloat(node->right);
+    
+    printf("[DEBUG BINARY] Left value: %f, Right value: %f\n", left_val, right_val);
+    
+    // Appliquer l'opérateur
+    switch (node->op_type) {
+        // Opérateurs arithmétiques
+        case TK_PLUS: {
+            double result = left_val + right_val;
+            printf("[DEBUG BINARY] %f + %f = %f\n", left_val, right_val, result);
+            return result;
+        }
+        case TK_MINUS: {
+            double result = left_val - right_val;
+            printf("[DEBUG BINARY] %f - %f = %f\n", left_val, right_val, result);
+            return result;
+        }
+        case TK_MULT: {
+            double result = left_val * right_val;
+            printf("[DEBUG BINARY] %f * %f = %f\n", left_val, right_val, result);
+            return result;
+        }
+        case TK_DIV: {
+            if (right_val == 0.0) {
+                printf("[DEBUG BINARY] Division by zero: %f / 0\n", left_val);
+                return INFINITY;
             }
-            printf("[ERROR] Undefined variable: %s\n", node->data.name);
+            double result = left_val / right_val;
+            printf("[DEBUG BINARY] %f / %f = %f\n", left_val, right_val, result);
+            return result;
+        }
+        case TK_MOD: {
+            if (right_val == 0.0) {
+                printf("[DEBUG BINARY] Modulo by zero: %f %% 0\n", left_val);
+                return 0.0;
+            }
+            double result = fmod(left_val, right_val);
+            printf("[DEBUG BINARY] %f %% %f = %f\n", left_val, right_val, result);
+            return result;
+        }
+        case TK_POW: {
+            double result = pow(left_val, right_val);
+            printf("[DEBUG BINARY] %f ^ %f = %f\n", left_val, right_val, result);
+            return result;
+        }
+        case TK_CONCAT: {
+            // Concaténation de strings - convertit en string puis évalue
+            char* left_str = evalString(node->left);
+            char* right_str = evalString(node->right);
+            char* combined = malloc(strlen(left_str) + strlen(right_str) + 1);
+            strcpy(combined, left_str);
+            strcat(combined, right_str);
+            
+            printf("[DEBUG BINARY] String concat: \"%s\" + \"%s\" = \"%s\"\n", 
+                   left_str, right_str, combined);
+            
+            // Convertir en nombre si possible
+            char* endptr;
+            double result = strtod(combined, &endptr);
+            
+            free(left_str);
+            free(right_str);
+            free(combined);
+            
+            if (endptr != combined) {
+                return result;
+            }
             return 0.0;
         }
-        case NODE_BINARY: {
-            double left = evalFloat(node->left);
-            double right = evalFloat(node->right);
-            
-            switch (node->op_type) {
-                case TK_PLUS: return left + right;
-                case TK_MINUS: return left - right;
-                case TK_MULT: return left * right;
-                case TK_DIV: return right != 0 ? left / right : INFINITY;
-                case TK_MOD: return fmod(left, right);
-                case TK_POW: return pow(left, right);
-                case TK_EQ: return left == right ? 1.0 : 0.0;
-                case TK_NEQ: return left != right ? 1.0 : 0.0;
-                case TK_GT: return left > right ? 1.0 : 0.0;
-                case TK_LT: return left < right ? 1.0 : 0.0;
-                case TK_GTE: return left >= right ? 1.0 : 0.0;
-                case TK_LTE: return left <= right ? 1.0 : 0.0;
-                case TK_AND: return (left != 0.0 && right != 0.0) ? 1.0 : 0.0;
-                case TK_OR: return (left != 0.0 || right != 0.0) ? 1.0 : 0.0;
-                default: return 0.0;
-            }
+        
+        // Opérateurs de comparaison
+        case TK_EQ: {
+            double result = (left_val == right_val) ? 1.0 : 0.0;
+            printf("[DEBUG BINARY] %f == %f = %f\n", left_val, right_val, result);
+            return result;
         }
+        case TK_NEQ: {
+            double result = (left_val != right_val) ? 1.0 : 0.0;
+            printf("[DEBUG BINARY] %f != %f = %f\n", left_val, right_val, result);
+            return result;
+        }
+        case TK_GT: {
+            double result = (left_val > right_val) ? 1.0 : 0.0;
+            printf("[DEBUG BINARY] %f > %f = %f\n", left_val, right_val, result);
+            return result;
+        }
+        case TK_LT: {
+            double result = (left_val < right_val) ? 1.0 : 0.0;
+            printf("[DEBUG BINARY] %f < %f = %f\n", left_val, right_val, result);
+            return result;
+        }
+        case TK_GTE: {
+            double result = (left_val >= right_val) ? 1.0 : 0.0;
+            printf("[DEBUG BINARY] %f >= %f = %f\n", left_val, right_val, result);
+            return result;
+        }
+        case TK_LTE: {
+            double result = (left_val <= right_val) ? 1.0 : 0.0;
+            printf("[DEBUG BINARY] %f <= %f = %f\n", left_val, right_val, result);
+            return result;
+        }
+        case TK_SPACESHIP: {
+            // Opérateur spaceship (<=>)
+            double result;
+            if (left_val < right_val) result = -1.0;
+            else if (left_val > right_val) result = 1.0;
+            else result = 0.0;
+            printf("[DEBUG BINARY] %f <=> %f = %f\n", left_val, right_val, result);
+            return result;
+        }
+        
+        // Opérateurs logiques (version numérique)
+        case TK_AND: {
+            double result = (left_val != 0.0 && right_val != 0.0) ? 1.0 : 0.0;
+            printf("[DEBUG BINARY] %f && %f = %f\n", left_val, right_val, result);
+            return result;
+        }
+        case TK_OR: {
+            double result = (left_val != 0.0 || right_val != 0.0) ? 1.0 : 0.0;
+            printf("[DEBUG BINARY] %f || %f = %f\n", left_val, right_val, result);
+            return result;
+        }
+        
+        // Opérateurs bitwise (convertis en entiers)
+        case TK_BIT_AND: {
+            int64_t left_int = (int64_t)left_val;
+            int64_t right_int = (int64_t)right_val;
+            double result = (double)(left_int & right_int);
+            printf("[DEBUG BINARY] %lld & %lld = %lld\n", left_int, right_int, (int64_t)result);
+            return result;
+        }
+        case TK_BIT_OR: {
+            int64_t left_int = (int64_t)left_val;
+            int64_t right_int = (int64_t)right_val;
+            double result = (double)(left_int | right_int);
+            printf("[DEBUG BINARY] %lld | %lld = %lld\n", left_int, right_int, (int64_t)result);
+            return result;
+        }
+        case TK_BIT_XOR: {
+            int64_t left_int = (int64_t)left_val;
+            int64_t right_int = (int64_t)right_val;
+            double result = (double)(left_int ^ right_int);
+            printf("[DEBUG BINARY] %lld ^ %lld = %lld\n", left_int, right_int, (int64_t)result);
+            return result;
+        }
+        case TK_SHL: {
+            int64_t left_int = (int64_t)left_val;
+            int64_t right_int = (int64_t)right_val;
+            double result = (double)(left_int << right_int);
+            printf("[DEBUG BINARY] %lld << %lld = %lld\n", left_int, right_int, (int64_t)result);
+            return result;
+        }
+        case TK_SHR: {
+            int64_t left_int = (int64_t)left_val;
+            int64_t right_int = (int64_t)right_val;
+            double result = (double)(left_int >> right_int);
+            printf("[DEBUG BINARY] %lld >> %lld = %lld\n", left_int, right_int, (int64_t)result);
+            return result;
+        }
+        case TK_USHR: {
+            uint64_t left_uint = (uint64_t)left_val;
+            uint64_t right_uint = (uint64_t)right_val;
+            double result = (double)(left_uint >> right_uint);
+            printf("[DEBUG BINARY] %llu >>> %llu = %llu\n", left_uint, right_uint, (uint64_t)result);
+            return result;
+        }
+        
+        // Opérateurs spéciaux
+        case TK_IN: {
+            // "in" operator - retourne 1.0 si left est dans right (pour les collections)
+            printf("[DEBUG BINARY] in operator not fully implemented\n");
+            return 0.0;
+        }
+        case TK_IS: {
+            // "is" operator - comparaison de type
+            printf("[DEBUG BINARY] is operator not fully implemented\n");
+            return (left_val == right_val) ? 1.0 : 0.0;
+        }
+        case TK_ISNOT: {
+            printf("[DEBUG BINARY] isnot operator not fully implemented\n");
+            return (left_val != right_val) ? 1.0 : 0.0;
+        }
+        
+        default: {
+            printf("[DEBUG BINARY] ERROR: Unknown binary operator: %d\n", node->op_type);
+            printf("[DEBUG BINARY] Operator names: TK_PLUS=%d, TK_MINUS=%d\n", 
+                   TK_PLUS, TK_MINUS);
+            return 0.0;
+        }
+    }
+}
         case NODE_UNARY: {
             double operand = evalFloat(node->left);
             switch (node->op_type) {
