@@ -210,9 +210,8 @@ static ASTNode* expression() {
 static ASTNode* assignment() {
     ASTNode* expr = ternary();
     
-    if (match(TK_ASSIGN) || match(TK_PLUS_ASSIGN) || 
-        match(TK_MINUS_ASSIGN) || match(TK_MULT_ASSIGN) ||
-        match(TK_DIV_ASSIGN) || match(TK_MOD_ASSIGN) ||
+    if (match(TK_ASSIGN) || match(TK_PLUS_ASSIGN) || match(TK_MINUS_ASSIGN) || 
+        match(TK_MULT_ASSIGN) || match(TK_DIV_ASSIGN) || match(TK_MOD_ASSIGN) ||
         match(TK_POW_ASSIGN) || match(TK_CONCAT_ASSIGN) ||
         match(TK_BIT_AND) || match(TK_BIT_OR) || match(TK_BIT_XOR) ||
         match(TK_SHL) || match(TK_SHR) || match(TK_USHR)) {
@@ -224,7 +223,9 @@ static ASTNode* assignment() {
         if (op == TK_PLUS_ASSIGN || op == TK_MINUS_ASSIGN || 
             op == TK_MULT_ASSIGN || op == TK_DIV_ASSIGN ||
             op == TK_MOD_ASSIGN || op == TK_POW_ASSIGN ||
-            op == TK_CONCAT_ASSIGN) {
+            op == TK_CONCAT_ASSIGN || op == TK_BIT_AND ||
+            op == TK_BIT_OR || op == TK_BIT_XOR ||
+            op == TK_SHL || op == TK_SHR || op == TK_USHR) {
             is_compound = true;
         }
         
@@ -239,12 +240,27 @@ static ASTNode* assignment() {
         
         ASTNode* node = is_compound ? newNode(NODE_COMPOUND_ASSIGN) : newNode(NODE_ASSIGN);
         if (node) {
-            node->left = expr;
-            node->right = value;
+            // CORRECTION IMPORTANTE : 
+            // Pour NODE_ASSIGN: left = target, right = value
+            // Pour NODE_COMPOUND_ASSIGN: left = target, right = value
+            node->left = expr;        // La cible (variable) à gauche
+            node->right = value;      // La valeur à droite
             node->op_type = op;
             
             if (expr->type == NODE_IDENT && expr->data.name) {
                 node->data.name = str_copy(expr->data.name);
+            }
+            
+            // Debug pour vérifier la structure
+            printf("%s[PARSER DEBUG]%s Assignment node created:\n", COLOR_CYAN, COLOR_RESET);
+            printf("  Type: %s\n", is_compound ? "COMPOUND_ASSIGN" : "ASSIGN");
+            printf("  Target: %s\n", expr->type == NODE_IDENT && expr->data.name ? expr->data.name : "unknown");
+            printf("  Operator: %d\n", op);
+            if (value) {
+                printf("  Value type: %d\n", value->type);
+                if (value->type == NODE_BINARY) {
+                    printf("  Value binary op: %d\n", value->op_type);
+                }
             }
         }
         return node;
