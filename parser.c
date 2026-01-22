@@ -207,6 +207,7 @@ static ASTNode* expression() {
 }
 
 // Assignment: IDENT '=' expression | ternary
+// Assignment: IDENT '=' expression | ternary
 static ASTNode* assignment() {
     ASTNode* expr = ternary();
     
@@ -254,38 +255,7 @@ static ASTNode* assignment() {
             printf("  Target: %s (type: %d)\n", 
                    expr->type == NODE_IDENT && expr->data.name ? expr->data.name : "unknown",
                    expr->type);
-            printf("  Value type: %d\n", value ? (int)value->type : -1);  // Correction du warning
-        }
-        return node;
-    }
-    
-    return expr;
-}
-        
-        ASTNode* node = is_compound ? newNode(NODE_COMPOUND_ASSIGN) : newNode(NODE_ASSIGN);
-        if (node) {
-            // CORRECTION IMPORTANTE : 
-            // Pour NODE_ASSIGN: left = target, right = value
-            // Pour NODE_COMPOUND_ASSIGN: left = target, right = value
-            node->left = expr;        // La cible (variable) à gauche
-            node->right = value;      // La valeur à droite
-            node->op_type = op;
-            
-            if (expr->type == NODE_IDENT && expr->data.name) {
-                node->data.name = str_copy(expr->data.name);
-            }
-            
-            // Debug pour vérifier la structure
-            printf("%s[PARSER DEBUG]%s Assignment node created:\n", COLOR_CYAN, COLOR_RESET);
-            printf("  Type: %s\n", is_compound ? "COMPOUND_ASSIGN" : "ASSIGN");
-            printf("  Target: %s\n", expr->type == NODE_IDENT && expr->data.name ? expr->data.name : "unknown");
-            printf("  Operator: %d\n", op);
-            if (value) {
-                printf("  Value type: %d\n", value->type);
-                if (value->type == NODE_BINARY) {
-                    printf("  Value binary op: %d\n", value->op_type);
-                }
-            }
+            printf("  Value type: %d\n", value ? (int)value->type : -1);
         }
         return node;
     }
