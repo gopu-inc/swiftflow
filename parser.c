@@ -219,7 +219,6 @@ static ASTNode* assignment() {
         
         TokenKind op = previous.kind;
         
-        // Déclarer is_compound AVANT de l'utiliser
         bool is_compound = false;
         if (op == TK_PLUS_ASSIGN || op == TK_MINUS_ASSIGN || 
             op == TK_MULT_ASSIGN || op == TK_DIV_ASSIGN ||
@@ -230,8 +229,32 @@ static ASTNode* assignment() {
             is_compound = true;
         }
         
-        // CORRECTION : utiliser ternary() au lieu de assignment()
+        // SAUVEGARDER la position actuelle
+        Token saved = current;
+        
+        // Essayer de parser la valeur
         ASTNode* value = ternary();
+        
+        // DEBUG: Vérifier ce qu'on a parsé
+        printf("%s[PARSER DEBUG]%s After parsing value, next token: %d (line %d)\n", 
+               COLOR_CYAN, COLOR_RESET, current.kind, current.line);
+        
+        // Si on a dépassé la ligne de l'assignation, c'est qu'on a trop lu
+        if (value && value->line > expr->line) {
+            printf("%s[PARSER DEBUG]%s Value seems to be on next line, rolling back\n", 
+                   COLOR_YELLOW, COLOR_RESET);
+            
+            // Annuler et réessayer avec une approche plus restrictive
+            current = saved;
+            
+            // Parser seulement jusqu'au prochain ';' ou fin de ligne
+            value = expression();
+            
+            // S'arrêter au ';'
+            if (check(TK_SEMICOLON)) {
+                // Ne pas consommer le ';', il sera consommé par expressionStatement()
+            }
+        }
         
         if (expr->type != NODE_IDENT && 
             expr->type != NODE_MEMBER_ACCESS &&
@@ -256,6 +279,10 @@ static ASTNode* assignment() {
                    expr->type == NODE_IDENT && expr->data.name ? expr->data.name : "unknown",
                    expr->type);
             printf("  Value type: %d\n", value ? (int)value->type : -1);
+            
+            if (value && value->type == NODE_BINARY) {
+                printf("  Value is binary with op: %d\n", value->op_type);
+            }
         }
         return node;
     }
