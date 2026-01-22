@@ -534,309 +534,377 @@ static void registerNativeFunctions() {
 // [SECTION] EXPRESSION EVALUATION
 // ======================================================
 static double evalFloat(ASTNode* node) {
-    if (!node) return 0.0;
+    if (!node) {
+        printf("%s[EVAL ERROR]%s NULL node\n", COLOR_RED, COLOR_RESET);
+        return 0.0;
+    }
+    
+    printf("%s[EVAL DEBUG]%s Evaluating node type: %d (line %d, col %d)\n", 
+           COLOR_CYAN, COLOR_RESET, node->type, node->line, node->column);
     
     switch (node->type) {
         case NODE_INT:
+            printf("%s[EVAL DEBUG]%s Integer: %lld -> %f\n", 
+                   COLOR_CYAN, COLOR_RESET, node->data.int_val, (double)node->data.int_val);
             return (double)node->data.int_val;
+            
         case NODE_FLOAT:
+            printf("%s[EVAL DEBUG]%s Float: %f\n", COLOR_CYAN, COLOR_RESET, node->data.float_val);
             return node->data.float_val;
+            
         case NODE_BOOL:
+            printf("%s[EVAL DEBUG]%s Bool: %s -> %f\n", 
+                   COLOR_CYAN, COLOR_RESET, node->data.bool_val ? "true" : "false",
+                   node->data.bool_val ? 1.0 : 0.0);
             return node->data.bool_val ? 1.0 : 0.0;
+            
         case NODE_STRING: {
+            printf("%s[EVAL DEBUG]%s String: \"%s\"\n", COLOR_CYAN, COLOR_RESET, node->data.str_val);
             char* endptr;
-            return strtod(node->data.str_val, &endptr);
+            double val = strtod(node->data.str_val, &endptr);
+            if (endptr != node->data.str_val) {
+                printf("%s[EVAL DEBUG]%s Converted to float: %f\n", COLOR_CYAN, COLOR_RESET, val);
+            }
+            return val;
         }
+            
         case NODE_IDENT: {
-    printf("[CRITICAL DEBUG] Reading variable: %s\n", node->data.name);
-    int idx = findVar(node->data.name);
-    if (idx >= 0) {
-        double val;
-        if (vars[idx].is_float) {
-            val = vars[idx].value.float_val;
-            printf("[CRITICAL DEBUG] Found %s as float: %f\n", node->data.name, val);
-        } else if (vars[idx].is_string) {
-            val = 0.0; // Conversion simplifiée
-            printf("[CRITICAL DEBUG] Found %s as string\n", node->data.name);
-        } else {
-            val = (double)vars[idx].value.int_val;
-            printf("[CRITICAL DEBUG] Found %s as int: %lld -> %f\n", 
-                   node->data.name, vars[idx].value.int_val, val);
+            printf("%s[EVAL DEBUG]%s Identifier: %s\n", 
+                   COLOR_CYAN, COLOR_RESET, node->data.name ? node->data.name : "NULL");
+            int idx = findVar(node->data.name);
+            if (idx >= 0) {
+                double val;
+                if (vars[idx].is_float) {
+                    val = vars[idx].value.float_val;
+                    printf("%s[EVAL DEBUG]%s Found %s as float: %f\n", 
+                           COLOR_GREEN, COLOR_RESET, node->data.name, val);
+                } else if (vars[idx].is_string) {
+                    val = 0.0;
+                    printf("%s[EVAL DEBUG]%s Found %s as string: \"%s\"\n", 
+                           COLOR_GREEN, COLOR_RESET, node->data.name, vars[idx].value.str_val);
+                } else {
+                    val = (double)vars[idx].value.int_val;
+                    printf("%s[EVAL DEBUG]%s Found %s as int: %lld -> %f\n", 
+                           COLOR_GREEN, COLOR_RESET, node->data.name, 
+                           vars[idx].value.int_val, val);
+                }
+                return val;
+            }
+            printf("%s[EVAL DEBUG]%s Variable %s NOT FOUND\n", 
+                   COLOR_RED, COLOR_RESET, node->data.name);
+            return 0.0;
         }
-        return val;
-    }
-    printf("[CRITICAL DEBUG] Variable %s NOT FOUND\n", node->data.name);
-    return 0.0;
-}
-
+        
         case NODE_BINARY: {
-    printf("[DEBUG BINARY] Starting binary operation, operator type: %d\n", node->op_type);
-    
-    // Évaluer les côtés gauche et droit
-    double left_val = evalFloat(node->left);
-    double right_val = evalFloat(node->right);
-    
-    printf("[DEBUG BINARY] Left value: %f, Right value: %f\n", left_val, right_val);
-    
-    // Appliquer l'opérateur
-    switch (node->op_type) {
-        // Opérateurs arithmétiques
-        case TK_PLUS: {
-    double left_val = evalFloat(node->left);
-    double right_val = evalFloat(node->right);
-    double result = left_val + right_val;
-    
-    // Debug détaillé
-    printf("[DEBUG BINARY PLUS] ");
-    if (node->left->type == NODE_IDENT) {
-        printf("%s", node->left->data.name);
-    } else {
-        printf("%f", left_val);
-    }
-    printf(" + ");
-    if (node->right->type == NODE_IDENT) {
-        printf("%s", node->right->data.name);
-    } else {
-        printf("%f", right_val);
-    }
-    printf(" = %f\n", result);
-    
-    return result;
-}
-        case TK_MINUS: {
-            double result = left_val - right_val;
-            printf("[DEBUG BINARY] %f - %f = %f\n", left_val, right_val, result);
-            return result;
-        }
-        case TK_MULT: {
-            double result = left_val * right_val;
-            printf("[DEBUG BINARY] %f * %f = %f\n", left_val, right_val, result);
-            return result;
-        }
-        case TK_DIV: {
-            if (right_val == 0.0) {
-                printf("[DEBUG BINARY] Division by zero: %f / 0\n", left_val);
-                return INFINITY;
+            printf("%s[EVAL DEBUG]%s Binary operation, op_type: %d\n", 
+                   COLOR_MAGENTA, COLOR_RESET, node->op_type);
+            printf("%s[EVAL DEBUG]%s Left node exists: %s (type: %d)\n", 
+                   COLOR_MAGENTA, COLOR_RESET, 
+                   node->left ? "YES" : "NO", 
+                   node->left ? node->left->type : -1);
+            printf("%s[EVAL DEBUG]%s Right node exists: %s (type: %d)\n", 
+                   COLOR_MAGENTA, COLOR_RESET, 
+                   node->right ? "YES" : "NO", 
+                   node->right ? node->right->type : -1);
+            
+            if (node->left && node->left->type == NODE_IDENT) {
+                printf("%s[EVAL DEBUG]%s Left is identifier: %s\n", 
+                       COLOR_MAGENTA, COLOR_RESET, node->left->data.name);
             }
-            double result = left_val / right_val;
-            printf("[DEBUG BINARY] %f / %f = %f\n", left_val, right_val, result);
-            return result;
-        }
-        case TK_MOD: {
-            if (right_val == 0.0) {
-                printf("[DEBUG BINARY] Modulo by zero: %f %% 0\n", left_val);
-                return 0.0;
+            if (node->right && node->right->type == NODE_IDENT) {
+                printf("%s[EVAL DEBUG]%s Right is identifier: %s\n", 
+                       COLOR_MAGENTA, COLOR_RESET, node->right->data.name);
             }
-            double result = fmod(left_val, right_val);
-            printf("[DEBUG BINARY] %f %% %f = %f\n", left_val, right_val, result);
-            return result;
-        }
-        case TK_POW: {
-            double result = pow(left_val, right_val);
-            printf("[DEBUG BINARY] %f ^ %f = %f\n", left_val, right_val, result);
-            return result;
-        }
-        case TK_CONCAT: {
-            // Concaténation de strings - convertit en string puis évalue
-            char* left_str = evalString(node->left);
-            char* right_str = evalString(node->right);
-            char* combined = malloc(strlen(left_str) + strlen(right_str) + 1);
-            strcpy(combined, left_str);
-            strcat(combined, right_str);
             
-            printf("[DEBUG BINARY] String concat: \"%s\" + \"%s\" = \"%s\"\n", 
-                   left_str, right_str, combined);
+            double left_val = evalFloat(node->left);
+            double right_val = evalFloat(node->right);
             
-            // Convertir en nombre si possible
-            char* endptr;
-            double result = strtod(combined, &endptr);
+            printf("%s[EVAL DEBUG]%s Binary values evaluated: left=%f, right=%f, op=%d\n", 
+                   COLOR_MAGENTA, COLOR_RESET, left_val, right_val, node->op_type);
             
-            free(left_str);
-            free(right_str);
-            free(combined);
-            
-            if (endptr != combined) {
-                return result;
-            }
-            return 0.0;
-        }
-        
-        // Opérateurs de comparaison
-        case TK_EQ: {
-            double result = (left_val == right_val) ? 1.0 : 0.0;
-            printf("[DEBUG BINARY] %f == %f = %f\n", left_val, right_val, result);
-            return result;
-        }
-        case TK_NEQ: {
-            double result = (left_val != right_val) ? 1.0 : 0.0;
-            printf("[DEBUG BINARY] %f != %f = %f\n", left_val, right_val, result);
-            return result;
-        }
-        case TK_GT: {
-            double result = (left_val > right_val) ? 1.0 : 0.0;
-            printf("[DEBUG BINARY] %f > %f = %f\n", left_val, right_val, result);
-            return result;
-        }
-        case TK_LT: {
-            double result = (left_val < right_val) ? 1.0 : 0.0;
-            printf("[DEBUG BINARY] %f < %f = %f\n", left_val, right_val, result);
-            return result;
-        }
-        case TK_GTE: {
-            double result = (left_val >= right_val) ? 1.0 : 0.0;
-            printf("[DEBUG BINARY] %f >= %f = %f\n", left_val, right_val, result);
-            return result;
-        }
-        case TK_LTE: {
-            double result = (left_val <= right_val) ? 1.0 : 0.0;
-            printf("[DEBUG BINARY] %f <= %f = %f\n", left_val, right_val, result);
-            return result;
-        }
-        case TK_SPACESHIP: {
-            // Opérateur spaceship (<=>)
-            double result;
-            if (left_val < right_val) result = -1.0;
-            else if (left_val > right_val) result = 1.0;
-            else result = 0.0;
-            printf("[DEBUG BINARY] %f <=> %f = %f\n", left_val, right_val, result);
-            return result;
-        }
-        
-        // Opérateurs logiques (version numérique)
-        case TK_AND: {
-            double result = (left_val != 0.0 && right_val != 0.0) ? 1.0 : 0.0;
-            printf("[DEBUG BINARY] %f && %f = %f\n", left_val, right_val, result);
-            return result;
-        }
-        case TK_OR: {
-            double result = (left_val != 0.0 || right_val != 0.0) ? 1.0 : 0.0;
-            printf("[DEBUG BINARY] %f || %f = %f\n", left_val, right_val, result);
-            return result;
-        }
-        
-        // Opérateurs bitwise (convertis en entiers)
-        case TK_BIT_AND: {
-            int64_t left_int = (int64_t)left_val;
-            int64_t right_int = (int64_t)right_val;
-            double result = (double)(left_int & right_int);
-            printf("[DEBUG BINARY] %lld & %lld = %lld\n", left_int, right_int, (int64_t)result);
-            return result;
-        }
-        case TK_BIT_OR: {
-            int64_t left_int = (int64_t)left_val;
-            int64_t right_int = (int64_t)right_val;
-            double result = (double)(left_int | right_int);
-            printf("[DEBUG BINARY] %lld | %lld = %lld\n", left_int, right_int, (int64_t)result);
-            return result;
-        }
-        case TK_BIT_XOR: {
-            int64_t left_int = (int64_t)left_val;
-            int64_t right_int = (int64_t)right_val;
-            double result = (double)(left_int ^ right_int);
-            printf("[DEBUG BINARY] %lld ^ %lld = %lld\n", left_int, right_int, (int64_t)result);
-            return result;
-        }
-        case TK_SHL: {
-            int64_t left_int = (int64_t)left_val;
-            int64_t right_int = (int64_t)right_val;
-            double result = (double)(left_int << right_int);
-            printf("[DEBUG BINARY] %lld << %lld = %lld\n", left_int, right_int, (int64_t)result);
-            return result;
-        }
-        case TK_SHR: {
-            int64_t left_int = (int64_t)left_val;
-            int64_t right_int = (int64_t)right_val;
-            double result = (double)(left_int >> right_int);
-            printf("[DEBUG BINARY] %lld >> %lld = %lld\n", left_int, right_int, (int64_t)result);
-            return result;
-        }
-        case TK_USHR: {
-            uint64_t left_uint = (uint64_t)left_val;
-            uint64_t right_uint = (uint64_t)right_val;
-            double result = (double)(left_uint >> right_uint);
-            printf("[DEBUG BINARY] %llu >>> %llu = %llu\n", left_uint, right_uint, (uint64_t)result);
-            return result;
-        }
-        
-        // Opérateurs spéciaux
-        case TK_IN: {
-            // "in" operator - retourne 1.0 si left est dans right (pour les collections)
-            printf("[DEBUG BINARY] in operator not fully implemented\n");
-            return 0.0;
-        }
-        case TK_IS: {
-            // "is" operator - comparaison de type
-            printf("[DEBUG BINARY] is operator not fully implemented\n");
-            return (left_val == right_val) ? 1.0 : 0.0;
-        }
-        case TK_ISNOT: {
-            printf("[DEBUG BINARY] isnot operator not fully implemented\n");
-            return (left_val != right_val) ? 1.0 : 0.0;
-        }
-        
-        default: {
-            printf("[DEBUG BINARY] ERROR: Unknown binary operator: %d\n", node->op_type);
-            printf("[DEBUG BINARY] Operator names: TK_PLUS=%d, TK_MINUS=%d\n", 
-                   TK_PLUS, TK_MINUS);
-            return 0.0;
-        }
-    }
-}
-        case NODE_UNARY: {
-            double operand = evalFloat(node->left);
+            // Appliquer l'opérateur
             switch (node->op_type) {
-                case TK_MINUS: return -operand;
-                case TK_NOT: return operand == 0.0 ? 1.0 : 0.0;
-                default: return operand;
-            }
-        }
-        case NODE_FUNC_CALL: {
-            Function* func = findFunction(node->data.name);
-            if (func) {
-                // Save current context
-                Function* prev_func = current_function;
-                current_function = func;
-                pushScope();
-                
-                // Bind arguments to parameters
-                if (func->param_names && node->left) {
-                    ASTNode* arg = node->left;
-                    for (int i = 0; i < func->param_count && arg; i++) {
-                        if (func->param_names[i]) {
-                            // Create variable for parameter
-                            if (var_count < MAX_VARIABLES) {
-                                Variable* var = &vars[var_count];
-                                strncpy(var->name, func->param_names[i], sizeof(var->name) - 1);
-                                var->type = TK_VAR;
-                                var->scope_level = scope_level;
-                                var->is_initialized = true;
-                                
-                                double val = evalFloat(arg);
-                                var->is_float = true;
-                                var->value.float_val = val;
-                                var_count++;
-                            }
-                        }
-                        arg = arg->right;
+                // Opérateurs arithmétiques
+                case TK_PLUS: {
+                    double result = left_val + right_val;
+                    printf("%s[EVAL DEBUG]%s %f + %f = %f\n", 
+                           COLOR_BLUE, COLOR_RESET, left_val, right_val, result);
+                    return result;
+                }
+                case TK_MINUS: {
+                    double result = left_val - right_val;
+                    printf("%s[EVAL DEBUG]%s %f - %f = %f\n", 
+                           COLOR_BLUE, COLOR_RESET, left_val, right_val, result);
+                    return result;
+                }
+                case TK_MULT: {
+                    double result = left_val * right_val;
+                    printf("%s[EVAL DEBUG]%s %f * %f = %f\n", 
+                           COLOR_BLUE, COLOR_RESET, left_val, right_val, result);
+                    return result;
+                }
+                case TK_DIV: {
+                    if (right_val == 0.0) {
+                        printf("%s[EVAL WARNING]%s Division by zero: %f / 0\n", 
+                               COLOR_YELLOW, COLOR_RESET, left_val);
+                        return INFINITY;
                     }
+                    double result = left_val / right_val;
+                    printf("%s[EVAL DEBUG]%s %f / %f = %f\n", 
+                           COLOR_BLUE, COLOR_RESET, left_val, right_val, result);
+                    return result;
+                }
+                case TK_MOD: {
+                    if (right_val == 0.0) {
+                        printf("%s[EVAL WARNING]%s Modulo by zero: %f %% 0\n", 
+                               COLOR_YELLOW, COLOR_RESET, left_val);
+                        return 0.0;
+                    }
+                    double result = fmod(left_val, right_val);
+                    printf("%s[EVAL DEBUG]%s %f %% %f = %f\n", 
+                           COLOR_BLUE, COLOR_RESET, left_val, right_val, result);
+                    return result;
+                }
+                case TK_POW: {
+                    double result = pow(left_val, right_val);
+                    printf("%s[EVAL DEBUG]%s %f ^ %f = %f\n", 
+                           COLOR_BLUE, COLOR_RESET, left_val, right_val, result);
+                    return result;
+                }
+                case TK_CONCAT: {
+                    // Concaténation - évaluer en tant que strings puis convertir
+                    char* left_str = evalString(node->left);
+                    char* right_str = evalString(node->right);
+                    char* combined = malloc(strlen(left_str) + strlen(right_str) + 1);
+                    strcpy(combined, left_str);
+                    strcat(combined, right_str);
+                    
+                    printf("%s[EVAL DEBUG]%s String concat: \"%s\" + \"%s\" = \"%s\"\n", 
+                           COLOR_BLUE, COLOR_RESET, left_str, right_str, combined);
+                    
+                    // Convertir en nombre
+                    char* endptr;
+                    double result = strtod(combined, &endptr);
+                    
+                    free(left_str);
+                    free(right_str);
+                    free(combined);
+                    
+                    if (endptr != combined) {
+                        return result;
+                    }
+                    return 0.0;
                 }
                 
-                // Execute function body
-                func->has_returned = false;
-                func->return_value = 0;
-                if (func->body) execute(func->body);
+                // Opérateurs de comparaison
+                case TK_EQ: {
+                    double result = (left_val == right_val) ? 1.0 : 0.0;
+                    printf("%s[EVAL DEBUG]%s %f == %f = %f\n", 
+                           COLOR_BLUE, COLOR_RESET, left_val, right_val, result);
+                    return result;
+                }
+                case TK_NEQ: {
+                    double result = (left_val != right_val) ? 1.0 : 0.0;
+                    printf("%s[EVAL DEBUG]%s %f != %f = %f\n", 
+                           COLOR_BLUE, COLOR_RESET, left_val, right_val, result);
+                    return result;
+                }
+                case TK_GT: {
+                    double result = (left_val > right_val) ? 1.0 : 0.0;
+                    printf("%s[EVAL DEBUG]%s %f > %f = %f\n", 
+                           COLOR_BLUE, COLOR_RESET, left_val, right_val, result);
+                    return result;
+                }
+                case TK_LT: {
+                    double result = (left_val < right_val) ? 1.0 : 0.0;
+                    printf("%s[EVAL DEBUG]%s %f < %f = %f\n", 
+                           COLOR_BLUE, COLOR_RESET, left_val, right_val, result);
+                    return result;
+                }
+                case TK_GTE: {
+                    double result = (left_val >= right_val) ? 1.0 : 0.0;
+                    printf("%s[EVAL DEBUG]%s %f >= %f = %f\n", 
+                           COLOR_BLUE, COLOR_RESET, left_val, right_val, result);
+                    return result;
+                }
+                case TK_LTE: {
+                    double result = (left_val <= right_val) ? 1.0 : 0.0;
+                    printf("%s[EVAL DEBUG]%s %f <= %f = %f\n", 
+                           COLOR_BLUE, COLOR_RESET, left_val, right_val, result);
+                    return result;
+                }
+                case TK_SPACESHIP: {
+                    double result;
+                    if (left_val < right_val) result = -1.0;
+                    else if (left_val > right_val) result = 1.0;
+                    else result = 0.0;
+                    printf("%s[EVAL DEBUG]%s %f <=> %f = %f\n", 
+                           COLOR_BLUE, COLOR_RESET, left_val, right_val, result);
+                    return result;
+                }
                 
-                // Restore context
-                popScope();
-                current_function = prev_func;
+                // Opérateurs logiques
+                case TK_AND: {
+                    double result = (left_val != 0.0 && right_val != 0.0) ? 1.0 : 0.0;
+                    printf("%s[EVAL DEBUG]%s %f && %f = %f\n", 
+                           COLOR_BLUE, COLOR_RESET, left_val, right_val, result);
+                    return result;
+                }
+                case TK_OR: {
+                    double result = (left_val != 0.0 || right_val != 0.0) ? 1.0 : 0.0;
+                    printf("%s[EVAL DEBUG]%s %f || %f = %f\n", 
+                           COLOR_BLUE, COLOR_RESET, left_val, right_val, result);
+                    return result;
+                }
                 
-                return func->return_value;
+                // Opérateurs bitwise
+                case TK_BIT_AND: {
+                    int64_t left_int = (int64_t)left_val;
+                    int64_t right_int = (int64_t)right_val;
+                    double result = (double)(left_int & right_int);
+                    printf("%s[EVAL DEBUG]%s %lld & %lld = %lld\n", 
+                           COLOR_BLUE, COLOR_RESET, left_int, right_int, (int64_t)result);
+                    return result;
+                }
+                case TK_BIT_OR: {
+                    int64_t left_int = (int64_t)left_val;
+                    int64_t right_int = (int64_t)right_val;
+                    double result = (double)(left_int | right_int);
+                    printf("%s[EVAL DEBUG]%s %lld | %lld = %lld\n", 
+                           COLOR_BLUE, COLOR_RESET, left_int, right_int, (int64_t)result);
+                    return result;
+                }
+                case TK_BIT_XOR: {
+                    int64_t left_int = (int64_t)left_val;
+                    int64_t right_int = (int64_t)right_val;
+                    double result = (double)(left_int ^ right_int);
+                    printf("%s[EVAL DEBUG]%s %lld ^ %lld = %lld\n", 
+                           COLOR_BLUE, COLOR_RESET, left_int, right_int, (int64_t)result);
+                    return result;
+                }
+                case TK_SHL: {
+                    int64_t left_int = (int64_t)left_val;
+                    int64_t right_int = (int64_t)right_val;
+                    double result = (double)(left_int << right_int);
+                    printf("%s[EVAL DEBUG]%s %lld << %lld = %lld\n", 
+                           COLOR_BLUE, COLOR_RESET, left_int, right_int, (int64_t)result);
+                    return result;
+                }
+                case TK_SHR: {
+                    int64_t left_int = (int64_t)left_val;
+                    int64_t right_int = (int64_t)right_val;
+                    double result = (double)(left_int >> right_int);
+                    printf("%s[EVAL DEBUG]%s %lld >> %lld = %lld\n", 
+                           COLOR_BLUE, COLOR_RESET, left_int, right_int, (int64_t)result);
+                    return result;
+                }
+                case TK_USHR: {
+                    uint64_t left_uint = (uint64_t)left_val;
+                    uint64_t right_uint = (uint64_t)right_val;
+                    double result = (double)(left_uint >> right_uint);
+                    printf("%s[EVAL DEBUG]%s %llu >>> %llu = %llu\n", 
+                           COLOR_BLUE, COLOR_RESET, left_uint, right_uint, (uint64_t)result);
+                    return result;
+                }
+                
+                // Opérateurs spéciaux
+                case TK_IN:
+                    printf("%s[EVAL WARNING]%s 'in' operator not fully implemented\n", 
+                           COLOR_YELLOW, COLOR_RESET);
+                    return 0.0;
+                case TK_IS:
+                    printf("%s[EVAL WARNING]%s 'is' operator not fully implemented\n", 
+                           COLOR_YELLOW, COLOR_RESET);
+                    return (left_val == right_val) ? 1.0 : 0.0;
+                case TK_ISNOT:
+                    printf("%s[EVAL WARNING]%s 'isnot' operator not fully implemented\n", 
+                           COLOR_YELLOW, COLOR_RESET);
+                    return (left_val != right_val) ? 1.0 : 0.0;
+                
+                default:
+                    printf("%s[EVAL ERROR]%s Unknown binary operator: %d\n", 
+                           COLOR_RED, COLOR_RESET, node->op_type);
+                    return 0.0;
             }
-            
-            printf("[ERROR] Function not found: %s\n", node->data.name);
-            return 0.0;
         }
+        
+        case NODE_UNARY: {
+            printf("%s[EVAL DEBUG]%s Unary operation, op_type: %d\n", 
+                   COLOR_MAGENTA, COLOR_RESET, node->op_type);
+            double operand = evalFloat(node->left);
+            
+            switch (node->op_type) {
+                case TK_MINUS: {
+                    double result = -operand;
+                    printf("%s[EVAL DEBUG]%s -%f = %f\n", 
+                           COLOR_BLUE, COLOR_RESET, operand, result);
+                    return result;
+                }
+                case TK_PLUS:
+                    printf("%s[EVAL DEBUG]%s +%f = %f\n", 
+                           COLOR_BLUE, COLOR_RESET, operand, operand);
+                    return operand;
+                case TK_NOT: {
+                    double result = operand == 0.0 ? 1.0 : 0.0;
+                    printf("%s[EVAL DEBUG]%s !%f = %f\n", 
+                           COLOR_BLUE, COLOR_RESET, operand, result);
+                    return result;
+                }
+                case TK_BIT_NOT: {
+                    int64_t int_val = (int64_t)operand;
+                    double result = (double)~int_val;
+                    printf("%s[EVAL DEBUG]%s ~%lld = %lld\n", 
+                           COLOR_BLUE, COLOR_RESET, int_val, (int64_t)result);
+                    return result;
+                }
+                case TK_TYPEOF:
+                    printf("%s[EVAL WARNING]%s 'typeof' operator not implemented\n", 
+                           COLOR_YELLOW, COLOR_RESET);
+                    return 0.0;
+                case TK_AWAIT:
+                    printf("%s[EVAL WARNING]%s 'await' operator not implemented\n", 
+                           COLOR_YELLOW, COLOR_RESET);
+                    return operand;
+                default:
+                    printf("%s[EVAL ERROR]%s Unknown unary operator: %d\n", 
+                           COLOR_RED, COLOR_RESET, node->op_type);
+                    return operand;
+            }
+        }
+        
+        case NODE_TERNARY: {
+            printf("%s[EVAL DEBUG]%s Ternary operation\n", COLOR_MAGENTA, COLOR_RESET);
+            double condition = evalFloat(node->left);
+            if (condition != 0.0) {
+                printf("%s[EVAL DEBUG]%s Condition true, evaluating true branch\n", 
+                       COLOR_BLUE, COLOR_RESET);
+                return evalFloat(node->right);
+            } else {
+                printf("%s[EVAL DEBUG]%s Condition false, evaluating false branch\n", 
+                       COLOR_BLUE, COLOR_RESET);
+                return evalFloat(node->third);
+            }
+        }
+        
+        case NODE_NULL:
+            printf("%s[EVAL DEBUG]%s Null value -> 0.0\n", COLOR_CYAN, COLOR_RESET);
+            return 0.0;
+            
+        case NODE_UNDEFINED:
+            printf("%s[EVAL DEBUG]%s Undefined value -> 0.0\n", COLOR_CYAN, COLOR_RESET);
+            return 0.0;
+            
+        case NODE_NAN:
+            printf("%s[EVAL DEBUG]%s NaN value\n", COLOR_CYAN, COLOR_RESET);
+            return NAN;
+            
+        case NODE_INF:
+            printf("%s[EVAL DEBUG]%s Infinity value\n", COLOR_CYAN, COLOR_RESET);
+            return INFINITY;
+            
         default:
+            printf("%s[EVAL ERROR]%s Unhandled node type in evalFloat: %d\n", 
+                   COLOR_RED, COLOR_RESET, node->type);
             return 0.0;
     }
 }
