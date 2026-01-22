@@ -582,10 +582,27 @@ static double evalFloat(ASTNode* node) {
     switch (node->op_type) {
         // Opérateurs arithmétiques
         case TK_PLUS: {
-            double result = left_val + right_val;
-            printf("[DEBUG BINARY] %f + %f = %f\n", left_val, right_val, result);
-            return result;
-        }
+    double left_val = evalFloat(node->left);
+    double right_val = evalFloat(node->right);
+    double result = left_val + right_val;
+    
+    // Debug détaillé
+    printf("[DEBUG BINARY PLUS] ");
+    if (node->left->type == NODE_IDENT) {
+        printf("%s", node->left->data.name);
+    } else {
+        printf("%f", left_val);
+    }
+    printf(" + ");
+    if (node->right->type == NODE_IDENT) {
+        printf("%s", node->right->data.name);
+    } else {
+        printf("%f", right_val);
+    }
+    printf(" = %f\n", result);
+    
+    return result;
+}
         case TK_MINUS: {
             double result = left_val - right_val;
             printf("[DEBUG BINARY] %f - %f = %f\n", left_val, right_val, result);
@@ -1033,36 +1050,66 @@ static void execute(ASTNode* node) {
         }
         
         case NODE_ASSIGN: {
-            if (node->data.name) {
-                int idx = findVar(node->data.name);
-                if (idx >= 0) {
-                     if (vars[idx].is_constant) {
-                          printf("%s[EXEC ERROR]%s Cannot assign to constant '%s'\n",  COLOR_RED, COLOR_RESET, node->data.name);
-            break;
-        }
+    if (node->data.name) {
+        int idx = findVar(node->data.name);
+        if (idx >= 0) {
+            if (vars[idx].is_constant) {
+                printf("%s[EXEC ERROR]%s Cannot assign to constant '%s'\n", COLOR_RED, COLOR_RESET, node->data.name);
+                break;
+            }
             
-            // ICI EST LE PROBLÈME : il faut ÉVALUER node->left
-                           if (node->left) {
-                               vars[idx].is_initialized = true;
+            // Évaluer l'expression à droite du '='
+            if (node->left) {
+                double new_value = evalFloat(node->left);  // CORRECTION ICI
+                vars[idx].is_initialized = true;
+                vars[idx].is_float = true;
+                vars[idx].is_string = false;
+                vars[idx].value.float_val = new_value;
                 
-                // ÉVALUER l'expression à droite du '='
-                               double new_value = evalFloat(node->left);  // <-- CE MANQUE PEUT-ÊTRE
-                
-                // Mettre à jour la variable
-                               vars[idx].is_float = true;
-                               vars[idx].is_string = false;
-                               vars[idx].value.float_val = new_value;  // <-- METTRE À JOUR LA VALEUR
-                
-                // Debug
-                                printf("%s[DEBUG]%s Assign: %s = %f\n", COLOR_YELLOW, COLOR_RESET, node->data.name, new_value);
-                     }
-                  } else {
-                     printf("%s[EXEC ERROR]%s Variable '%s' not found\n", COLOR_RED, COLOR_RESET, node->data.name);
+                printf("%s[DEBUG]%s Assign: %s = %f\n", COLOR_YELLOW, COLOR_RESET, node->data.name, new_value);
+            }
+        } else {
+            printf("%s[EXEC ERROR]%s Variable '%s' not found\n", COLOR_RED, COLOR_RESET, node->data.name);
         }
     }
     break;
 }
-        
+        case NODE_COMPOUND_ASSIGN: {
+    if (node->data.name) {
+        int idx = findVar(node->data.name);
+        if (idx >= 0) {
+            if (vars[idx].is_constant) {
+                printf("%s[EXEC ERROR]%s Cannot assign to constant '%s'\n", COLOR_RED, COLOR_RESET, node->data.name);
+                break;
+            }
+            
+            double current_value;
+            if (vars[idx].is_float) {
+                current_value = vars[idx].value.float_val;
+            } else {
+                current_value = (double)vars[idx].value.int_val;
+            }
+            
+            double right_value = evalFloat(node->right);
+            double new_value = current_value;
+            
+            switch (node->op_type) {
+                case TK_PLUS_ASSIGN: new_value = current_value + right_value; break;
+                case TK_MINUS_ASSIGN: new_value = current_value - right_value; break;
+                case TK_MULT_ASSIGN: new_value = current_value * right_value; break;
+                case TK_DIV_ASSIGN: new_value = current_value / right_value; break;
+                default: break;
+            }
+            
+            vars[idx].is_float = true;
+            vars[idx].value.float_val = new_value;
+            
+            printf("%s[DEBUG]%s Compound assign: %s op=%d %f -> %f\n", 
+                   COLOR_YELLOW, COLOR_RESET, node->data.name, node->op_type, current_value, new_value);
+        }
+    }
+    break;
+}
         case NODE_FUNC:
             // Already registered during parsing
             break;
