@@ -569,11 +569,6 @@ static double evalFloat(ASTNode* node) {
     return 0.0;
 }
 
-case NODE_INT: {
-    double val = (double)node->data.int_val;
-    printf("[CRITICAL DEBUG] Integer literal: %lld -> %f\n", node->data.int_val, val);
-    return val;
-}
         case NODE_BINARY: {
     printf("[DEBUG BINARY] Starting binary operation, operator type: %d\n", node->op_type);
     
