@@ -551,7 +551,23 @@ static double evalFloat(ASTNode* node) {
         case NODE_FLOAT:
             printf("%s[EVAL DEBUG]%s Float: %f\n", COLOR_CYAN, COLOR_RESET, node->data.float_val);
             return node->data.float_val;
-            
+
+        case NODE_PRINT: {
+    printf("%s[EVAL DEBUG]%s Print node encountered in evalFloat\n", 
+           COLOR_YELLOW, COLOR_RESET);
+    
+    // Un nœud PRINT ne retourne généralement pas de valeur numérique
+    // Mais pour l'évaluation, on peut retourner 0
+    if (node->left) {
+        // Évaluer les arguments pour les afficher
+        ASTNode* arg = node->left;
+        while (arg) {
+            evalFloat(arg); // Juste pour l'évaluation
+            arg = arg->right;
+        }
+    }
+    return 0.0;
+}
         case NODE_BOOL:
             printf("%s[EVAL DEBUG]%s Bool: %s -> %f\n", 
                    COLOR_CYAN, COLOR_RESET, node->data.bool_val ? "true" : "false",
