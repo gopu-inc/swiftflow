@@ -1,3 +1,0 @@
-import "count" from "stdlib";
-
-print(i);

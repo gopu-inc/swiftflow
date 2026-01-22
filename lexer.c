@@ -158,7 +158,6 @@ static void skipWhitespace() {
 // [SECTION] STRING LEXING
 // ======================================================
 static Token string(char quote_char) {
-    // Skip opening quote
     while (peek() != quote_char && !isAtEnd()) {
         if (peek() == '\n') {
             lexer.line++;
@@ -187,8 +186,7 @@ static Token string(char quote_char) {
         return errorToken(error_msg);
     }
     
-    // Skip closing quote
-    advance();
+    advance(); // Skip closing quote
     
     // Extract string without quotes
     int length = (int)(lexer.current - lexer.start - 2);
@@ -230,51 +228,22 @@ static Token string(char quote_char) {
 // ======================================================
 static Token number() {
     bool is_float = false;
-    bool is_hex = false;
-    bool is_binary = false;
-    bool is_octal = false;
     
-    // Check for hex (0x) or binary (0b) or octal (0o)
-    if (peek() == '0') {
-        char next = peekNext();
-        if (next == 'x' || next == 'X') {
-            is_hex = true;
-            advance(); // Skip '0'
-            advance(); // Skip 'x' or 'X'
-        } else if (next == 'b' || next == 'B') {
-            is_binary = true;
-            advance(); // Skip '0'
-            advance(); // Skip 'b' or 'B'
-        } else if (next == 'o' || next == 'O') {
-            is_octal = true;
-            advance(); // Skip '0'
-            advance(); // Skip 'o' or 'O'
-        }
+    while (isdigit(peek())) advance();
+    
+    // Decimal part
+    if (peek() == '.' && isdigit(peekNext())) {
+        is_float = true;
+        advance(); // Consume '.'
+        while (isdigit(peek())) advance();
     }
     
-    if (is_hex) {
-        while (isxdigit(peek())) advance();
-    } else if (is_binary) {
-        while (peek() == '0' || peek() == '1') advance();
-    } else if (is_octal) {
-        while (peek() >= '0' && peek() <= '7') advance();
-    } else {
+    // Exponent part
+    if (peek() == 'e' || peek() == 'E') {
+        is_float = true;
+        advance(); // Consume 'e' or 'E'
+        if (peek() == '+' || peek() == '-') advance();
         while (isdigit(peek())) advance();
-        
-        // Decimal part
-        if (peek() == '.' && isdigit(peekNext())) {
-            is_float = true;
-            advance(); // Consume '.'
-            while (isdigit(peek())) advance();
-        }
-        
-        // Exponent part
-        if (peek() == 'e' || peek() == 'E') {
-            is_float = true;
-            advance(); // Consume 'e' or 'E'
-            if (peek() == '+' || peek() == '-') advance();
-            while (isdigit(peek())) advance();
-        }
     }
     
     // Parse the number
@@ -299,13 +268,7 @@ static Token number() {
             
             return makeFloatToken(value);
         } else {
-            // Determine base
-            int base = 10;
-            if (is_hex) base = 16;
-            else if (is_binary) base = 2;
-            else if (is_octal) base = 8;
-            
-            int64_t value = strtoll(num_str, NULL, base);
+            int64_t value = strtoll(num_str, NULL, 10);
             free(num_str);
             return makeIntToken(value);
         }
@@ -331,6 +294,12 @@ static Token identifier() {
     }
     
     int length = (int)(lexer.current - lexer.start);
+    
+    // Check for '...' ellipsis first
+    if (length == 3 && strncmp(lexer.start, "...", 3) == 0) {
+        return makeToken(TK_ELLIPSIS);
+    }
+    
     char* text = malloc(length + 1);
     if (text) {
         strncpy(text, lexer.start, length);
@@ -347,11 +316,11 @@ static Token identifier() {
         }
         
         // Check for special literals
-        if (strcmp(text, "NaN") == 0 || strcmp(text, "nan") == 0) {
+        if (strcasecmp(text, "NaN") == 0 || strcasecmp(text, "nan") == 0) {
             free(text);
             return makeToken(TK_NAN);
         }
-        if (strcmp(text, "Infinity") == 0 || strcmp(text, "inf") == 0) {
+        if (strcasecmp(text, "Infinity") == 0 || strcasecmp(text, "inf") == 0) {
             free(text);
             return makeToken(TK_INF);
         }

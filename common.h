@@ -8,7 +8,8 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/stat.h>
-#include <stdarg.h>  // Ajouté pour va_list
+#include <stdarg.h>
+#include <limits.h>
 
 // ======================================================
 // [SECTION] ANSI COLOR CODES
@@ -31,24 +32,8 @@
 #define COLOR_BRIGHT_CYAN    "\033[96m"
 #define COLOR_BRIGHT_WHITE   "\033[97m"
 
-#define BG_BLACK   "\033[40m"
-#define BG_RED     "\033[41m"
-#define BG_GREEN   "\033[42m"
-#define BG_YELLOW  "\033[43m"
-#define BG_BLUE    "\033[44m"
-#define BG_MAGENTA "\033[45m"
-#define BG_CYAN    "\033[46m"
-#define BG_WHITE   "\033[47m"
-
-#define STYLE_BOLD      "\033[1m"
-#define STYLE_DIM       "\033[2m"
-#define STYLE_ITALIC    "\033[3m"
-#define STYLE_UNDERLINE "\033[4m"
-#define STYLE_BLINK     "\033[5m"
-#define STYLE_REVERSE   "\033[7m"
-
 // ======================================================
-// [SECTION] TOKEN DEFINITIONS - COMPLETE
+// [SECTION] TOKEN DEFINITIONS
 // ======================================================
 typedef enum {
     // Literals
@@ -113,9 +98,10 @@ typedef enum {
     TK_TYPE_ANY, TK_TYPE_AUTO, TK_TYPE_UNKNOWN,
     TK_TYPE_NET, TK_TYPE_CLOG, TK_TYPE_DOS,
     TK_TYPE_SEL, TK_TYPE_ARRAY, TK_TYPE_MAP,
-    TK_TYPE_FUNC,
+    TK_TYPE_FUNC, TK_INCREMENT, 
     
-    // Memory & Size
+    TK_DECREMENT, TK_TYPEOF,
+// Memory & Size
     TK_SIZEOF, TK_SIZE, TK_SIZ,
     TK_NEW, TK_DELETE, TK_FREE,
     
@@ -239,11 +225,12 @@ static const Keyword keywords[] = {
 };
 
 // ======================================================
-// [SECTION] AST NODE DEFINITIONS - COMPLETE
+// [SECTION] AST NODE DEFINITIONS
 // ======================================================
 typedef enum {
     // Expressions
     NODE_INT,
+    NODE_TYPE,
     NODE_FLOAT,
     NODE_STRING,
     NODE_BOOL,
@@ -259,7 +246,9 @@ typedef enum {
     NODE_LAMBDA,
     NODE_ARRAY_ACCESS,
     NODE_MEMBER_ACCESS,
-    
+    // Ajouter ces types de nœuds dans l'énum NodeType
+    NODE_FILE_OPEN,
+     NODE_FILE_CLOSE,
     // Operations
     NODE_BINARY,
     NODE_UNARY,
@@ -477,52 +466,6 @@ static inline char* str_ncopy(const char* src, int n) {
         dest[n] = '\0';
     }
     return dest;
-}
-
-// Color printing functions
-static inline void print_color(const char* color, const char* format, ...) {
-    va_list args;
-    va_start(args, format);
-    printf("%s", color);
-    vprintf(format, args);
-    printf("%s", COLOR_RESET);
-    va_end(args);
-}
-
-static inline void print_error(const char* format, ...) {
-    va_list args;
-    va_start(args, format);
-    printf("%s[ERROR]%s ", COLOR_RED, COLOR_RESET);
-    vprintf(format, args);
-    printf("\n");
-    va_end(args);
-}
-
-static inline void print_warning(const char* format, ...) {
-    va_list args;
-    va_start(args, format);
-    printf("%s[WARNING]%s ", COLOR_YELLOW, COLOR_RESET);
-    vprintf(format, args);
-    printf("\n");
-    va_end(args);
-}
-
-static inline void print_info(const char* format, ...) {
-    va_list args;
-    va_start(args, format);
-    printf("%s[INFO]%s ", COLOR_CYAN, COLOR_RESET);
-    vprintf(format, args);
-    printf("\n");
-    va_end(args);
-}
-
-static inline void print_success(const char* format, ...) {
-    va_list args;
-    va_start(args, format);
-    printf("%s[SUCCESS]%s ", COLOR_GREEN, COLOR_RESET);
-    vprintf(format, args);
-    printf("\n");
-    va_end(args);
 }
 
 #endif // COMMON_H

@@ -1,4 +1,0 @@
-// Test d'import simple
-print("Test import...");
-import "add" from "stdlib";
-print("Import terminé");
