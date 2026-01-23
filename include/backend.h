@@ -18,7 +18,7 @@ typedef struct {
     char* output_filename;
     int label_counter;
     int temp_counter;
-    SymbolTable* symbol_table;
+    void* symbol_table; // Generic pointer for symbol table
 } BackendContext;
 
 // Backend functions
@@ -35,19 +35,5 @@ void llvm_emit_node(BackendContext* context, ASTNode* node);
 void nasm_emit_prologue(BackendContext* context);
 void nasm_emit_epilogue(BackendContext* context);
 void nasm_emit_node(BackendContext* context, ASTNode* node);
-
-// Interpreter
-typedef struct {
-    ASTNode* ast;
-    SymbolTable* global_symbols;
-    FILE* stdout;
-    FILE* stdin;
-} Interpreter;
-
-Interpreter* interpreter_create(ASTNode* ast);
-void interpreter_free(Interpreter* interpreter);
-int interpreter_execute(Interpreter* interpreter);
-Value interpreter_evaluate(Interpreter* interpreter, ASTNode* node);
-Value interpreter_call_function(Interpreter* interpreter, ASTNode* function, Value* args, int arg_count);
 
 #endif // BACKEND_H
