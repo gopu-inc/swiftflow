@@ -36,5 +36,7 @@ ASTNode* parse_function_declaration(Parser* parser);
 ASTNode* parse_class_declaration(Parser* parser);
 ASTNode* parse_switch_statement(Parser* parser);
 ASTNode* parse_try_statement(Parser* parser);
+ASTNode* parse_print_statement(Parser* parser);
+ASTNode* parse_input_statement(Parser* parser);
 
 #endif // PARSER_H
