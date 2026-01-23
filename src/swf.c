@@ -26,11 +26,6 @@ static char* portable_dirname(const char* path) {
 }
 
 // Helper function pour str_startswith
-static bool str_startswith(const char* str, const char* prefix) {
-    if (!str || !prefix) return false;
-    size_t prefix_len = strlen(prefix);
-    return strncmp(str, prefix, prefix_len) == 0;
-}
 
 // Basic runtime functions
 

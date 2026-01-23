@@ -24,6 +24,7 @@ static ASTNode* parse_expression_statement(Parser* parser);
 static ASTNode* parse_return_statement(Parser* parser);
 static ASTNode* parse_break_statement(Parser* parser);
 static ASTNode* parse_continue_statement(Parser* parser);
+static ASTNode* parse_throw_statement(Parser* parser);
 static ASTNode* parse_try_statement(Parser* parser);
 static ASTNode* parse_switch_statement(Parser* parser);
 static ASTNode* parse_class_declaration(Parser* parser);
@@ -374,7 +375,7 @@ ASTNode* parse_try_statement(Parser* parser) {
     ASTNode* catch_block = NULL;
     if (parser_match(parser, TK_CATCH)) {
         parser_consume(parser, TK_LPAREN, "Expected '(' after 'catch'");
-        Token error_var = parser_consume(parser, TK_IDENT, "Expected error variable name");
+//        Token error_var = parser_consume(parser, TK_IDENT, "Expected error variable name");
         parser_consume(parser, TK_RPAREN, "Expected ')' after catch parameter");
         
         catch_block = parse_block(parser);
