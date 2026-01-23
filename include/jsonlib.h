@@ -50,6 +50,12 @@ void json_free(JsonValue* json);
 JsonValue* swiftflow_value_to_json(Value value);
 Value json_to_swiftflow_value(JsonValue* json);
 
+// Built-in function declarations (pour interpreter.c)
+Value json_builtin_parse(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
+Value json_builtin_stringify(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
+Value json_builtin_read_file(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
+Value json_builtin_write_file(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
+
 // Package registration
 void jsonlib_register(SwiftFlowInterpreter* interpreter);
 
