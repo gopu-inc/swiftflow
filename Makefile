@@ -2,8 +2,8 @@
 
 # Compiler and flags
 CC = gcc
-CFLAGS = -Wall -Wextra -std=c99 -g -I./include
-LDFLAGS = -lm
+CFLAGS = -Wall -Wextra -std=c99 -g -I./include -D_POSIX_C_SOURCE=199309L
+LDFLAGS = -lm -ljansson  # AJOUTER -ljansson ici
 
 # Détection du système d'exploitation
 ifeq ($(OS),Windows_NT)
@@ -11,7 +11,6 @@ ifeq ($(OS),Windows_NT)
 else
     UNAME_S := $(shell uname -s)
     ifeq ($(UNAME_S),Linux)
-        CFLAGS += -D_POSIX_C_SOURCE=199309L
         LDLIBS += -lrt
     endif
     ifeq ($(UNAME_S),Darwin)
@@ -69,7 +68,7 @@ clean:
 # Test
 test: all
 	@echo "Testing..."
-	@./$(BIN_DIR)/swift
+	@./$(BIN_DIR)/swift test_json.swf
 
 # Install
 install: all
