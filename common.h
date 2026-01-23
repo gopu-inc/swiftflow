@@ -466,5 +466,42 @@ static inline char* str_ncopy(const char* src, int n) {
     }
     return dest;
 }
+#ifndef COMMON_H
+#define COMMON_H
+
+// ... [tout le contenu existant reste] ...
+
+// ======================================================
+// [SECTION] LOGGING SYSTEM
+// ======================================================
+typedef enum {
+    LOG_FATAL,    // Fatal error - program stops
+    LOG_ERROR,    // Error - can continue but problematic
+    LOG_WARNING,  // Warning - potential issue
+    LOG_INFO,     // Informational
+    LOG_DEBUG,    // Debug information
+    LOG_TRACE     // Detailed trace
+} LogLevel;
+
+#define LOG(level, ...) swiftflow_log(level, __FILE__, __LINE__, __VA_ARGS__)
+
+// Log function prototype
+void swiftflow_log(LogLevel level, const char* file, int line, const char* fmt, ...);
+
+// ======================================================
+// [SECTION] CONFIGURATION
+// ======================================================
+typedef struct {
+    bool verbose;
+    bool debug;
+    bool warnings;
+    bool optimize;
+    bool emit_llvm;
+    bool emit_asm;
+    bool link;
+    char* output_file;
+    char** import_paths;
+    int import_path_count;
+} SwiftFlowConfig;
 
 #endif // COMMON_H
