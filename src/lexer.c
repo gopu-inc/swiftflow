@@ -1,5 +1,10 @@
+/*
 [file name]: lexer.c
 [file content begin]
+*/
+
+
+
 #include "lexer.h"
 #include "common.h"
 #include <ctype.h>
@@ -529,4 +534,6 @@ bool lexer_had_any_error(void) {
 const char* lexer_get_error(void) {
     return lexer_error_message;
 }
-[file content end]
+/*
+    [file content end]
+*/
