@@ -4,7 +4,9 @@
 #include "common.h"
 #include "ast.h"
 
-// Fonctions parser seulement
+// Parser functions (only public API)
+void parser_init(Parser* parser, Lexer* lexer);
+ASTNode* parse_program(Parser* parser);
 ASTNode* parse_statement(Parser* parser);
 ASTNode* parse_expression(Parser* parser);
 ASTNode* parse_block(Parser* parser);
@@ -14,8 +16,9 @@ bool parser_check(Parser* parser, TokenKind kind);
 Token parser_consume(Parser* parser, TokenKind kind, const char* error_message);
 void parser_error(Parser* parser, Token token, const char* message);
 void parser_error_at_current(Parser* parser, const char* message);
+Token parser_advance(Parser* parser);
 
-// Grammar-specific parsing
+// Grammar-specific parsing (public)
 ASTNode* parse_import_statement(Parser* parser);
 ASTNode* parse_if_statement(Parser* parser);
 ASTNode* parse_while_statement(Parser* parser);
