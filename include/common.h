@@ -26,6 +26,8 @@
 #define MAX_IMPORT_PATHS 32
 #define MAX_MODULE_NAME 128
 #define MAX_FUNCTION_PARAMS 32
+#define MAX_STACK_SIZE 65536
+#define MAX_HEAP_SIZE 1048576
 
 // ======================================================
 // [SECTION] ANSI COLOR CODES
@@ -65,9 +67,6 @@ typedef enum {
 } LogLevel;
 
 #define LOG(level, ...) swiftflow_log(level, __FILE__, __LINE__, __VA_ARGS__)
-
-// Log function prototype
-void swiftflow_log(LogLevel level, const char* file, int line, const char* fmt, ...);
 
 // ======================================================
 // [SECTION] TOKEN DEFINITIONS
@@ -274,6 +273,55 @@ static const Keyword keywords[] = {
 };
 
 // ======================================================
+// [SECTION] VALUE REPRESENTATION (Interpreter)
+// ======================================================
+typedef enum {
+    VAL_INT,
+    VAL_FLOAT,
+    VAL_BOOL,
+    VAL_STRING,
+    VAL_NULL,
+    VAL_UNDEFINED,
+    VAL_NAN,
+    VAL_INF,
+    VAL_ARRAY,
+    VAL_MAP,
+    VAL_FUNCTION,
+    VAL_CLASS,
+    VAL_OBJECT,
+    VAL_ERROR
+} ValueType;
+
+typedef struct Value Value;
+typedef struct Object Object;
+typedef struct Function Function;
+typedef struct Class Class;
+
+struct Value {
+    ValueType type;
+    union {
+        int64_t int_val;
+        double float_val;
+        bool bool_val;
+        char* str_val;
+        struct {
+            Value* elements;
+            int count;
+            int capacity;
+        } array;
+        struct {
+            char** keys;
+            Value* values;
+            int count;
+            int capacity;
+        } map;
+        Function* function;
+        Class* class;
+        Object* object;
+    } as;
+};
+
+// ======================================================
 // [SECTION] AST NODE DEFINITIONS
 // ======================================================
 typedef enum {
@@ -288,7 +336,6 @@ typedef enum {
     NODE_NAN,
     NODE_INF,
     NODE_LIST,
-    NODE_TYPE,
     NODE_MAP,
     NODE_FUNC,
     NODE_FUNC_CALL,
@@ -335,12 +382,6 @@ typedef enum {
     NODE_GLOBAL_DECL,
     NODE_NONLOCAL_DECL,
     
-    // Memory
-    NODE_SIZEOF,
-    NODE_NEW,
-    NODE_DELETE,
-    NODE_FREE,
-    
     // Modules
     NODE_IMPORT,
     NODE_EXPORT,
@@ -379,15 +420,6 @@ typedef enum {
     NODE_CLASS_INIT,
     NODE_CLASS_METHOD,
     
-    // JSON & Data
-    NODE_JSON,
-    NODE_YAML,
-    NODE_XML,
-    
-    // Async
-    NODE_ASYNC,
-    NODE_AWAIT,
-    
     // Blocks
     NODE_BLOCK,
     NODE_SCOPE,
@@ -395,22 +427,7 @@ typedef enum {
     // Special
     NODE_MAIN,
     NODE_PROGRAM,
-    NODE_EMPTY,
-    
-    // Type operations
-    NODE_TYPEOF,
-    NODE_IS,
-    NODE_AS,
-    
-    // Range
-    NODE_RANGE,
-    NODE_RANGE_INCLUSIVE,
-    
-    // Spread
-    NODE_SPREAD,
-    
-    // Nullish coalescing
-    NODE_NULLISH
+    NODE_EMPTY
 } NodeType;
 
 // AST Node structure
@@ -430,30 +447,6 @@ typedef struct ASTNode {
         
         // Identifiers
         char* name;
-        
-        // Types
-        char* type_name;
-        
-        // Import/Export
-        struct {
-            char** modules;
-            char* from_module;
-            int module_count;
-            bool is_selective;  // import "func" from "module"
-        } imports;
-        
-        // Export
-        struct {
-            char* symbol;
-            char* alias;
-            bool is_default;
-        } export_info;
-        
-        // Size info
-        struct {
-            char* var_name;
-            int size_bytes;
-        } size_info;
         
         // For loop
         struct {
@@ -476,12 +469,6 @@ typedef struct ASTNode {
             struct ASTNode* value;
         } append_op;
         
-        // Push/Pop
-        struct {
-            struct ASTNode* collection;
-            struct ASTNode* value;
-        } collection_op;
-        
         // Try-Catch
         struct {
             struct ASTNode* try_block;
@@ -496,37 +483,14 @@ typedef struct ASTNode {
             struct ASTNode* parent;
             struct ASTNode* members;
             struct ASTNode* methods;
-            struct ASTNode* static_members;
         } class_def;
-        
-        // Switch-Case
-        struct {
-            struct ASTNode* expr;
-            struct ASTNode* cases;
-            struct ASTNode* default_case;
-        } switch_stmt;
-        
-        // Case
-        struct {
-            struct ASTNode* value;
-            struct ASTNode* body;
-            bool is_default;
-        } case_stmt;
-        
-        // JSON/Data
-        struct {
-            char* data;
-            char* format;
-        } data_literal;
         
         // Function
         struct {
             char* name;
             struct ASTNode* params;
             struct ASTNode* body;
-            struct ASTNode* return_type;
             bool is_async;
-            bool is_generator;
         } func_def;
         
         // Function call
@@ -543,13 +507,6 @@ typedef struct ASTNode {
             struct ASTNode* right;
         } binary_op;
         
-        // File operation
-        struct {
-            char* filename;
-            char* mode;
-            struct ASTNode* content;
-        } file_op;
-        
         // Input
         struct {
             char* prompt;
@@ -563,163 +520,68 @@ typedef struct ASTNode {
 } ASTNode;
 
 // ======================================================
-// [SECTION] VALUE REPRESENTATION (Runtime)
+// [SECTION] INTERPRETER STRUCTURES
 // ======================================================
-typedef enum {
-    VAL_INT,
-    VAL_FLOAT,
-    VAL_BOOL,
-    VAL_STRING,
-    VAL_NULL,
-    VAL_UNDEFINED,
-    VAL_NAN,
-    VAL_INF,
-    VAL_ARRAY,
-    VAL_MAP,
-    VAL_FUNCTION,
-    VAL_CLASS,
-    VAL_OBJECT,
-    VAL_ERROR
-} ValueType;
+typedef struct Environment Environment;
+typedef struct CallFrame CallFrame;
+typedef struct SwiftFlowInterpreter SwiftFlowInterpreter;
 
-typedef struct Value Value;
-typedef struct Object Object;
-
-struct Value {
-    ValueType type;
-    union {
-        int64_t int_val;
-        double float_val;
-        bool bool_val;
-        char* str_val;
-        struct {
-            Value* elements;
-            int count;
-            int capacity;
-        } array;
-        struct {
-            char** keys;
-            Value* values;
-            int count;
-            int capacity;
-        } map;
-        struct {
-            ASTNode* func_node;
-            char* name;
-            Value* closure;
-        } function;
-        Object* object;
-    } as;
+struct Environment {
+    Environment* parent;
+    struct {
+        char** names;
+        Value* values;
+        int count;
+        int capacity;
+    } variables;
 };
 
-struct Object {
-    char* class_name;
-    Value* fields;
-    int field_count;
-    struct Object* prototype;
+struct CallFrame {
+    Environment* env;
+    ASTNode* return_node;
+    Value return_value;
+    bool has_returned;
 };
 
-// ======================================================
-// [SECTION] SYMBOL TABLE
-// ======================================================
-typedef struct Symbol {
-    char* name;
-    Value value;
-    bool is_constant;
-    bool is_global;
-    bool is_net;    // For net variables
-    bool is_clog;   // For clog variables
-    bool is_dos;    // For dos variables
-    bool is_sel;    // For sel variables
-    int scope_depth;
-    int line;
-    int column;
-    struct Symbol* next;
-} Symbol;
-
-typedef struct SymbolTable {
-    Symbol* symbols;
-    int count;
-    int capacity;
-    struct SymbolTable* parent;
-    int scope_depth;
-} SymbolTable;
+struct SwiftFlowInterpreter {
+    Environment* global_env;
+    CallFrame* call_stack;
+    int stack_size;
+    int stack_ptr;
+    
+    // Configuration
+    bool debug_mode;
+    bool verbose;
+    
+    // Error handling
+    bool had_error;
+    char* error_message;
+    int error_line;
+    int error_column;
+    
+    // Runtime state
+    bool should_break;
+    bool should_continue;
+    bool should_return;
+};
 
 // ======================================================
 // [SECTION] CONFIGURATION STRUCTURE
 // ======================================================
 typedef struct {
-    // Compilation flags
     bool verbose;
     bool debug;
     bool warnings;
     bool optimize;
-    bool emit_llvm;
-    bool emit_asm;
-    bool link;
-    bool interpret;  // Run in interpreter mode
+    bool interpret;
     
-    // Files
     char* input_file;
-    char* output_file;
-    
-    // Import paths
     char** import_paths;
     int import_path_count;
     
-    // Runtime options
-    bool gc_enabled;
     int stack_size;
     int heap_size;
-    
-    // Optimization levels
-    int optimization_level;  // 0-3
-    
-    // Target architecture
-    char* target_arch;  // "x86", "x64", "arm", "arm64"
-    
-    // Output format
-    char* output_format;  // "exe", "so", "ll", "asm"
 } SwiftFlowConfig;
-
-// ======================================================
-// [SECTION] ERROR HANDLING
-// ======================================================
-typedef struct {
-    char* message;
-    int line;
-    int column;
-    char* file;
-    bool is_fatal;
-} ErrorInfo;
-
-typedef struct {
-    ErrorInfo* errors;
-    int error_count;
-    int error_capacity;
-    bool had_error;
-} ErrorReporter;
-
-// ======================================================
-// [SECTION] MODULE SYSTEM
-// ======================================================
-typedef struct Module {
-    char* name;
-    char* path;
-    SymbolTable* symbols;
-    ASTNode* ast;
-    bool is_loaded;
-    bool is_stdlib;
-    struct Module** dependencies;
-    int dep_count;
-    struct Module* next;
-} Module;
-
-typedef struct ModuleRegistry {
-    Module* modules;
-    int module_count;
-    char* stdlib_path;
-} ModuleRegistry;
 
 // ======================================================
 // [SECTION] HELPER FUNCTIONS
@@ -746,7 +608,6 @@ static inline char* str_format(const char* fmt, ...) {
     va_list args;
     va_start(args, fmt);
     
-    // Get length
     va_list args_copy;
     va_copy(args_copy, args);
     int len = vsnprintf(NULL, 0, fmt, args_copy);
@@ -757,7 +618,6 @@ static inline char* str_format(const char* fmt, ...) {
         return NULL;
     }
     
-    // Allocate and format
     char* buffer = malloc(len + 1);
     if (buffer) {
         vsnprintf(buffer, len + 1, fmt, args);
@@ -773,11 +633,6 @@ static inline bool str_equal(const char* a, const char* b) {
     return strcmp(a, b) == 0;
 }
 
-static inline bool str_startswith(const char* str, const char* prefix) {
-    if (!str || !prefix) return false;
-    return strncmp(str, prefix, strlen(prefix)) == 0;
-}
-
 static inline bool str_endswith(const char* str, const char* suffix) {
     if (!str || !suffix) return false;
     size_t str_len = strlen(str);
@@ -786,65 +641,20 @@ static inline bool str_endswith(const char* str, const char* suffix) {
     return strcmp(str + str_len - suffix_len, suffix) == 0;
 }
 
-static inline char* str_trim(char* str) {
-    if (!str) return NULL;
-    
-    // Trim leading spaces
-    while (*str && (*str == ' ' || *str == '\t' || *str == '\n' || *str == '\r')) {
-        str++;
-    }
-    
-    if (*str == 0) return str;
-    
-    // Trim trailing spaces
-    char* end = str + strlen(str) - 1;
-    while (end > str && (*end == ' ' || *end == '\t' || *end == '\n' || *end == '\r')) {
-        *end = 0;
-        end--;
-    }
-    
-    return str;
-}
-
 // Memory management helper
 #define ALLOC(type) ((type*)malloc(sizeof(type)))
 #define ALLOC_ARRAY(type, count) ((type*)malloc(sizeof(type) * (count)))
 #define REALLOC(ptr, type, count) ((type*)realloc(ptr, sizeof(type) * (count)))
 #define FREE(ptr) do { if (ptr) { free(ptr); ptr = NULL; } } while(0)
 
-// Error checking macros
-#define CHECK_NULL(ptr, msg) \
-    do { \
-        if (!(ptr)) { \
-            LOG(LOG_ERROR, "Null pointer: %s", msg); \
-            return NULL; \
-        } \
-    } while(0)
-
-#define CHECK_ALLOC(ptr, msg) \
-    do { \
-        if (!(ptr)) { \
-            LOG(LOG_FATAL, "Allocation failed: %s", msg); \
-            exit(EXIT_FAILURE); \
-        } \
-    } while(0)
-
-#define CHECK_ERROR(cond, msg) \
-    do { \
-        if (!(cond)) { \
-            LOG(LOG_ERROR, "%s", msg); \
-            return false; \
-        } \
-    } while(0)
-
 // ======================================================
-// [SECTION] FUNCTION PROTOTYPES (to be implemented)
+// [SECTION] FUNCTION PROTOTYPES
 // ======================================================
 
 // Logging
 void swiftflow_log(LogLevel level, const char* file, int line, const char* fmt, ...);
 
-// AST functions (to be defined in ast.c)
+// AST functions
 ASTNode* ast_new_node(NodeType type, int line, int column);
 void ast_free(ASTNode* node);
 void ast_print(ASTNode* node, int indent);
@@ -860,27 +670,38 @@ Value value_make_null(void);
 Value value_make_undefined(void);
 void value_free(Value* value);
 char* value_to_string(Value value);
+void value_print(Value value);
+bool value_is_truthy(Value value);
+bool value_equal(Value a, Value b);
 
-// Symbol table functions
-SymbolTable* symbol_table_new(SymbolTable* parent);
-void symbol_table_free(SymbolTable* table);
-Symbol* symbol_table_add(SymbolTable* table, const char* name, Value value);
-Symbol* symbol_table_get(SymbolTable* table, const char* name);
-bool symbol_table_exists(SymbolTable* table, const char* name);
-void symbol_table_enter_scope(SymbolTable** table);
-void symbol_table_exit_scope(SymbolTable** table);
+// Environment functions
+Environment* environment_new(Environment* parent);
+void environment_free(Environment* env);
+void environment_define(Environment* env, const char* name, Value value);
+bool environment_set(Environment* env, const char* name, Value value);
+Value environment_get(Environment* env, const char* name);
+bool environment_exists(Environment* env, const char* name);
 
-// Module functions
-ModuleRegistry* module_registry_new(void);
-void module_registry_free(ModuleRegistry* registry);
-Module* module_load(ModuleRegistry* registry, const char* name, const char* from_file);
-Module* module_find(ModuleRegistry* registry, const char* name);
-bool module_register(ModuleRegistry* registry, Module* module);
+// Interpreter functions
+SwiftFlowInterpreter* interpreter_new(void);
+void interpreter_free(SwiftFlowInterpreter* interpreter);
+int interpreter_run(SwiftFlowInterpreter* interpreter, ASTNode* ast);
+Value interpreter_evaluate(SwiftFlowInterpreter* interpreter, ASTNode* node, Environment* env);
+Value interpreter_execute_block(SwiftFlowInterpreter* interpreter, ASTNode* block, Environment* env);
 
 // Configuration
 SwiftFlowConfig* config_create_default(void);
 void config_free(SwiftFlowConfig* config);
 bool config_add_import_path(SwiftFlowConfig* config, const char* path);
-char* config_resolve_import(SwiftFlowConfig* config, const char* module_name, const char* from_file);
+
+// Lexer functions (to be defined in lexer.c)
+typedef struct Lexer Lexer;
+void lexer_init(Lexer* lexer, const char* source, const char* filename);
+Token lexer_next_token(Lexer* lexer);
+
+// Parser functions (to be defined in parser.c)
+typedef struct Parser Parser;
+void parser_init(Parser* parser, Lexer* lexer);
+ASTNode* parse_program(Parser* parser);
 
 #endif // COMMON_H
