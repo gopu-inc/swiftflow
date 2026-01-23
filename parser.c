@@ -1343,8 +1343,10 @@ static ASTNode* tryStatement() {
 }
 
 // Expression statement
+// Dans expressionStatement() :
 static ASTNode* expressionStatement() {
-    ASTNode* expr = expression();
+    // Ne parser que jusqu'au prochain ';'
+    ASTNode* expr = assignment();  // Au lieu de expression()
     consume(TK_SEMICOLON, "Expected ';' after expression");
     return expr;
 }
