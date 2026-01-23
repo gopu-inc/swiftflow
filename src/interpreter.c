@@ -1,24 +1,65 @@
 #include "interpreter.h"
+#include "jsonlib.h"
 #include "common.h"
 #include <math.h>
 #include <ctype.h>
 #include <string.h>
 #include <time.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <unistd.h>
+#include <errno.h>
 
 // ======================================================
-// [SECTION] VALUE OPERATIONS
+// [SECTION] DÉCLARATIONS
 // ======================================================
-// SUPPORT JSONSWIFT
-// Au début de interpreter.c, après les includes :
+
 // Déclarations externes pour les fonctions JSON
 extern Value json_builtin_parse(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
 extern Value json_builtin_stringify(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
 extern Value json_builtin_read_file(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
 extern Value json_builtin_write_file(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
 
+// Forward declarations pour toutes les fonctions built-in
+static Value builtin_print(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
+static Value builtin_input(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
+static Value builtin_length(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
+static Value builtin_typeof(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
+static Value builtin_abs(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
+static Value builtin_sqrt(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
+static Value builtin_pow(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
+static Value builtin_append(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
+static Value builtin_upper(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
+static Value builtin_lower(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
+static Value builtin_time(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
+static Value builtin_exit(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
+static Value builtin_int(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
+static Value builtin_float(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
+static Value builtin_str(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
+static Value builtin_bool(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
+static Value builtin_read_file(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
+static Value builtin_write_file(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
+static Value builtin_round(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
+static Value builtin_floor(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
+static Value builtin_ceil(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
+static Value builtin_assert(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
+static Value builtin_http_get(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
+static Value builtin_http_post(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
+static Value builtin_fetch(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
+static Value builtin_map(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
+static Value builtin_filter(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
+static Value builtin_try(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
+static Value builtin_catch(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
+static Value builtin_throw(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
+static Value builtin_import(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
+static Value builtin_export(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
+static Value builtin_require(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
 
-// value option
-
+// ======================================================
+// [SECTION] VALUE OPERATIONS
+// ======================================================
 
 Value value_make_int(int64_t val) {
     Value value;
@@ -114,11 +155,10 @@ void value_free(Value* value) {
     }
 }
 
-// Helper function to get string without quotes for concatenation
 char* value_to_raw_string(Value value) {
     switch (value.type) {
         case VAL_STRING:
-            return str_copy(value.as.str_val);  // No quotes!
+            return str_copy(value.as.str_val);
         case VAL_INT:
             return str_format("%ld", value.as.int_val);
         case VAL_FLOAT:
@@ -363,7 +403,19 @@ bool environment_exists(Environment* env, const char* name) {
 }
 
 // ======================================================
-// [SECTION] BUILT-IN FUNCTIONS
+// [SECTION] STRUCTURES POUR LE RÉSEAU
+// ======================================================
+
+// Structure pour les réponses HTTP
+typedef struct {
+    int status_code;
+    char* status_text;
+    char* headers;
+    char* body;
+} HttpResponse;
+
+// ======================================================
+// [SECTION] BUILT-IN FUNCTIONS IMPLEMENTATIONS
 // ======================================================
 
 typedef Value (*BuiltinFunction)(SwiftFlowInterpreter* interpreter, Value* args, int arg_count);
@@ -613,7 +665,6 @@ Value builtin_time(SwiftFlowInterpreter* interpreter, Value* args, int arg_count
     (void)args;
     (void)arg_count;
     
-    // Portable solution with time()
     return value_make_float((double)time(NULL));
 }
 
@@ -633,26 +684,779 @@ Value builtin_exit(SwiftFlowInterpreter* interpreter, Value* args, int arg_count
     return value_make_null(); // Never reached
 }
 
-// Array of built-in functions
+// ======================================================
+// [SECTION] FONCTIONS DE CONVERSION
+// ======================================================
+
+Value builtin_int(SwiftFlowInterpreter* interpreter, Value* args, int arg_count) {
+    if (arg_count != 1) {
+        interpreter_error(interpreter, "int() expects 1 argument", 0, 0);
+        return value_make_undefined();
+    }
+    
+    Value arg = args[0];
+    switch (arg.type) {
+        case VAL_INT:
+            return arg;
+        case VAL_FLOAT:
+            return value_make_int((int64_t)arg.as.float_val);
+        case VAL_BOOL:
+            return value_make_int(arg.as.bool_val ? 1 : 0);
+        case VAL_STRING: {
+            char* endptr;
+            int64_t val = strtoll(arg.as.str_val, &endptr, 10);
+            if (*endptr == '\0') {
+                return value_make_int(val);
+            }
+            double fval = strtod(arg.as.str_val, &endptr);
+            if (*endptr == '\0') {
+                return value_make_int((int64_t)fval);
+            }
+            return value_make_int(0);
+        }
+        default:
+            return value_make_int(0);
+    }
+}
+
+Value builtin_float(SwiftFlowInterpreter* interpreter, Value* args, int arg_count) {
+    if (arg_count != 1) {
+        interpreter_error(interpreter, "float() expects 1 argument", 0, 0);
+        return value_make_undefined();
+    }
+    
+    Value arg = args[0];
+    switch (arg.type) {
+        case VAL_INT:
+            return value_make_float((double)arg.as.int_val);
+        case VAL_FLOAT:
+            return arg;
+        case VAL_BOOL:
+            return value_make_float(arg.as.bool_val ? 1.0 : 0.0);
+        case VAL_STRING: {
+            char* endptr;
+            double val = strtod(arg.as.str_val, &endptr);
+            if (*endptr == '\0') {
+                return value_make_float(val);
+            }
+            return value_make_float(0.0);
+        }
+        default:
+            return value_make_float(0.0);
+    }
+}
+
+Value builtin_str(SwiftFlowInterpreter* interpreter, Value* args, int arg_count) {
+    if (arg_count != 1) {
+        interpreter_error(interpreter, "str() expects 1 argument", 0, 0);
+        return value_make_undefined();
+    }
+    
+    char* str = value_to_string(args[0]);
+    Value result = value_make_string(str);
+    free(str);
+    return result;
+}
+
+Value builtin_bool(SwiftFlowInterpreter* interpreter, Value* args, int arg_count) {
+    if (arg_count != 1) {
+        interpreter_error(interpreter, "bool() expects 1 argument", 0, 0);
+        return value_make_undefined();
+    }
+    
+    return value_make_bool(value_is_truthy(args[0]));
+}
+
+// ======================================================
+// [SECTION] FONCTIONS FICHIERS
+// ======================================================
+
+Value builtin_read_file(SwiftFlowInterpreter* interpreter, Value* args, int arg_count) {
+    if (arg_count != 1) {
+        interpreter_error(interpreter, "read_file() expects 1 argument", 0, 0);
+        return value_make_undefined();
+    }
+    
+    if (args[0].type != VAL_STRING) {
+        interpreter_error(interpreter, "read_file() expects string filename", 0, 0);
+        return value_make_undefined();
+    }
+    
+    FILE* file = fopen(args[0].as.str_val, "rb");
+    if (!file) {
+        return value_make_string("");
+    }
+    
+    fseek(file, 0, SEEK_END);
+    long size = ftell(file);
+    rewind(file);
+    
+    if (size <= 0) {
+        fclose(file);
+        return value_make_string("");
+    }
+    
+    char* buffer = malloc(size + 1);
+    if (!buffer) {
+        fclose(file);
+        return value_make_string("");
+    }
+    
+    size_t read = fread(buffer, 1, size, file);
+    buffer[read] = '\0';
+    fclose(file);
+    
+    Value result = value_make_string(buffer);
+    free(buffer);
+    return result;
+}
+
+Value builtin_write_file(SwiftFlowInterpreter* interpreter, Value* args, int arg_count) {
+    if (arg_count != 2) {
+        interpreter_error(interpreter, "write_file() expects 2 arguments", 0, 0);
+        return value_make_undefined();
+    }
+    
+    if (args[0].type != VAL_STRING) {
+        interpreter_error(interpreter, "write_file() first argument must be filename", 0, 0);
+        return value_make_undefined();
+    }
+    
+    char* content = value_to_string(args[1]);
+    FILE* file = fopen(args[0].as.str_val, "wb");
+    bool success = false;
+    
+    if (file) {
+        fprintf(file, "%s", content);
+        fclose(file);
+        success = true;
+    }
+    
+    free(content);
+    return value_make_bool(success);
+}
+
+// ======================================================
+// [SECTION] FONCTIONS MATHÉMATIQUES AVANCÉES
+// ======================================================
+
+Value builtin_round(SwiftFlowInterpreter* interpreter, Value* args, int arg_count) {
+    if (arg_count != 1) {
+        interpreter_error(interpreter, "round() expects 1 argument", 0, 0);
+        return value_make_undefined();
+    }
+    
+    Value arg = args[0];
+    if (arg.type == VAL_INT) {
+        return arg;
+    } else if (arg.type == VAL_FLOAT) {
+        return value_make_int((int64_t)round(arg.as.float_val));
+    }
+    
+    interpreter_error(interpreter, "round() expects number", 0, 0);
+    return value_make_undefined();
+}
+
+Value builtin_floor(SwiftFlowInterpreter* interpreter, Value* args, int arg_count) {
+    if (arg_count != 1) {
+        interpreter_error(interpreter, "floor() expects 1 argument", 0, 0);
+        return value_make_undefined();
+    }
+    
+    Value arg = args[0];
+    if (arg.type == VAL_INT) {
+        return arg;
+    } else if (arg.type == VAL_FLOAT) {
+        return value_make_int((int64_t)floor(arg.as.float_val));
+    }
+    
+    interpreter_error(interpreter, "floor() expects number", 0, 0);
+    return value_make_undefined();
+}
+
+Value builtin_ceil(SwiftFlowInterpreter* interpreter, Value* args, int arg_count) {
+    if (arg_count != 1) {
+        interpreter_error(interpreter, "ceil() expects 1 argument", 0, 0);
+        return value_make_undefined();
+    }
+    
+    Value arg = args[0];
+    if (arg.type == VAL_INT) {
+        return arg;
+    } else if (arg.type == VAL_FLOAT) {
+        return value_make_int((int64_t)ceil(arg.as.float_val));
+    }
+    
+    interpreter_error(interpreter, "ceil() expects number", 0, 0);
+    return value_make_undefined();
+}
+
+// ======================================================
+// [SECTION] FONCTIONS DE DEBUG
+// ======================================================
+
+Value builtin_assert(SwiftFlowInterpreter* interpreter, Value* args, int arg_count) {
+    if (arg_count < 1) {
+        interpreter_error(interpreter, "assert() expects at least 1 argument", 0, 0);
+        return value_make_null();
+    }
+    
+    if (!value_is_truthy(args[0])) {
+        if (arg_count > 1 && args[1].type == VAL_STRING) {
+            interpreter_error(interpreter, args[1].as.str_val, 0, 0);
+        } else {
+            interpreter_error(interpreter, "Assertion failed", 0, 0);
+        }
+    }
+    
+    return value_make_null();
+}
+
+// ======================================================
+// [SECTION] FONCTIONS RÉSEAU - UTILITAIRES
+// ======================================================
+
+// Fonction pour parser les URLs
+static void parse_url(const char* url, char* host, char* path, int* port) {
+    host[0] = '\0';
+    path[0] = '\0';
+    *port = 80;
+    
+    const char* start = url;
+    
+    // Skip protocol if present
+    if (strncmp(start, "http://", 7) == 0) {
+        start += 7;
+        *port = 80;
+    } else if (strncmp(start, "https://", 8) == 0) {
+        start += 8;
+        *port = 443;
+    }
+    
+    // Find host
+    const char* slash = strchr(start, '/');
+    if (slash) {
+        int host_len = slash - start;
+        strncpy(host, start, host_len);
+        host[host_len] = '\0';
+        strcpy(path, slash);
+    } else {
+        strcpy(host, start);
+        strcpy(path, "/");
+    }
+    
+    // Check for port in host
+    char* colon = strchr(host, ':');
+    if (colon) {
+        *colon = '\0';
+        *port = atoi(colon + 1);
+    }
+}
+
+// Fonction utilitaire pour créer une connexion socket
+static int create_socket(const char* hostname, int port) {
+    struct hostent* server = gethostbyname(hostname);
+    if (!server) {
+        return -1;
+    }
+    
+    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd < 0) {
+        return -1;
+    }
+    
+    struct sockaddr_in server_addr;
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(port);
+    memcpy(&server_addr.sin_addr.s_addr, server->h_addr, server->h_length);
+    
+    if (connect(sockfd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+        close(sockfd);
+        return -1;
+    }
+    
+    return sockfd;
+}
+
+// Fonction pour envoyer une requête HTTP
+static HttpResponse* send_http_request(const char* method, const char* url, 
+                                       const char* headers, const char* body) {
+    char host[256] = {0};
+    char path[1024] = {0};
+    int port = 80;
+    
+    parse_url(url, host, path, &port);
+    
+    int sockfd = create_socket(host, port);
+    if (sockfd < 0) {
+        return NULL;
+    }
+    
+    // Construire la requête HTTP
+    char request[4096];
+    snprintf(request, sizeof(request),
+             "%s %s HTTP/1.1\r\n"
+             "Host: %s\r\n"
+             "User-Agent: SwiftFlow/1.0\r\n"
+             "Connection: close\r\n",
+             method, path, host);
+    
+    if (headers) {
+        strcat(request, headers);
+        strcat(request, "\r\n");
+    }
+    
+    if (body) {
+        char content_length[64];
+        snprintf(content_length, sizeof(content_length),
+                 "Content-Length: %ld\r\n", strlen(body));
+        strcat(request, content_length);
+        strcat(request, "\r\n");
+        strcat(request, body);
+    } else {
+        strcat(request, "\r\n");
+    }
+    
+    // Envoyer la requête
+    send(sockfd, request, strlen(request), 0);
+    
+    // Lire la réponse
+    char response_buffer[65536];
+    int total_read = 0;
+    int bytes_read;
+    
+    while ((bytes_read = recv(sockfd, response_buffer + total_read, 
+                             sizeof(response_buffer) - total_read - 1, 0)) > 0) {
+        total_read += bytes_read;
+    }
+    
+    response_buffer[total_read] = '\0';
+    close(sockfd);
+    
+    // Parser la réponse HTTP
+    HttpResponse* response = ALLOC(HttpResponse);
+    if (!response) return NULL;
+    
+    response->status_code = 200;
+    response->status_text = NULL;
+    response->headers = NULL;
+    response->body = NULL;
+    
+    // Parser la première ligne (status)
+    char* line_end = strstr(response_buffer, "\r\n");
+    if (line_end) {
+        *line_end = '\0';
+        char* status_start = strchr(response_buffer, ' ');
+        if (status_start) {
+            status_start++;
+            char* status_text_start = strchr(status_start, ' ');
+            if (status_text_start) {
+                *status_text_start = '\0';
+                response->status_code = atoi(status_start);
+                response->status_text = str_copy(status_text_start + 1);
+            }
+        }
+        *line_end = '\r'; // Restaurer
+    }
+    
+    // Trouver la séparation headers/body
+    char* body_start = strstr(response_buffer, "\r\n\r\n");
+    if (body_start) {
+        *body_start = '\0';
+        body_start += 4;
+        response->headers = str_copy(response_buffer);
+        response->body = str_copy(body_start);
+    } else {
+        response->body = str_copy(response_buffer);
+    }
+    
+    return response;
+}
+
+// Fonction pour libérer une réponse HTTP
+static void free_http_response(HttpResponse* response) {
+    if (!response) return;
+    FREE(response->status_text);
+    FREE(response->headers);
+    FREE(response->body);
+    FREE(response);
+}
+
+// ======================================================
+// [SECTION] FONCTIONS RÉSEAU POUR SWIFTFLOW
+// ======================================================
+
+Value builtin_http_get(SwiftFlowInterpreter* interpreter, Value* args, int arg_count) {
+    if (arg_count < 1) {
+        interpreter_error(interpreter, "http_get() expects at least 1 argument (URL)", 0, 0);
+        return value_make_undefined();
+    }
+    
+    if (args[0].type != VAL_STRING) {
+        interpreter_error(interpreter, "http_get() first argument must be URL string", 0, 0);
+        return value_make_undefined();
+    }
+    
+    const char* url = args[0].as.str_val;
+    const char* headers = NULL;
+    
+    if (arg_count > 1 && args[1].type == VAL_STRING) {
+        headers = args[1].as.str_val;
+    }
+    
+    HttpResponse* response = send_http_request("GET", url, headers, NULL);
+    if (!response) {
+        return value_make_string("Network error");
+    }
+    
+    // Créer un objet résultat
+    Value result;
+    result.type = VAL_MAP;
+    result.as.map.count = 3;
+    result.as.map.capacity = 3;
+    result.as.map.keys = ALLOC_ARRAY(char*, 3);
+    result.as.map.values = ALLOC_ARRAY(Value, 3);
+    
+    result.as.map.keys[0] = str_copy("status");
+    result.as.map.values[0] = value_make_int(response->status_code);
+    
+    result.as.map.keys[1] = str_copy("headers");
+    result.as.map.values[1] = value_make_string(response->headers ? response->headers : "");
+    
+    result.as.map.keys[2] = str_copy("body");
+    result.as.map.values[2] = value_make_string(response->body ? response->body : "");
+    
+    free_http_response(response);
+    return result;
+}
+
+Value builtin_http_post(SwiftFlowInterpreter* interpreter, Value* args, int arg_count) {
+    if (arg_count < 2) {
+        interpreter_error(interpreter, "http_post() expects at least 2 arguments (URL, data)", 0, 0);
+        return value_make_undefined();
+    }
+    
+    if (args[0].type != VAL_STRING) {
+        interpreter_error(interpreter, "http_post() first argument must be URL string", 0, 0);
+        return value_make_undefined();
+    }
+    
+    const char* url = args[0].as.str_val;
+    char* body = value_to_raw_string(args[1]);
+    const char* headers = "Content-Type: application/json\r\n";
+    
+    if (arg_count > 2 && args[2].type == VAL_STRING) {
+        headers = args[2].as.str_val;
+    }
+    
+    HttpResponse* response = send_http_request("POST", url, headers, body);
+    free(body);
+    
+    if (!response) {
+        return value_make_string("Network error");
+    }
+    
+    // Créer un objet résultat
+    Value result;
+    result.type = VAL_MAP;
+    result.as.map.count = 3;
+    result.as.map.capacity = 3;
+    result.as.map.keys = ALLOC_ARRAY(char*, 3);
+    result.as.map.values = ALLOC_ARRAY(Value, 3);
+    
+    result.as.map.keys[0] = str_copy("status");
+    result.as.map.values[0] = value_make_int(response->status_code);
+    
+    result.as.map.keys[1] = str_copy("headers");
+    result.as.map.values[1] = value_make_string(response->headers ? response->headers : "");
+    
+    result.as.map.keys[2] = str_copy("body");
+    result.as.map.values[2] = value_make_string(response->body ? response->body : "");
+    
+    free_http_response(response);
+    return result;
+}
+
+Value builtin_fetch(SwiftFlowInterpreter* interpreter, Value* args, int arg_count) {
+    // Alias pour http_get avec plus d'options
+    if (arg_count < 1) {
+        interpreter_error(interpreter, "fetch() expects at least 1 argument (URL)", 0, 0);
+        return value_make_undefined();
+    }
+    
+    if (args[0].type != VAL_STRING) {
+        interpreter_error(interpreter, "fetch() first argument must be URL string", 0, 0);
+        return value_make_undefined();
+    }
+    
+    const char* url = args[0].as.str_val;
+    const char* method = "GET";
+    const char* headers = NULL;
+    const char* body = NULL;
+    
+    // Analyser les options
+    if (arg_count > 1 && args[1].type == VAL_MAP) {
+        Value options = args[1];
+        for (int i = 0; i < options.as.map.count; i++) {
+            char* key = options.as.map.keys[i];
+            Value val = options.as.map.values[i];
+            
+            if (strcmp(key, "method") == 0 && val.type == VAL_STRING) {
+                method = val.as.str_val;
+            } else if (strcmp(key, "headers") == 0 && val.type == VAL_STRING) {
+                headers = val.as.str_val;
+            } else if (strcmp(key, "body") == 0) {
+                body = value_to_raw_string(val);
+            }
+        }
+    }
+    
+    HttpResponse* response;
+    if (strcasecmp(method, "POST") == 0 || strcasecmp(method, "PUT") == 0) {
+        response = send_http_request(method, url, headers, body);
+    } else {
+        response = send_http_request(method, url, headers, NULL);
+    }
+    
+    if (body) free((void*)body);
+    
+    if (!response) {
+        return value_make_string("Network error");
+    }
+    
+    // Créer un objet résultat complet
+    Value result;
+    result.type = VAL_MAP;
+    result.as.map.count = 4;
+    result.as.map.capacity = 4;
+    result.as.map.keys = ALLOC_ARRAY(char*, 4);
+    result.as.map.values = ALLOC_ARRAY(Value, 4);
+    
+    result.as.map.keys[0] = str_copy("ok");
+    result.as.map.values[0] = value_make_bool(response->status_code >= 200 && response->status_code < 300);
+    
+    result.as.map.keys[1] = str_copy("status");
+    result.as.map.values[1] = value_make_int(response->status_code);
+    
+    result.as.map.keys[2] = str_copy("headers");
+    result.as.map.values[2] = value_make_string(response->headers ? response->headers : "");
+    
+    result.as.map.keys[3] = str_copy("text");
+    result.as.map.values[3] = value_make_string(response->body ? response->body : "");
+    
+    free_http_response(response);
+    return result;
+}
+
+// ======================================================
+// [SECTION] FONCTIONS DE GESTION DE TABLEAUX AVANCÉES
+// ======================================================
+
+Value builtin_map(SwiftFlowInterpreter* interpreter, Value* args, int arg_count) {
+    if (arg_count != 2) {
+        interpreter_error(interpreter, "map() expects 2 arguments (array, function)", 0, 0);
+        return value_make_undefined();
+    }
+    
+    if (args[0].type != VAL_ARRAY) {
+        interpreter_error(interpreter, "map() first argument must be array", 0, 0);
+        return value_make_undefined();
+    }
+    
+    Value array = args[0];
+    Value result;
+    result.type = VAL_ARRAY;
+    result.as.array.count = array.as.array.count;
+    result.as.array.capacity = array.as.array.count;
+    result.as.array.elements = ALLOC_ARRAY(Value, array.as.array.count);
+    
+    // Pour l'instant, retournons une copie
+    // Dans une version complète, on appliquerait la fonction
+    for (int i = 0; i < array.as.array.count; i++) {
+        result.as.array.elements[i] = array.as.array.elements[i];
+    }
+    
+    return result;
+}
+
+Value builtin_filter(SwiftFlowInterpreter* interpreter, Value* args, int arg_count) {
+    if (arg_count != 2) {
+        interpreter_error(interpreter, "filter() expects 2 arguments (array, function)", 0, 0);
+        return value_make_undefined();
+    }
+    
+    if (args[0].type != VAL_ARRAY) {
+        interpreter_error(interpreter, "filter() first argument must be array", 0, 0);
+        return value_make_undefined();
+    }
+    
+    Value array = args[0];
+    Value result;
+    result.type = VAL_ARRAY;
+    result.as.array.count = 0;
+    result.as.array.capacity = array.as.array.count;
+    result.as.array.elements = ALLOC_ARRAY(Value, array.as.array.count);
+    
+    // Filtrer les valeurs truthy
+    for (int i = 0; i < array.as.array.count; i++) {
+        if (value_is_truthy(array.as.array.elements[i])) {
+            result.as.array.elements[result.as.array.count] = array.as.array.elements[i];
+            result.as.array.count++;
+        }
+    }
+    
+    return result;
+}
+
+// ======================================================
+// [SECTION] FONCTIONS DE GESTION D'ERREURS
+// ======================================================
+
+Value builtin_try(SwiftFlowInterpreter* interpreter, Value* args, int arg_count) {
+    // Stub pour try/catch
+    if (arg_count < 1) {
+        interpreter_error(interpreter, "try() expects at least 1 argument (try block)", 0, 0);
+        return value_make_undefined();
+    }
+    
+    // Pour l'instant, exécuter simplement le premier argument
+    return args[0];
+}
+
+Value builtin_catch(SwiftFlowInterpreter* interpreter, Value* args, int arg_count) {
+    // Stub pour catch
+    if (arg_count < 1) {
+        interpreter_error(interpreter, "catch() expects at least 1 argument", 0, 0);
+        return value_make_undefined();
+    }
+    
+    return value_make_null();
+}
+
+Value builtin_throw(SwiftFlowInterpreter* interpreter, Value* args, int arg_count) {
+    if (arg_count < 1) {
+        interpreter_error(interpreter, "throw() expects at least 1 argument (error)", 0, 0);
+        return value_make_undefined();
+    }
+    
+    char* error_msg = value_to_raw_string(args[0]);
+    interpreter_error(interpreter, error_msg, 0, 0);
+    free(error_msg);
+    
+    return value_make_undefined();
+}
+
+// ======================================================
+// [SECTION] FONCTIONS IMPORT/EXPORT
+// ======================================================
+
+// Déclaration externe pour config (défini dans main.c)
+extern SwiftFlowConfig* config;
+
+Value builtin_import(SwiftFlowInterpreter* interpreter, Value* args, int arg_count) {
+    if (arg_count < 1) {
+        interpreter_error(interpreter, "__import__() expects at least 1 argument (module name)", 0, 0);
+        return value_make_undefined();
+    }
+    
+    if (args[0].type != VAL_STRING) {
+        interpreter_error(interpreter, "__import__() first argument must be module name string", 0, 0);
+        return value_make_undefined();
+    }
+    
+    const char* module_name = args[0].as.str_val;
+    
+    // Stub pour l'importation
+    // Dans une version complète, on chargerait et exécuterait le module
+    Value exports;
+    exports.type = VAL_MAP;
+    exports.as.map.count = 0;
+    exports.as.map.capacity = 0;
+    exports.as.map.keys = NULL;
+    exports.as.map.values = NULL;
+    
+    return exports;
+}
+
+Value builtin_export(SwiftFlowInterpreter* interpreter, Value* args, int arg_count) {
+    // Stub pour export
+    return value_make_null();
+}
+
+Value builtin_require(SwiftFlowInterpreter* interpreter, Value* args, int arg_count) {
+    // Alias pour __import__
+    return builtin_import(interpreter, args, arg_count);
+}
+
+// ======================================================
+// [SECTION] TABLEAU DES BUILT-IN FUNCTIONS
+// ======================================================
+
 static Builtin builtins[] = {
-    {"print", builtin_print, 0, -1},        // Variable arguments
-    {"input", builtin_input, 0, 1},         // 0-1 arguments
-    {"length", builtin_length, 1, 1},       // 1 argument
-    {"typeof", builtin_typeof, 1, 1},       // 1 argument
-    {"abs", builtin_abs, 1, 1},             // 1 argument
-    {"sqrt", builtin_sqrt, 1, 1},           // 1 argument
-    {"pow", builtin_pow, 2, 2},             // 2 arguments
-    {"append", builtin_append, 2, 2},       // 2 arguments
-    {"upper", builtin_upper, 1, 1},         // 1 argument
-    {"lower", builtin_lower, 1, 1},         // 1 argument
-    {"time", builtin_time, 0, 0},           // 0 arguments
-    {"exit", builtin_exit, 0, 1},           // 0-1 arguments
-    {NULL, NULL, 0, 0}, 
+    // Fonctions de base
+    {"print", builtin_print, 0, -1},
+    {"input", builtin_input, 0, 1},
+    {"length", builtin_length, 1, 1},
+    {"typeof", builtin_typeof, 1, 1},
+    
+    // Fonctions mathématiques
+    {"abs", builtin_abs, 1, 1},
+    {"sqrt", builtin_sqrt, 1, 1},
+    {"pow", builtin_pow, 2, 2},
+    {"round", builtin_round, 1, 1},
+    {"floor", builtin_floor, 1, 1},
+    {"ceil", builtin_ceil, 1, 1},
+    
+    // Fonctions tableaux
+    {"append", builtin_append, 2, 2},
+    {"map", builtin_map, 2, 2},
+    {"filter", builtin_filter, 2, 2},
+    
+    // Fonctions chaînes
+    {"upper", builtin_upper, 1, 1},
+    {"lower", builtin_lower, 1, 1},
+    
+    // Fonctions système
+    {"time", builtin_time, 0, 0},
+    {"exit", builtin_exit, 0, 1},
+    
+    // Fonctions de conversion
+    {"int", builtin_int, 1, 1},
+    {"float", builtin_float, 1, 1},
+    {"str", builtin_str, 1, 1},
+    {"bool", builtin_bool, 1, 1},
+    
+    // Fonctions fichiers
+    {"read_file", builtin_read_file, 1, 1},
+    {"write_file", builtin_write_file, 2, 2},
+    
+    // Fonction assert
+    {"assert", builtin_assert, 1, 2},
+    
+    // Fonctions réseau
+    {"http_get", builtin_http_get, 1, 2},
+    {"http_post", builtin_http_post, 2, 3},
+    {"fetch", builtin_fetch, 1, 2},
+    
+    // Fonctions gestion d'erreurs
+    {"try", builtin_try, 1, -1},
+    {"catch", builtin_catch, 1, -1},
+    {"throw", builtin_throw, 1, 1},
+    
+    // Fonctions import/export
+    {"__import__", builtin_import, 1, -1},
+    {"__export__", builtin_export, 1, -1},
+    {"__require__", builtin_require, 1, -1},
+    
+    // Fonctions JSON
     {"__json_parse__", json_builtin_parse, 1, 1},
     {"__json_stringify__", json_builtin_stringify, 1, 1},
     {"__json_read_file__", json_builtin_read_file, 1, 1},
     {"__json_write_file__", json_builtin_write_file, 2, 2},
-    // Sentinel
+    
+    // Sentinelle
+    {NULL, NULL, 0, 0}
 };
 
 // ======================================================
@@ -718,106 +1522,16 @@ void interpreter_free(SwiftFlowInterpreter* interpreter) {
 }
 
 void interpreter_register_builtins(SwiftFlowInterpreter* interpreter) {
-    if (!interpreter || !interpreter->global_env) return;
-    
-    // S'assurer que toutes les built-ins sont bien enregistrées
-    Value func_val;
-    func_val.type = VAL_FUNCTION;
-    func_val.as.function = NULL; // Built-in functions are special
-    
-    // ======================================================
-    // [SECTION] FONCTIONS DE BASE
-    // ======================================================
-    environment_define(interpreter->global_env, "print", func_val);
-    environment_define(interpreter->global_env, "input", func_val);
-    environment_define(interpreter->global_env, "length", func_val);
-    environment_define(interpreter->global_env, "typeof", func_val);
-    
-    // ======================================================
-    // [SECTION] FONCTIONS MATHÉMATIQUES
-    // ======================================================
-    environment_define(interpreter->global_env, "abs", func_val);
-    environment_define(interpreter->global_env, "sqrt", func_val);
-    environment_define(interpreter->global_env, "pow", func_val);
-    environment_define(interpreter->global_env, "round", func_val);
-    environment_define(interpreter->global_env, "floor", func_val);
-    environment_define(interpreter->global_env, "ceil", func_val);
-    
-    // ======================================================
-    // [SECTION] FONCTIONS SUR LES TABLEAUX
-    // ======================================================
-    environment_define(interpreter->global_env, "append", func_val);
-    environment_define(interpreter->global_env, "push", func_val);
-    environment_define(interpreter->global_env, "pop", func_val);
-    
-    // ======================================================
-    // [SECTION] FONCTIONS SUR LES CHAÎNES
-    // ======================================================
-    environment_define(interpreter->global_env, "upper", func_val);
-    environment_define(interpreter->global_env, "lower", func_val);
-    
-    // ======================================================
-    // [SECTION] FONCTIONS SYSTÈME
-    // ======================================================
-    environment_define(interpreter->global_env, "time", func_val);
-    environment_define(interpreter->global_env, "exit", func_val);
-    
-    // ======================================================
-    // [SECTION] FONCTIONS JSON
-    // ======================================================
-    environment_define(interpreter->global_env, "__json_parse__", func_val);
-    environment_define(interpreter->global_env, "__json_stringify__", func_val);
-    environment_define(interpreter->global_env, "__json_read_file__", func_val);
-    environment_define(interpreter->global_env, "__json_write_file__", func_val);
-    
-    // ======================================================
-    // [SECTION] FONCTIONS DE DEBUG
-    // ======================================================
-    environment_define(interpreter->global_env, "assert", func_val);
-    
-    // ======================================================
-    // [SECTION] FONCTIONS DE CONVERSION
-    // ======================================================
-    environment_define(interpreter->global_env, "int", func_val);
-    environment_define(interpreter->global_env, "float", func_val);
-    environment_define(interpreter->global_env, "str", func_val);
-    environment_define(interpreter->global_env, "bool", func_val);
-    
-    // ======================================================
-    // [SECTION] FONCTIONS DE GESTION DE FICHIERS
-    // ======================================================
-    environment_define(interpreter->global_env, "read_file", func_val);
-    environment_define(interpreter->global_env, "write_file", func_val);
-    
-    // ======================================================
-    // [SECTION] FONCTIONS AVANCÉES
-    // ======================================================
-    environment_define(interpreter->global_env, "map", func_val);
-    environment_define(interpreter->global_env, "filter", func_val);
-    environment_define(interpreter->global_env, "reduce", func_val);
-    
-    // ======================================================
-    // [SECTION] SUPPORT IMPORT/EXPORT
-    // ======================================================
-    // Ces fonctions sont utilisées par le système de modules
-    environment_define(interpreter->global_env, "__import__", func_val);
-    environment_define(interpreter->global_env, "__export__", func_val);
-    environment_define(interpreter->global_env, "__require__", func_val);
-    
-    // ======================================================
-    // [SECTION] FONCTIONS DE GESTION D'ERREURS
-    // ======================================================
-    environment_define(interpreter->global_env, "try", func_val);
-    environment_define(interpreter->global_env, "catch", func_val);
-    environment_define(interpreter->global_env, "throw", func_val);
-    
-    // ======================================================
-    // [SECTION] FONCTIONS RÉSEAU (si supportées)
-    // ======================================================
-    environment_define(interpreter->global_env, "fetch", func_val);
-    environment_define(interpreter->global_env, "http_get", func_val);
-    environment_define(interpreter->global_env, "http_post", func_val);
+    for (int i = 0; builtins[i].name != NULL; i++) {
+        // Create a function value for each built-in
+        Value func_val;
+        func_val.type = VAL_FUNCTION;
+        func_val.as.function = NULL; // Built-in functions are special
+        
+        environment_define(interpreter->global_env, builtins[i].name, func_val);
+    }
 }
+
 Value call_builtin(SwiftFlowInterpreter* interpreter, const char* name, Value* args, int arg_count) {
     for (int i = 0; builtins[i].name != NULL; i++) {
         if (str_equal(name, builtins[i].name)) {
@@ -838,6 +1552,10 @@ Value call_builtin(SwiftFlowInterpreter* interpreter, const char* name, Value* a
     interpreter_error(interpreter, "Unknown built-in function", 0, 0);
     return value_make_undefined();
 }
+
+// ======================================================
+// [SECTION] ÉVALUATION DES EXPRESSIONS
+// ======================================================
 
 Value interpreter_evaluate_binary(SwiftFlowInterpreter* interpreter, ASTNode* node, Environment* env) {
     if (!node || !interpreter || interpreter->had_error) {
@@ -1287,7 +2005,7 @@ Value interpreter_evaluate(SwiftFlowInterpreter* interpreter, ASTNode* node, Env
             Value value = environment_get(env, node->data.name);
             if (value.type == VAL_UNDEFINED) {
                 interpreter_error(interpreter, "Undefined variable", node->line, node->column);
-                return value_make_undefined(); // Return new undefined value
+                return value_make_undefined();
             }
             return value;
         }
