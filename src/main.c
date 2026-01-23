@@ -54,6 +54,11 @@ void swiftflow_log(LogLevel level, const char* file, int line, const char* fmt, 
 
 // Read entire file
 char* read_file(const char* filename) {
+    if (!filename) {
+        LOG(LOG_ERROR, "Filename is NULL");
+        return NULL;
+    }
+    
     FILE* file = fopen(filename, "rb");
     if (!file) {
         LOG(LOG_ERROR, "Cannot open file: %s", filename);
@@ -64,6 +69,12 @@ char* read_file(const char* filename) {
     long size = ftell(file);
     rewind(file);
     
+    if (size <= 0) {
+        LOG(LOG_ERROR, "File is empty: %s", filename);
+        fclose(file);
+        return NULL;
+    }
+    
     char* buffer = malloc(size + 1);
     if (!buffer) {
         LOG(LOG_ERROR, "Memory allocation failed");
@@ -72,6 +83,13 @@ char* read_file(const char* filename) {
     }
     
     size_t read_size = fread(buffer, 1, size, file);
+    if (read_size != (size_t)size) {
+        LOG(LOG_ERROR, "Failed to read entire file: %s", filename);
+        free(buffer);
+        fclose(file);
+        return NULL;
+    }
+    
     buffer[read_size] = '\0';
     
     fclose(file);
@@ -117,7 +135,11 @@ void process_args(int argc, char** argv) {
             exit(EXIT_SUCCESS);
         } else if (argv[i][0] != '-') {
             // Input file
-            config->input_file = str_copy(argv[i]);
+            if (config->input_file) {
+                LOG(LOG_WARNING, "Multiple input files specified, using: %s", config->input_file);
+            } else {
+                config->input_file = str_copy(argv[i]);
+            }
         }
     }
     
@@ -130,6 +152,8 @@ void process_args(int argc, char** argv) {
 
 // Read from stdin
 char* read_stdin() {
+    printf("%sReading from stdin (Ctrl+D to finish)...%s\n", COLOR_YELLOW, COLOR_RESET);
+    
     size_t buffer_size = 4096;
     char* buffer = malloc(buffer_size);
     if (!buffer) return NULL;
@@ -141,20 +165,34 @@ char* read_stdin() {
         total_read += read;
         if (total_read >= buffer_size - 1) {
             buffer_size *= 2;
-            buffer = realloc(buffer, buffer_size);
-            if (!buffer) return NULL;
+            char* new_buffer = realloc(buffer, buffer_size);
+            if (!new_buffer) {
+                free(buffer);
+                return NULL;
+            }
+            buffer = new_buffer;
         }
+    }
+    
+    if (total_read == 0) {
+        free(buffer);
+        return NULL;
     }
     
     buffer[total_read] = '\0';
     return buffer;
 }
 
-// Parse and execute SwiftFlow code
+// Execute SwiftFlow code from source
 int execute_swiftflow(const char* source, const char* filename) {
     if (!source || !source[0]) {
         LOG(LOG_ERROR, "Empty source code");
         return 1;
+    }
+    
+    if (config->verbose) {
+        LOG(LOG_INFO, "SwiftFlow Interpreter v%s", SWIFTFLOW_VERSION_STRING);
+        LOG(LOG_INFO, "Executing: %s", filename);
     }
     
     // Lexical analysis
@@ -285,6 +323,7 @@ void run_repl() {
             printf("  exit, quit  - Exit the REPL\n");
             printf("  help        - Show this help\n");
             printf("  clear       - Clear screen\n");
+            printf("  vars        - Show defined variables\n");
             continue;
         }
         
@@ -293,21 +332,13 @@ void run_repl() {
             continue;
         }
         
+        if (strcmp(line, "vars") == 0) {
+            printf("Variable display not yet implemented\n");
+            continue;
+        }
+        
         // Execute the line
-        SwiftFlowConfig* repl_config = config_create_default();
-        repl_config->debug = config->debug;
-        repl_config->verbose = config->verbose;
-        repl_config->warnings = config->warnings;
-        
-        // Temporarily replace global config
-        SwiftFlowConfig* old_config = config;
-        config = repl_config;
-        
         int result = execute_swiftflow(line, "<repl>");
-        
-        // Restore config
-        config = old_config;
-        config_free(repl_config);
         
         if (result != 0) {
             printf("%sExecution failed%s\n", COLOR_RED, COLOR_RESET);
@@ -331,9 +362,10 @@ int main(int argc, char** argv) {
         if (isatty(fileno(stdin))) {
             // Interactive REPL
             run_repl();
+            config_free(config);
+            return 0;
         } else {
             // Read from stdin (piped input)
-            printf("%sReading from stdin...%s\n", COLOR_YELLOW, COLOR_RESET);
             source = read_stdin();
             filename = "<stdin>";
             
@@ -348,7 +380,7 @@ int main(int argc, char** argv) {
         }
     } else {
         // Read from file
-        if (!str_endswith(filename, ".swf")) {
+        if (filename && !str_endswith(filename, ".swf")) {
             LOG(LOG_WARNING, "File '%s' doesn't have .swf extension", filename);
         }
         
@@ -357,10 +389,6 @@ int main(int argc, char** argv) {
             LOG(LOG_ERROR, "Failed to read file: %s", filename);
             config_free(config);
             return 1;
-        }
-        
-        if (config->verbose) {
-            LOG(LOG_INFO, "Executing file: %s", filename);
         }
         
         result = execute_swiftflow(source, filename);
