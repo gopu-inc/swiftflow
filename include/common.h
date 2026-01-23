@@ -6,6 +6,12 @@
 // ======================================================
 // [SECTION] HEADERS STANDARD
 // ======================================================
+#ifndef __STDC_FORMAT_MACROS
+#define __STDC_FORMAT_MACROS
+#endif
+
+#include <inttypes.h>  
+
 #include <stddef.h>
 #include <stdbool.h>
 #include <stdint.h>
