@@ -2,10 +2,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include "include/common.h"
-#include "src/frontend/lexer.h"
-#include "src/frontend/parser.h"
-#include "src/frontend/ast.h"
-#include "include/interpreter.h"
+#include "lexer.h"
+#include "parser.h"
+#include "ast.h"
+#include "interpreter.h"
 
 // Global configuration
 SwiftFlowConfig* config = NULL;
