@@ -1,6 +1,5 @@
 /*
-[file name]: main.c
-[file content begin]
+[file name]: src/main.c
 */
 #include <stdio.h>
 #include <stdlib.h>
@@ -142,7 +141,7 @@ void print_usage(const char* program_name) {
     printf("  %s program.swf\n", program_name);
     printf("  %s -r \"print('Hello World')\"\n", program_name);
     printf("  %s -cs program.swf --optimize\n", program_name);
-    printf("  %s run --serv:8080:host:0.0.0.0 --dev\n", program_name);
+    printf("  %s --server --port 8080 --host 0.0.0.0 --dev\n", program_name);
     printf("  %s repl\n", program_name);
 }
 
@@ -163,15 +162,12 @@ void process_args(int argc, char** argv) {
         } else if (strcmp(argv[i], "-c") == 0 || strcmp(argv[i], "--compile") == 0) {
             config->interpret = false;
         } else if (strcmp(argv[i], "-s") == 0 || strcmp(argv[i], "--server") == 0) {
-            // Server mode
             config->input_file = str_copy("server");
-            
-        // process_args
         } else if (strcmp(argv[i], "-r") == 0 || strcmp(argv[i], "--run") == 0) {
             if (i + 1 < argc) {
                 config->input_file = str_copy("-inline-");
-                // On saute l'argument suivant pour qu'il ne soit pas pris comme un fichier
-                i++; 
+                // CRUCIAL: Sauter l'argument suivant (le code) pour ne pas le traiter comme un fichier
+                i++;
             }
         } else if (strcmp(argv[i], "--stdin") == 0) {
             config->input_file = str_copy("-");
@@ -179,14 +175,9 @@ void process_args(int argc, char** argv) {
             config->debug = true;
             config->verbose = true;
         } else if (strcmp(argv[i], "--port") == 0) {
-            if (i + 1 < argc) {
-                // Store port for server mode
-                i++;
-            }
+            if (i + 1 < argc) i++; // Skip value
         } else if (strcmp(argv[i], "--host") == 0) {
-            if (i + 1 < argc) {
-                i++;
-            }
+            if (i + 1 < argc) i++; // Skip value
         } else if (strcmp(argv[i], "-I") == 0) {
             if (i + 1 < argc) {
                 config_add_import_path(config, argv[++i]);
@@ -197,14 +188,15 @@ void process_args(int argc, char** argv) {
         } else if (strcmp(argv[i], "repl") == 0) {
             config->input_file = str_copy("-repl-");
         } else if (strcmp(argv[i], "run") == 0) {
-            if (i + 1 < argc) {
+            // Commande 'run' explicite
+            if (i + 1 < argc && argv[i+1][0] != '-') {
                 config->input_file = str_copy(argv[++i]);
             }
         } else if (argv[i][0] != '-') {
-            // Input file
-            if (config->input_file && strcmp(config->input_file, "-inline-") != 0) {
+            // Input file direct
+            if (config->input_file && strcmp(config->input_file, "-inline-") != 0 && strcmp(config->input_file, "server") != 0) {
                 LOG(LOG_WARNING, "Multiple input files specified, using: %s", config->input_file);
-            } else {
+            } else if (!config->input_file) {
                 config->input_file = str_copy(argv[i]);
             }
         }
@@ -256,15 +248,12 @@ void start_http_server(int port, const char* host, bool dev_mode) {
     int server_fd;
     struct sockaddr_in address;
     int opt = 1;
-    int addrlen = sizeof(address);
     
-    // Create socket
     if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
         LOG(LOG_ERROR, "Socket creation failed");
         return;
     }
     
-    // Set socket options
     if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) {
         LOG(LOG_ERROR, "Socket options failed");
         close(server_fd);
@@ -275,14 +264,12 @@ void start_http_server(int port, const char* host, bool dev_mode) {
     address.sin_addr.s_addr = inet_addr(host);
     address.sin_port = htons(port);
     
-    // Bind socket
     if (bind(server_fd, (struct sockaddr*)&address, sizeof(address)) < 0) {
         LOG(LOG_ERROR, "Bind failed");
         close(server_fd);
         return;
     }
     
-    // Listen
     if (listen(server_fd, 10) < 0) {
         LOG(LOG_ERROR, "Listen failed");
         close(server_fd);
@@ -290,11 +277,8 @@ void start_http_server(int port, const char* host, bool dev_mode) {
     }
     
     LOG(LOG_INFO, "HTTP server started. Press Ctrl+C to stop.");
-    
-    // Signal handling for graceful shutdown
     signal(SIGINT, SIG_DFL);
     
-    // Main server loop
     while (1) {
         int client_fd;
         struct sockaddr_in client_addr;
@@ -306,17 +290,13 @@ void start_http_server(int port, const char* host, bool dev_mode) {
             continue;
         }
         
-        // Read request
         char buffer[4096] = {0};
         read(client_fd, buffer, 4095);
         
-        // Parse request
         char method[16], path[1024];
         sscanf(buffer, "%s %s", method, path);
-        
         LOG(LOG_INFO, "Request: %s %s", method, path);
         
-        // Serve file
         char file_path[2048];
         if (strcmp(path, "/") == 0) {
             strcpy(file_path, "./index.html");
@@ -324,7 +304,6 @@ void start_http_server(int port, const char* host, bool dev_mode) {
             snprintf(file_path, sizeof(file_path), ".%s", path);
         }
         
-        // Check if file exists
         FILE* file = fopen(file_path, "rb");
         if (file) {
             fseek(file, 0, SEEK_END);
@@ -335,42 +314,26 @@ void start_http_server(int port, const char* host, bool dev_mode) {
             fread(file_content, 1, file_size, file);
             fclose(file);
             
-            // Determine content type
             const char* content_type = "text/plain";
             if (str_endswith(file_path, ".html")) content_type = "text/html";
             else if (str_endswith(file_path, ".css")) content_type = "text/css";
             else if (str_endswith(file_path, ".js")) content_type = "application/javascript";
             else if (str_endswith(file_path, ".json")) content_type = "application/json";
-            else if (str_endswith(file_path, ".png")) content_type = "image/png";
-            else if (str_endswith(file_path, ".jpg") || str_endswith(file_path, ".jpeg")) 
-                content_type = "image/jpeg";
             
-            // Send response
             char header[1024];
             int header_len = snprintf(header, sizeof(header),
-                "HTTP/1.1 200 OK\r\n"
-                "Content-Type: %s\r\n"
-                "Content-Length: %ld\r\n"
-                "Connection: close\r\n"
-                "\r\n", content_type, file_size);
+                "HTTP/1.1 200 OK\r\nContent-Type: %s\r\nContent-Length: %ld\r\nConnection: close\r\n\r\n", 
+                content_type, file_size);
             
             write(client_fd, header, header_len);
             write(client_fd, file_content, file_size);
-            
             free(file_content);
         } else {
-            // 404 Not Found
-            char* response = "HTTP/1.1 404 Not Found\r\n"
-                            "Content-Type: text/html\r\n"
-                            "Content-Length: 48\r\n"
-                            "\r\n"
-                            "<html><body><h1>404 Not Found</h1></body></html>";
+            char* response = "HTTP/1.1 404 Not Found\r\nContent-Type: text/html\r\nContent-Length: 48\r\n\r\n<html><body><h1>404 Not Found</h1></body></html>";
             write(client_fd, response, strlen(response));
         }
-        
         close(client_fd);
     }
-    
     close(server_fd);
 }
 
@@ -381,27 +344,11 @@ int execute_swiftflow(const char* source, const char* filename, bool compile_onl
         return 1;
     }
     
-    if (config->verbose) {
-        LOG(LOG_INFO, "SwiftFlow Interpreter v%s", SWIFTFLOW_VERSION_STRING);
-        LOG(LOG_INFO, "Executing: %s", filename);
-    }
-    
-    // Lexical analysis
-    if (config->verbose) {
-        LOG(LOG_INFO, "Performing lexical analysis...");
-    }
-    
     Lexer lexer;
     lexer_init(&lexer, source, filename);
     
-    // Create parser
     Parser parser;
     parser_init(&parser, &lexer);
-    
-    // Parse the program
-    if (config->verbose) {
-        LOG(LOG_INFO, "Parsing program...");
-    }
     
     ASTNode* ast = parse_program(&parser);
     
@@ -418,22 +365,7 @@ int execute_swiftflow(const char* source, const char* filename, bool compile_onl
         return 1;
     }
     
-    if (config->verbose) {
-        LOG(LOG_INFO, "AST generated successfully");
-    }
-    
-    // Print AST in debug mode
-    if (config->debug) {
-        printf("\n%s=== AST Structure ===%s\n", COLOR_CYAN, COLOR_RESET);
-        ast_print(ast, 0);
-        printf("\n");
-    }
-    
-    // Optimize AST if requested
     if (config->optimize) {
-        if (config->verbose) {
-            LOG(LOG_INFO, "Optimizing AST...");
-        }
         ASTNode* optimized = ast_optimize(ast);
         if (optimized != ast) {
             ast_free(ast);
@@ -442,47 +374,26 @@ int execute_swiftflow(const char* source, const char* filename, bool compile_onl
     }
     
     if (compile_only) {
-        // Compilation mode
         LOG(LOG_INFO, "Compilation complete");
         ast_free(ast);
         free(lexer.filename);
         return 0;
     }
     
-    // Create interpreter and run
-    if (config->verbose) {
-        LOG(LOG_INFO, "Starting interpretation...");
-    }
-    
     SwiftFlowInterpreter* interpreter = interpreter_new();
-    if (!interpreter) {
-        LOG(LOG_ERROR, "Failed to create interpreter");
-        ast_free(ast);
-        free(lexer.filename);
-        return 1;
-    }
-    
-    // Set debug mode from config
     interpreter->debug_mode = config->debug;
     
     int result = interpreter_run(interpreter, ast);
     
     if (interpreter->had_error) {
         LOG(LOG_ERROR, "Runtime error at %d:%d: %s", 
-            interpreter->error_line, 
-            interpreter->error_column,
-            interpreter->error_message);
+            interpreter->error_line, interpreter->error_column, interpreter->error_message);
         result = 1;
     }
     
-    // Cleanup
     interpreter_free(interpreter);
     ast_free(ast);
     free(lexer.filename);
-    
-    if (result == 0 && config->verbose) {
-        LOG(LOG_INFO, "Interpretation completed successfully");
-    }
     
     return result;
 }
@@ -490,12 +401,10 @@ int execute_swiftflow(const char* source, const char* filename, bool compile_onl
 // Simple REPL mode
 void run_repl() {
     printf("%sSwiftFlow REPL v%s%s\n", COLOR_CYAN, SWIFTFLOW_VERSION_STRING, COLOR_RESET);
-    printf("Type 'exit', 'quit', or Ctrl+D to exit\n");
-    printf("Type 'help' for available commands\n\n");
+    printf("Type 'exit', 'quit', or Ctrl+D to exit\n\n");
     
     SwiftFlowInterpreter* interpreter = interpreter_new();
     char line[1024];
-    int line_num = 1;
     
     while (1) {
         printf("swiftflow> ");
@@ -506,81 +415,25 @@ void run_repl() {
             break;
         }
         
-        // Remove newline
         line[strcspn(line, "\n")] = '\0';
         
-        // Check for REPL commands
-        if (strlen(line) == 0) {
-            continue;
-        }
-        
-        if (strcmp(line, "exit") == 0 || strcmp(line, "quit") == 0) {
-            break;
-        }
-        
-        if (strcmp(line, "help") == 0) {
-            printf("REPL commands:\n");
-            printf("  exit, quit  - Exit the REPL\n");
-            printf("  help        - Show this help\n");
-            printf("  clear       - Clear screen\n");
-            printf("  vars        - Show defined variables\n");
-            printf("  ast <expr>  - Show AST for expression\n");
-            printf("  tokens <code> - Show tokens for code\n");
-            continue;
-        }
-        
-        if (strcmp(line, "clear") == 0) {
-            printf("\033[2J\033[H"); // Clear screen
-            continue;
-        }
-        
-        if (strcmp(line, "vars") == 0) {
-            interpreter_dump_environment(interpreter);
-            continue;
-        }
-        
-        if (strncmp(line, "ast ", 4) == 0) {
-            // Parse and show AST
-            const char* code = line + 4;
-            Lexer lexer;
-            lexer_init(&lexer, code, "<repl>");
-            Parser parser;
-            parser_init(&parser, &lexer);
-            ASTNode* ast = parse_program(&parser);
-            if (ast) {
-                ast_print(ast, 0);
-                ast_free(ast);
-            }
-            continue;
-        }
+        if (strlen(line) == 0) continue;
+        if (strcmp(line, "exit") == 0 || strcmp(line, "quit") == 0) break;
         
         if (strncmp(line, "tokens ", 7) == 0) {
-            // Show tokens
-            const char* code = line + 7;
             Lexer lexer;
-            lexer_init(&lexer, code, "<repl>");
+            lexer_init(&lexer, line + 7, "<repl>");
             Token token;
             do {
                 token = lexer_next_token(&lexer);
-                printf("Token: %s (%.*s)\n", 
-                       token_kind_to_string(token.kind),
-                       token.length, token.start);
+                printf("Token: %s (%.*s)\n", token_kind_to_string(token.kind), token.length, token.start);
             } while (token.kind != TK_EOF);
             continue;
         }
         
-        // Execute the line
-        int result = execute_swiftflow(line, "<repl>", false);
-        
-        if (result != 0) {
-            printf("%sExecution failed%s\n", COLOR_RED, COLOR_RESET);
-        }
-        
-        line_num++;
+        execute_swiftflow(line, "<repl>", false);
     }
-    
     interpreter_free(interpreter);
-    printf("\nGoodbye!\n");
 }
 
 int main(int argc, char** argv) {
@@ -592,17 +445,14 @@ int main(int argc, char** argv) {
         const char* host = "0.0.0.0";
         bool dev_mode = config->debug;
         
-        // Parse additional server arguments
         for (int i = 1; i < argc; i++) {
-            if (strncmp(argv[i], "--serv:", 7) == 0) {
-                // Format: --serv:8080:host:0.0.0.0
+            if (strncmp(argv[i], "--serv:", 7) == 0) { // Keep compat with old syntax
                 char* token = strtok(argv[i] + 7, ":");
                 if (token) port = atoi(token);
-                token = strtok(NULL, ":");
-                if (token && strcmp(token, "host") == 0) {
-                    token = strtok(NULL, ":");
-                    if (token) host = token;
-                }
+            } else if (strcmp(argv[i], "--port") == 0 && i + 1 < argc) {
+                port = atoi(argv[i + 1]);
+            } else if (strcmp(argv[i], "--host") == 0 && i + 1 < argc) {
+                host = argv[i + 1];
             }
         }
         
@@ -613,17 +463,14 @@ int main(int argc, char** argv) {
     
     char* source = NULL;
     char* filename = config->input_file;
-    int result = 0;
     
     if (filename && strcmp(filename, "-repl-") == 0) {
-        // REPL mode
         run_repl();
         config_free(config);
         return 0;
     }
     
     if (filename && strcmp(filename, "-inline-") == 0) {
-        // Direct code execution
         for (int i = 1; i < argc; i++) {
             if ((strcmp(argv[i], "-r") == 0 || strcmp(argv[i], "--run") == 0) && i + 1 < argc) {
                 source = str_copy(argv[i + 1]);
@@ -632,15 +479,9 @@ int main(int argc, char** argv) {
             }
         }
     } else if (filename && strcmp(filename, "-") == 0) {
-        // Read from stdin
         source = read_stdin();
         filename = "<stdin>";
     } else if (filename) {
-        // Read from file
-        if (filename && !str_endswith(filename, ".swf")) {
-            LOG(LOG_WARNING, "File '%s' doesn't have .swf extension", filename);
-        }
-        
         source = read_file(filename);
     }
     
@@ -650,8 +491,7 @@ int main(int argc, char** argv) {
         return 1;
     }
     
-    // Check if compile only
-    bool compile_only = false;
+    bool compile_only = !config->interpret; // Actually check the flag properly
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-c") == 0 || strcmp(argv[i], "--compile") == 0) {
             compile_only = true;
@@ -659,12 +499,9 @@ int main(int argc, char** argv) {
         }
     }
     
-    result = execute_swiftflow(source, filename, compile_only);
+    int result = execute_swiftflow(source, filename, compile_only);
     
     free(source);
     config_free(config);
     return result;
 }
-/*
-    [file content end]
-*/
