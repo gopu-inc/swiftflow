@@ -3,7 +3,7 @@
 # Compiler and flags
 CC = gcc
 CFLAGS = -Wall -Wextra -std=c99 -g -I./include
-LDFLAGS = -lm -lbsd  # Ajouter -lbsd pour dirname
+LDFLAGS = -lm  # Ajouter -lbsd pour dirname
 
 # Directories
 SRC_DIR = src
