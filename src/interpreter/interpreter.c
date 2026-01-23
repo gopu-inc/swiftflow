@@ -1,3 +1,10 @@
+// Au début du fichier interpreter.c, ajoutez :
+#ifdef __APPLE__
+#include <mach/mach_time.h>
+#else
+#include <time.h>
+
+
 #include "interpreter.h"
 #include "common.h"
 #include <math.h>
@@ -325,8 +332,8 @@ typedef struct {
     int max_args;
 } Builtin;
 
-// Built-in print function
 Value builtin_print(SwiftFlowInterpreter* interpreter, Value* args, int arg_count) {
+    (void)interpreter; // Marquer comme utilisé
     for (int i = 0; i < arg_count; i++) {
         value_print(args[i]);
         if (i < arg_count - 1) {
@@ -337,8 +344,8 @@ Value builtin_print(SwiftFlowInterpreter* interpreter, Value* args, int arg_coun
     return value_make_null();
 }
 
-// Built-in input function
 Value builtin_input(SwiftFlowInterpreter* interpreter, Value* args, int arg_count) {
+    (void)interpreter; // Marquer comme utilisé
     if (arg_count > 0) {
         char* prompt = value_to_string(args[0]);
         printf("%s", prompt);
@@ -356,6 +363,21 @@ Value builtin_input(SwiftFlowInterpreter* interpreter, Value* args, int arg_coun
         return value_make_string(buffer);
     }
     return value_make_string("");
+}
+
+Value builtin_exit(SwiftFlowInterpreter* interpreter, Value* args, int arg_count) {
+    (void)interpreter; // Marquer comme utilisé
+    int exit_code = 0;
+    
+    if (arg_count > 0) {
+        if (args[0].type == VAL_INT) {
+            exit_code = (int)args[0].as.int_val;
+        }
+    }
+    
+    printf("Exiting SwiftFlow interpreter with code %d\n", exit_code);
+    exit(exit_code);
+    return value_make_null(); // Never reached
 }
 
 // Built-in length function
@@ -557,12 +579,28 @@ Value builtin_lower(SwiftFlowInterpreter* interpreter, Value* args, int arg_coun
 
 // Built-in time function
 Value builtin_time(SwiftFlowInterpreter* interpreter, Value* args, int arg_count) {
-    (void)args; // Unused
-    (void)arg_count; // Unused
+    (void)interpreter; // Marquer comme utilisé
+    (void)args;
+    (void)arg_count;
     
+#ifdef __APPLE__
+    // macOS
+    mach_timebase_info_data_t info;
+    mach_timebase_info(&info);
+    uint64_t time = mach_absolute_time();
+    time *= info.numer;
+    time /= info.denom;
+    return value_make_float((double)time / 1e9);
+#else
+    // Linux et autres systèmes POSIX
     struct timespec ts;
-    clock_gettime(CLOCK_REALTIME, &ts);
-    return value_make_float(ts.tv_sec + ts.tv_nsec / 1e9);
+    if (clock_gettime(CLOCK_REALTIME, &ts) == 0) {
+        return value_make_float(ts.tv_sec + ts.tv_nsec / 1e9);
+    } else {
+        // Fallback sur time()
+        return value_make_float((double)time(NULL));
+    }
+#endif
 }
 
 // Built-in exit function
