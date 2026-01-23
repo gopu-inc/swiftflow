@@ -1,12 +1,13 @@
-// swiftflow v3.2.1 powered by gopu.inc 
 
 
 
 
+
+/*
 [file name]: src/common.h
 [file content begin]
 // swiftflow v3.2.1 powered by gopu.inc
-
+*/
 #ifndef COMMON_H
 #define COMMON_H
 
