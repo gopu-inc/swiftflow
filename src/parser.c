@@ -1023,4 +1023,6 @@ ASTNode* parse_input_statement(Parser* parser) {
     parser_consume(parser, TK_RPAREN, "Expected ')' after input prompt");
     return ast_new_input(prompt, line, column);
 }
-[file content end]
+/*
+    [file content end]
+*/
