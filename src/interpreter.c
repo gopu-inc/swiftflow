@@ -2065,20 +2065,44 @@ Value interpreter_evaluate(SwiftFlowInterpreter* interpreter, ASTNode* node, Env
                 return value_make_null();
             }
             
-            Value value = interpreter_evaluate(interpreter, node->left, env);
-            if (interpreter->had_error) {
+            // Handle new list-based print (from parser updates)
+            if (node->left->type == NODE_LIST) {
+                ASTNode* current_arg = node->left->left;
+                bool first = true;
+                while (current_arg) {
+                    if (!first) printf(" "); // Space between args
+                    
+                    Value val = interpreter_evaluate(interpreter, current_arg, env);
+                    if (interpreter->had_error) {
+                        value_free(&val);
+                        return value_make_null();
+                    }
+                    
+                    value_print(val);
+                    value_free(&val);
+                    
+                    first = false;
+                    current_arg = current_arg->right;
+                }
+            } else {
+                // Fallback for old parser behavior (single expression)
+                Value value = interpreter_evaluate(interpreter, node->left, env);
+                if (interpreter->had_error) {
+                    value_free(&value);
+                    return value_make_null();
+                }
+                
+                // Use raw string for printing (no extra quotes)
+                char* str = value_to_raw_string(value);
+                if (str) {
+                    printf("%s", str);
+                    free(str);
+                }
+                
                 value_free(&value);
-                return value_make_null();
             }
             
-            // Use raw string for printing (no extra quotes)
-            char* str = value_to_raw_string(value);
-            if (str) {
-                printf("%s\n", str);
-                free(str);
-            }
-            
-            value_free(&value);
+            printf("\n");
             return value_make_null();
         }
             
@@ -2100,6 +2124,22 @@ Value interpreter_evaluate(SwiftFlowInterpreter* interpreter, ASTNode* node, Env
             return value_make_string("");
         }
             
+        case NODE_IMPORT: {
+            // Support for import statements
+            // This relies on the built-in __import__ function
+            Value args[1];
+            
+            // Check if module_name exists
+            if (node->data.import_info.module_name) {
+                args[0] = value_make_string(node->data.import_info.module_name);
+                Value result = call_builtin(interpreter, "__import__", args, 1);
+                value_free(&args[0]);
+                return result;
+            }
+            
+            return value_make_null();
+        }
+
         case NODE_IF: {
             Value condition = interpreter_evaluate(interpreter, node->left, env);
             if (interpreter->had_error) {
