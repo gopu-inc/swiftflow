@@ -859,6 +859,189 @@ static ASTNode* exportStatement();
 static ASTNode* mainDeclaration();
 static ASTNode* dbvarStatement();
 
+
+
+
+// ======================================================
+// [SECTION] IO STATEMENT PARSING
+// ======================================================
+
+static ASTNode* ioOpenStatement() {
+    ASTNode* node = newNode(NODE_FILE_OPEN);
+    
+    consume(TK_LPAREN, "Expected '(' after io.open");
+    node->left = expression(); // filename
+    consume(TK_COMMA, "Expected ',' after filename");
+    node->right = expression(); // mode
+    
+    if (match(TK_COMMA)) {
+        node->third = expression(); // variable pour stocker fd
+    }
+    
+    consume(TK_RPAREN, "Expected ')' after io.open arguments");
+    consume(TK_SEMICOLON, "Expected ';' after io.open");
+    
+    return node;
+}
+
+static ASTNode* ioCloseStatement() {
+    ASTNode* node = newNode(NODE_FILE_CLOSE);
+    
+    consume(TK_LPAREN, "Expected '(' after io.close");
+    node->left = expression(); // fd
+    consume(TK_RPAREN, "Expected ')' after io.close arguments");
+    consume(TK_SEMICOLON, "Expected ';' after io.close");
+    
+    return node;
+}
+
+static ASTNode* ioReadStatement() {
+    ASTNode* node = newNode(NODE_FILE_READ);
+    
+    consume(TK_LPAREN, "Expected '(' after io.read");
+    node->left = expression(); // fd
+    
+    if (match(TK_COMMA)) {
+        node->right = expression(); // size
+        if (match(TK_COMMA)) {
+            node->third = expression(); // variable pour résultat
+        }
+    }
+    
+    consume(TK_RPAREN, "Expected ')' after io.read arguments");
+    consume(TK_SEMICOLON, "Expected ';' after io.read");
+    
+    return node;
+}
+
+static ASTNode* ioWriteStatement() {
+    ASTNode* node = newNode(NODE_FILE_WRITE);
+    
+    consume(TK_LPAREN, "Expected '(' after io.write");
+    node->left = expression(); // fd
+    consume(TK_COMMA, "Expected ',' after fd");
+    node->right = expression(); // data
+    
+    consume(TK_RPAREN, "Expected ')' after io.write arguments");
+    consume(TK_SEMICOLON, "Expected ';' after io.write");
+    
+    return node;
+}
+
+static ASTNode* ioSeekStatement() {
+    ASTNode* node = newNode(NODE_FILE_SEEK);
+    
+    consume(TK_LPAREN, "Expected '(' after io.seek");
+    node->left = expression(); // fd
+    consume(TK_COMMA, "Expected ',' after fd");
+    node->right = expression(); // offset
+    
+    if (match(TK_COMMA)) {
+        node->third = expression(); // whence
+    }
+    
+    consume(TK_RPAREN, "Expected ')' after io.seek arguments");
+    consume(TK_SEMICOLON, "Expected ';' after io.seek");
+    
+    return node;
+}
+
+static ASTNode* ioTellStatement() {
+    ASTNode* node = newNode(NODE_FILE_TELL);
+    
+    consume(TK_LPAREN, "Expected '(' after io.tell");
+    node->left = expression(); // fd
+    
+    if (match(TK_COMMA)) {
+        node->right = expression(); // variable pour résultat
+    }
+    
+    consume(TK_RPAREN, "Expected ')' after io.tell arguments");
+    consume(TK_SEMICOLON, "Expected ';' after io.tell");
+    
+    return node;
+}
+
+static ASTNode* ioExistsStatement() {
+    ASTNode* node = newNode(NODE_PATH_EXISTS);
+    
+    consume(TK_LPAREN, "Expected '(' after io.exists");
+    node->left = expression(); // path
+    
+    if (match(TK_COMMA)) {
+        node->right = expression(); // variable pour résultat
+    }
+    
+    consume(TK_RPAREN, "Expected ')' after io.exists arguments");
+    consume(TK_SEMICOLON, "Expected ';' after io.exists");
+    
+    return node;
+}
+
+static ASTNode* ioIsfileStatement() {
+    ASTNode* node = newNode(NODE_PATH_ISFILE);
+    
+    consume(TK_LPAREN, "Expected '(' after io.isfile");
+    node->left = expression(); // path
+    
+    if (match(TK_COMMA)) {
+        node->right = expression(); // variable pour résultat
+    }
+    
+    consume(TK_RPAREN, "Expected ')' after io.isfile arguments");
+    consume(TK_SEMICOLON, "Expected ';' after io.isfile");
+    
+    return node;
+}
+
+static ASTNode* ioIsdirStatement() {
+    ASTNode* node = newNode(NODE_PATH_ISDIR);
+    
+    consume(TK_LPAREN, "Expected '(' after io.isdir");
+    node->left = expression(); // path
+    
+    if (match(TK_COMMA)) {
+        node->right = expression(); // variable pour résultat
+    }
+    
+    consume(TK_RPAREN, "Expected ')' after io.isdir arguments");
+    consume(TK_SEMICOLON, "Expected ';' after io.isdir");
+    
+    return node;
+}
+
+static ASTNode* ioMkdirStatement() {
+    ASTNode* node = newNode(NODE_DIR_CREATE);
+    
+    consume(TK_LPAREN, "Expected '(' after io.mkdir");
+    node->left = expression(); // path
+    
+    if (match(TK_COMMA)) {
+        node->right = expression(); // mode
+    }
+    
+    consume(TK_RPAREN, "Expected ')' after io.mkdir arguments");
+    consume(TK_SEMICOLON, "Expected ';' after io.mkdir");
+    
+    return node;
+}
+
+static ASTNode* ioListdirStatement() {
+    ASTNode* node = newNode(NODE_DIR_LIST);
+    
+    consume(TK_LPAREN, "Expected '(' after io.listdir");
+    node->left = expression(); // path
+    
+    consume(TK_RPAREN, "Expected ')' after io.listdir arguments");
+    consume(TK_SEMICOLON, "Expected ';' after io.listdir");
+    
+    return node;
+}
+
+
+
+
+
 // Print statement
 static ASTNode* printStatement() {
     ASTNode* node = newNode(NODE_PRINT);
@@ -1921,6 +2104,18 @@ static ASTNode* statement() {
         warningAt(previous, "printdb not implemented, using print");
         return printStatement();
     }
+    // Après les autres match() statements
+    if (match(TK_IO_OPEN)) return ioOpenStatement();
+    if (match(TK_IO_CLOSE)) return ioCloseStatement();
+    if (match(TK_IO_READ)) return ioReadStatement();
+    if (match(TK_IO_WRITE)) return ioWriteStatement();
+    if (match(TK_IO_SEEK)) return ioSeekStatement();
+    if (match(TK_IO_TELL)) return ioTellStatement();
+    if (match(TK_IO_EXISTS)) return ioExistsStatement();
+    if (match(TK_IO_ISFILE)) return ioIsfileStatement();
+    if (match(TK_IO_ISDIR)) return ioIsdirStatement();
+    if (match(TK_IO_MKDIR)) return ioMkdirStatement();
+    if (match(TK_IO_LISTDIR)) return ioListdirStatement();
     if (match(TK_WELD)) return weldStatement();
     if (match(TK_READ)) return readStatement();
     if (match(TK_WRITE)) return writeStatement();
