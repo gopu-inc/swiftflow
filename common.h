@@ -109,7 +109,12 @@ typedef enum {
     
     // I/O
     TK_PRINT, TK_WELD, TK_READ, TK_WRITE,
-    
+    // Ajoute dans TokenKind :
+    TK_IO_OPEN, TK_IO_CLOSE, TK_IO_READ, TK_IO_WRITE,
+    TK_IO_SEEK, TK_IO_TELL, TK_IO_FLUSH,
+    TK_IO_EXISTS, TK_IO_ISFILE, TK_IO_ISDIR,
+    TK_IO_MKDIR, TK_IO_RMDIR, TK_IO_LISTDIR,
+    TK_IO_REMOVE, TK_IO_RENAME, TK_IO_COPY,
     // New keywords
     TK_PASS, TK_GLOBAL, TK_LAMBDA,
     TK_BDD, TK_DEF, TK_TYPE, TK_RAISE,
@@ -226,26 +231,9 @@ static const Keyword keywords[] = {
 // ======================================================
 // [SECTION] AST NODE DEFINITIONS
 // ======================================================
+// Dans common.h - Section NodeType
 typedef enum {
     // Expressions
-    // Dans common.h, ajoute dans NodeType :
-    NODE_FILE_OPEN,        // Ouvrir un fichier
-    NODE_FILE_CLOSE,       // Fermer un fichier   
-    NODE_FILE_READ,        // Lire depuis un fichier
-    NODE_FILE_WRITE,       // Écrire dans un fichier
-    NODE_FILE_SEEK,        // Déplacer le curseur
-    NODE_FILE_TELL,        // Position actuelle
-    NODE_FILE_FLUSH,       // Vider le buffer
-    NODE_FILE_STAT,        // Infos fichier
-    NODE_FILE_REMOVE,      // Supprimer fichier
-    NODE_FILE_RENAME,      // Renommer fichier
-    NODE_FILE_COPY,        // Copier fichier
-    NODE_DIR_CREATE,       // Créer dossier 
-    NODE_DIR_LIST,         // Lister dossier
-    NODE_DIR_REMOVE,       // Supprimer dossier
-    NODE_PATH_EXISTS,      // Vérifier existence
-    NODE_PATH_ISFILE,      // Vérifier si fichier
-    NODE_PATH_ISDIR,       // Vérifier si dossier
     NODE_INT,
     NODE_FLOAT,
     NODE_STRING,
@@ -263,9 +251,7 @@ typedef enum {
     NODE_LAMBDA,
     NODE_ARRAY_ACCESS,
     NODE_MEMBER_ACCESS,
-    // Ajouter ces types de nœuds dans l'énum NodeType
-    NODE_FILE_OPEN,
-     NODE_FILE_CLOSE,
+    
     // Operations
     NODE_BINARY,
     NODE_UNARY,
@@ -311,7 +297,26 @@ typedef enum {
     NODE_DBVAR,
     NODE_ASSERT,
     
-    // I/O
+    // I/O - Ces nœuds IO existent déjà !
+    NODE_FILE_OPEN,        // Ouvrir un fichier  
+    NODE_FILE_CLOSE,       // Fermer un fichier
+    NODE_FILE_READ,        // Lire depuis un fichier
+    NODE_FILE_WRITE,       // Écrire dans un fichier
+    NODE_FILE_SEEK,        // Déplacer le curseur
+    NODE_FILE_TELL,        // Position actuelle
+    NODE_FILE_FLUSH,       // Vider le buffer
+    NODE_FILE_STAT,        // Infos fichier
+    NODE_FILE_REMOVE,      // Supprimer fichier
+    NODE_FILE_RENAME,      // Renommer fichier
+    NODE_FILE_COPY,        // Copier fichier
+    NODE_DIR_CREATE,       // Créer dossier
+    NODE_DIR_LIST,         // Lister dossier
+    NODE_DIR_REMOVE,       // Supprimer dossier
+    NODE_PATH_EXISTS,      // Vérifier existence
+    NODE_PATH_ISFILE,      // Vérifier si fichier
+    NODE_PATH_ISDIR,       // Vérifier si dossier
+    
+    // Print & Weld (déjà existants, ne pas dupliquer)
     NODE_PRINT,
     NODE_WELD,
     NODE_READ,
