@@ -1585,145 +1585,78 @@ static ASTNode* block() {
 // ======================================================
 // [SECTION] FUNCTION DECLARATION - COMPLETE
 // ======================================================
-static ASTNode* functionDeclaration(bool is_exported) {
-    Token func_token = previous;
-    /* SUPPORT IO
-    if (match(TK_IO_OPEN)) return ioOpenStatement();
-    if (match(TK_IO_CLOSE)) return ioCloseStatement();
-    if (match(TK_IO_READ)) return ioReadStatement();
-    if (match(TK_IO_WRITE)) return ioWriteStatement();
-    if (!match(TK_IDENT)) {
-        errorAtCurrent("Expected function name after 'func'");
-        return NULL;
-    } */
+static ASTNode* exportStatement() {
+    Token export_token = previous;
     
-    char* func_name = str_copy(previous.value.str_val);
-    
-    // Parse type parameters (generics)
-    ASTNode* type_params = NULL;
-    if (match(TK_LT)) {
-        type_params = newNode(NODE_TYPE);
+    // Support de: export func name() {...}
+    if (match(TK_FUNC)) {
+        // Parser la fonction normalement
+        ASTNode* func_node = functionDeclaration(true);
+        if (!func_node) return NULL;
         
-        if (match(TK_IDENT)) {
-            ASTNode* first_param = newIdentNode(previous.value.str_val);
-            ASTNode* current_param = first_param;
-            
-            while (match(TK_COMMA)) {
-                if (!match(TK_IDENT)) {
-                    errorAtCurrent("Expected type parameter name after comma");
-                    break;
-                }
-                ASTNode* param = newIdentNode(previous.value.str_val);
-                if (current_param) {
-                    current_param->right = param;
-                    current_param = param;
-                }
+        // Créer un nœud export qui référence la fonction
+        ASTNode* export_node = newNode(NODE_EXPORT);
+        export_node->data.export.symbol = str_copy(func_node->data.name);
+        export_node->data.export.alias = str_copy(func_node->data.name);
+        export_node->left = func_node; // Lier la fonction
+        
+        printf("%s[PARSER]%s Exporting function: %s\n", 
+               COLOR_GREEN, COLOR_RESET, func_node->data.name);
+        
+        return export_node;
+    }
+    
+    // Support de: export const/var/let name = value;
+    if (match(TK_VAR) || match(TK_LET) || match(TK_CONST) ||
+        match(TK_NET) || match(TK_CLOG) || match(TK_DOS) || match(TK_SEL)) {
+        
+        ASTNode* var_node = variableDeclaration();
+        if (!var_node) return NULL;
+        
+        ASTNode* export_node = newNode(NODE_EXPORT);
+        if (var_node->data.name) {
+            export_node->data.export.symbol = str_copy(var_node->data.name);
+            export_node->data.export.alias = str_copy(var_node->data.name);
+        }
+        export_node->left = var_node;
+        
+        printf("%s[PARSER]%s Exporting variable: %s\n", 
+               COLOR_GREEN, COLOR_RESET, var_node->data.name ? var_node->data.name : "(unnamed)");
+        
+        return export_node;
+    }
+    
+    // Support de: export name;
+    if (match(TK_IDENT)) {
+        char* symbol = str_copy(previous.value.str_val);
+        char* alias = str_copy(symbol);
+        
+        ASTNode* export_node = newNode(NODE_EXPORT);
+        export_node->data.export.symbol = symbol;
+        export_node->data.export.alias = alias;
+        
+        if (match(TK_AS)) {
+            if (!match(TK_IDENT)) {
+                errorAtCurrent("Expected alias name after 'as'");
+                free(symbol);
+                free(alias);
+                free(export_node);
+                return NULL;
             }
-            
-            type_params->left = first_param;
+            free(alias);
+            export_node->data.export.alias = str_copy(previous.value.str_val);
         }
         
-        consume(TK_GT, "Expected '>' after type parameters");
+        consume(TK_SEMICOLON, "Expected ';' after export");
+        
+        printf("%s[PARSER]%s Export symbol: %s as %s\n", 
+               COLOR_GREEN, COLOR_RESET, symbol, export_node->data.export.alias);
+        
+        return export_node;
     }
     
-    // Parse parameters
-    consume(TK_LPAREN, "Expected '(' after function name");
-    
-    ASTNode* first_param = NULL;
-    ASTNode* current_param = NULL;
-    int param_count = 0;
-    
-    if (!check(TK_RPAREN)) {
-        if (match(TK_IDENT)) {
-            first_param = newIdentNode(previous.value.str_val);
-            current_param = first_param;
-            param_count = 1;
-            
-            // Optional type annotation
-            if (match(TK_COLON)) {
-                // Skip type for now
-                while (!check(TK_COMMA) && !check(TK_RPAREN) && !check(TK_ASSIGN)) {
-                    advance();
-                }
-            }
-            
-            // Optional default value
-            if (match(TK_ASSIGN)) {
-                // Skip default value for now
-                ASTNode* default_val = expression();
-                if (default_val) {
-                    // Store in param node if needed
-                }
-            }
-            
-            while (match(TK_COMMA)) {
-                if (!match(TK_IDENT)) {
-                    errorAtCurrent("Expected parameter name after comma");
-                    break;
-                }
-                
-                ASTNode* param = newIdentNode(previous.value.str_val);
-                if (current_param) {
-                    current_param->right = param;
-                    current_param = param;
-                }
-                param_count++;
-                
-                // Optional type annotation
-                if (match(TK_COLON)) {
-                    // Skip type
-                    while (!check(TK_COMMA) && !check(TK_RPAREN) && !check(TK_ASSIGN)) {
-                        advance();
-                    }
-                }
-                
-                // Optional default value
-                if (match(TK_ASSIGN)) {
-                    // Skip default value
-                    ASTNode* default_val = expression();
-                }
-            }
-        }
-    }
-    
-    consume(TK_RPAREN, "Expected ')' after parameters");
-    
-    // Optional return type
-    if (match(TK_COLON)) {
-        // Skip return type for now
-        while (!check(TK_LBRACE) && !check(TK_EOF)) {
-            advance();
-        }
-    }
-    
-    // Parse function body
-    consume(TK_LBRACE, "Expected '{' before function body");
-    
-    ASTNode* node = newNode(NODE_FUNC);
-    node->data.name = func_name;
-    node->line = func_token.line;
-    node->column = func_token.column;
-    
-    if (type_params) {
-        node->third = type_params; // Store type params in third field
-    }
-    
-    if (first_param) {
-        node->left = first_param;
-    }
-    
-    // Parse body
-    int prev_scope = scope_level;
-    scope_level++;
-    
-    node->right = block();
-    
-    scope_level = prev_scope;
-    
-    printf("%s[PARSER]%s Function '%s' declared with %d parameters\n", 
-           COLOR_GREEN, COLOR_RESET, func_name, param_count);
-    
-    return node;
+    errorAtCurrent("Expected 'func', variable declaration, or symbol name after export");
+    return NULL;
 }
 
 // Variable declaration
@@ -2059,39 +1992,130 @@ static ASTNode* importStatement() {
 static ASTNode* exportStatement() {
     Token export_token = previous;
     
-    // Accepter soit un identifiant soit une chaîne
-    char* symbol = NULL;
-    if (match(TK_IDENT)) {
-        symbol = str_copy(previous.value.str_val);
-    } else if (match(TK_STRING)) {
-        symbol = str_copy(previous.value.str_val);
-    } else {
-        errorAtCurrent("Expected symbol name or string after export");
+    // Accepter différents types de déclarations à exporter
+    ASTNode* export_node = newNode(NODE_EXPORT);
+    
+    // Préparer pour stocker ce qui est exporté
+    char* symbol_name = NULL;
+    char* alias_name = NULL;
+    
+    // Première possibilité : export d'une déclaration existante
+    if (match(TK_FUNC) || match(TK_VAR) || match(TK_LET) || match(TK_CONST) ||
+        match(TK_NET) || match(TK_CLOG) || match(TK_DOS) || match(TK_SEL) ||
+        match(TK_CLASS) || match(TK_STRUCT) || match(TK_ENUM)) {
+        
+        // Sauvegarder le type de déclaration
+        TokenKind decl_type = previous.kind;
+        
+        // Parser la déclaration normalement
+        ASTNode* declaration = NULL;
+        
+        switch (decl_type) {
+            case TK_FUNC:
+                declaration = functionDeclaration(true); // true = is_exported
+                break;
+            case TK_VAR:
+            case TK_LET:
+            case TK_CONST:
+            case TK_NET:
+            case TK_CLOG:
+            case TK_DOS:
+            case TK_SEL:
+                declaration = variableDeclaration();
+                if (declaration && declaration->data.name) {
+                    symbol_name = str_copy(declaration->data.name);
+                }
+                break;
+            case TK_CLASS:
+                declaration = classDeclaration();
+                if (declaration && declaration->data.class_def.name) {
+                    symbol_name = str_copy(declaration->data.class_def.name);
+                }
+                break;
+            // ... autres types
+            default:
+                errorAtCurrent("Unsupported export type");
+                free(export_node);
+                return NULL;
+        }
+        
+        if (!declaration) {
+            free(export_node);
+            return NULL;
+        }
+        
+        // Optionnel : alias avec 'as'
+        if (match(TK_AS)) {
+            if (!match(TK_IDENT) && !match(TK_STRING)) {
+                errorAtCurrent("Expected alias name after 'as'");
+                free(export_node);
+                return NULL;
+            }
+            alias_name = str_copy(previous.value.str_val);
+        } else {
+            // Utiliser le nom original comme alias
+            if (symbol_name) {
+                alias_name = str_copy(symbol_name);
+            }
+        }
+        
+        // Stocker dans le nœud export
+        if (symbol_name) {
+            export_node->data.export.symbol = symbol_name;
+            export_node->data.export.alias = alias_name ? alias_name : str_copy(symbol_name);
+        }
+        
+        // Lier la déclaration à l'export
+        export_node->left = declaration;
+        
+        printf("%s[PARSER]%s Export %s declaration: %s as %s\n", 
+               COLOR_GREEN, COLOR_RESET, 
+               decl_type == TK_FUNC ? "function" : "variable",
+               symbol_name ? symbol_name : "(unnamed)",
+               alias_name ? alias_name : "(default)");
+        
+        return export_node;
+    }
+    
+    // Deuxième possibilité : export d'un symbole nommé (pour les exports nommés)
+    if (match(TK_IDENT) || match(TK_STRING)) {
+        symbol_name = str_copy(previous.value.str_val);
+        
+        // Optionnel : alias avec 'as'
+        if (match(TK_AS)) {
+            if (!match(TK_IDENT) && !match(TK_STRING)) {
+                errorAtCurrent("Expected alias name after 'as'");
+                free(symbol_name);
+                free(export_node);
+                return NULL;
+            }
+            alias_name = str_copy(previous.value.str_val);
+        } else {
+            alias_name = str_copy(symbol_name);
+        }
+        
+        export_node->data.export.symbol = symbol_name;
+        export_node->data.export.alias = alias_name;
+        
+        consume(TK_SEMICOLON, "Expected ';' after export statement");
+        
+        printf("%s[PARSER]%s Export named: %s as %s\n", 
+               COLOR_GREEN, COLOR_RESET, symbol_name, alias_name);
+        
+        return export_node;
+    }
+    
+    // Troisième possibilité : export de liste { a, b as c }
+    if (match(TK_LBRACE)) {
+        // Pour les exports nommés multiples
+        errorAtCurrent("Named exports not fully implemented yet");
+        free(export_node);
         return NULL;
     }
     
-    ASTNode* node = newNode(NODE_EXPORT);
-    node->data.export.symbol = symbol;
-    
-    // Alias optionnel
-    if (match(TK_AS)) {
-        if (!match(TK_IDENT) && !match(TK_STRING)) {
-            errorAtCurrent("Expected alias name after 'as'");
-            free(symbol);
-            free(node);
-            return NULL;
-        }
-        node->data.export.alias = str_copy(previous.value.str_val);
-    } else {
-        node->data.export.alias = str_copy(symbol);
-    }
-    
-    consume(TK_SEMICOLON, "Expected ';' after export statement");
-    
-    printf("%s[PARSER]%s Export declaration: %s as %s\n", 
-           COLOR_GREEN, COLOR_RESET, symbol, node->data.export.alias);
-    
-    return node;
+    errorAtCurrent("Expected declaration or symbol name after export");
+    free(export_node);
+    return NULL;
 }
 
 // ======================================================
