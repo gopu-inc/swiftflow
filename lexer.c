@@ -295,7 +295,7 @@ static Token identifier() {
     
     int length = (int)(lexer.current - lexer.start);
     
-    // Check for '...' ellipsis first
+    // Vérifier pour '...' ellipsis first
     if (length == 3 && strncmp(lexer.start, "...", 3) == 0) {
         return makeToken(TK_ELLIPSIS);
     }
@@ -306,8 +306,9 @@ static Token identifier() {
         text[length] = '\0';
     }
     
-    // Check for keywords
+    // Vérifier les keywords IO (avec point)
     if (text) {
+        // Vérifier d'abord les keywords IO
         for (int i = 0; keywords[i].keyword != NULL; i++) {
             if (strcmp(text, keywords[i].keyword) == 0) {
                 free(text);
@@ -315,7 +316,7 @@ static Token identifier() {
             }
         }
         
-        // Check for special literals
+        // Vérifier les literals spéciaux
         if (strcasecmp(text, "NaN") == 0 || strcasecmp(text, "nan") == 0) {
             free(text);
             return makeToken(TK_NAN);
@@ -325,7 +326,7 @@ static Token identifier() {
             return makeToken(TK_INF);
         }
         
-        // If not a keyword, it's an identifier
+        // Si pas un keyword, c'est un identifiant
         Token token = makeToken(TK_IDENT);
         token.value.str_val = text;
         return token;
