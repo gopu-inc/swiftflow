@@ -14,8 +14,7 @@
 #include <ctype.h>
 #include <sys/param.h>
 #include <sys/stat.h>
-#include <fcntl.h>
-#include <linux/limits.h>  
+#include <fcntl.h>  
 #include "common.h"
 
 // ======================================================
