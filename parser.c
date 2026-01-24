@@ -2059,17 +2059,23 @@ static ASTNode* importStatement() {
 static ASTNode* exportStatement() {
     Token export_token = previous;
     
-    if (!match(TK_STRING)) {
-        errorAtCurrent("Expected symbol name after export");
+    // Accepter soit un identifiant soit une chaîne
+    char* symbol = NULL;
+    if (match(TK_IDENT)) {
+        symbol = str_copy(previous.value.str_val);
+    } else if (match(TK_STRING)) {
+        symbol = str_copy(previous.value.str_val);
+    } else {
+        errorAtCurrent("Expected symbol name or string after export");
         return NULL;
     }
     
-    char* symbol = str_copy(previous.value.str_val);
     ASTNode* node = newNode(NODE_EXPORT);
     node->data.export.symbol = symbol;
     
+    // Alias optionnel
     if (match(TK_AS)) {
-        if (!match(TK_STRING)) {
+        if (!match(TK_IDENT) && !match(TK_STRING)) {
             errorAtCurrent("Expected alias name after 'as'");
             free(symbol);
             free(node);
@@ -2081,6 +2087,9 @@ static ASTNode* exportStatement() {
     }
     
     consume(TK_SEMICOLON, "Expected ';' after export statement");
+    
+    printf("%s[PARSER]%s Export declaration: %s as %s\n", 
+           COLOR_GREEN, COLOR_RESET, symbol, node->data.export.alias);
     
     return node;
 }
