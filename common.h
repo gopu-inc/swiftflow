@@ -223,7 +223,15 @@ static const Keyword keywords[] = {
     // Literals
     {"true", TK_TRUE}, {"false", TK_FALSE}, {"null", TK_NULL},
     {"undefined", TK_UNDEFINED}, {"nan", TK_NAN}, {"inf", TK_INF},
-    
+    // Dans common.h, dans keywords[], ajoute :
+    {"io.open", TK_IO_OPEN}, {"io.close", TK_IO_CLOSE},
+    {"io.read", TK_IO_READ}, {"io.write", TK_IO_WRITE},
+    {"io.seek", TK_IO_SEEK}, {"io.tell", TK_IO_TELL},
+    {"io.flush", TK_IO_FLUSH}, {"io.exists", TK_IO_EXISTS},
+    {"io.isfile", TK_IO_ISFILE}, {"io.isdir", TK_IO_ISDIR},
+    {"io.mkdir", TK_IO_MKDIR}, {"io.rmdir", TK_IO_RMDIR},
+    {"io.listdir", TK_IO_LISTDIR}, {"io.remove", TK_IO_REMOVE},
+    {"io.rename", TK_IO_RENAME}, {"io.copy", TK_IO_COPY},
     // End marker
     {NULL, TK_ERROR}
 };
