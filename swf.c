@@ -713,78 +713,125 @@ static double evalFloat(ASTNode* node) {
                 return evalFloat(node->third);
             }
         }
-            
+
         case NODE_FUNC_CALL: {
-            Function* func = findFunction(node->data.name);
-            if (func) {
-                Function* prev_func = current_function;
-                current_function = func;
+    Function* func = findFunction(node->data.name);
+    if (func) {
+        printf("%s[DEBUG FUNC CALL]%s Appel fonction: %s (param_count = %d)\n", 
+               COLOR_YELLOW, COLOR_RESET, node->data.name, func->param_count);
+        
+        Function* prev_func = current_function;
+        current_function = func;
+        
+        int old_scope = scope_level;
+        scope_level++;
+        
+        printf("%s[DEBUG]%s Scope avant: %d, après: %d\n",
+               COLOR_YELLOW, COLOR_RESET, old_scope, scope_level);
+        
+        // DEBUG: Affiche les paramètres attendus
+        if (func->param_names) {
+            for (int i = 0; i < func->param_count; i++) {
+                printf("%s[DEBUG]%s Paramètre attendu %d: %s\n",
+                       COLOR_YELLOW, COLOR_RESET, i, 
+                       func->param_names[i] ? func->param_names[i] : "NULL");
+            }
+        }
+        
+        // Passe les paramètres
+        if (node->left) {
+            printf("%s[DEBUG]%s Arguments fournis:\n", COLOR_YELLOW, COLOR_RESET);
+            ASTNode* arg = node->left;
+            int arg_idx = 0;
+            
+            while (arg) {
+                printf("%s[DEBUG]%s   Argument %d (type = %d):\n",
+                       COLOR_YELLOW, COLOR_RESET, arg_idx, arg->type);
                 
-                int old_scope = scope_level;
-                scope_level++;
+                // Évalue comme nombre
+                double num_val = evalFloat(arg);
+                printf("%s[DEBUG]%s     Valeur numérique: %g\n",
+                       COLOR_YELLOW, COLOR_RESET, num_val);
                 
-                if (node->left && func->param_names) {
-                    ASTNode* arg = node->left;
-                    int param_idx = 0;
-                    
-                    while (arg && param_idx < func->param_count) {
-                        if (func->param_names[param_idx]) {
-                            if (var_count < 1000) {
-                                Variable* var = &vars[var_count];
-                                strncpy(var->name, func->param_names[param_idx], 99);
-                                var->name[99] = '\0';
-                                var->type = TK_VAR;
-                                var->size_bytes = 8;
-                                var->scope_level = scope_level;
-                                var->is_constant = false;
-                                var->is_initialized = true;
-                                
-                                double arg_val = evalFloat(arg);
-                                var->is_float = true;
-                                var->is_string = false;
-                                var->value.float_val = arg_val;
-                                
-                                var_count++;
-                            }
+                // Évalue comme string
+                char* str_val = evalString(arg);
+                printf("%s[DEBUG]%s     Valeur string: '%s'\n",
+                       COLOR_YELLOW, COLOR_RESET, str_val ? str_val : "NULL");
+                if (str_val) free(str_val);
+                
+                // Crée la variable locale si on a un nom de paramètre
+                if (arg_idx < func->param_count && func->param_names && func->param_names[arg_idx]) {
+                    if (var_count < 1000) {
+                        Variable* var = &vars[var_count];
+                        strncpy(var->name, func->param_names[arg_idx], 99);
+                        var->name[99] = '\0';
+                        var->type = TK_VAR;
+                        var->size_bytes = 8;
+                        var->scope_level = scope_level;
+                        var->is_constant = false;
+                        var->is_initialized = true;
+                        
+                        // Détermine si c'est un string ou un nombre
+                        if (arg->type == NODE_STRING) {
+                            var->is_string = true;
+                            var->is_float = false;
+                            var->value.str_val = str_copy(arg->data.str_val);
+                            printf("%s[DEBUG]%s     → Variable créée: %s (string) = '%s'\n",
+                                   COLOR_GREEN, COLOR_RESET, 
+                                   var->name, var->value.str_val);
+                        } else {
+                            var->is_float = true;
+                            var->is_string = false;
+                            var->value.float_val = num_val;
+                            printf("%s[DEBUG]%s     → Variable créée: %s (float) = %g\n",
+                                   COLOR_GREEN, COLOR_RESET, 
+                                   var->name, var->value.float_val);
                         }
-                        arg = arg->right;
-                        param_idx++;
+                        
+                        var_count++;
                     }
                 }
                 
-                func->has_returned = false;
-                func->return_value = 0;
-                if (func->return_string) {
-                    free(func->return_string);
-                    func->return_string = NULL;
-                }
-                
-                if (func->body) {
-                    execute(func->body);
-                }
-                
-                scope_level = old_scope;
-                current_function = prev_func;
-                
-                if (func->return_string) {
-                    char* endptr;
-                    double val = strtod(func->return_string, &endptr);
-                    if (endptr != func->return_string) {
-                        return val;
-                    }
-                }
-                return func->return_value;
+                arg = arg->right;
+                arg_idx++;
             }
             
-            printf("%s[EXEC ERROR]%s Function not found: %s\n", COLOR_RED, COLOR_RESET, node->data.name);
-            return 0.0;
+            if (arg_idx < func->param_count) {
+                printf("%s[DEBUG WARNING]%s Seulement %d arguments sur %d fournis\n",
+                       COLOR_YELLOW, COLOR_RESET, arg_idx, func->param_count);
+            }
+        } else {
+            printf("%s[DEBUG]%s Aucun argument fourni\n", COLOR_YELLOW, COLOR_RESET);
         }
-            
-        default:
-            return 0.0;
+        
+        // Exécute le corps de la fonction
+        func->has_returned = false;
+        func->return_value = 0;
+        if (func->return_string) {
+            free(func->return_string);
+            func->return_string = NULL;
+        }
+        
+        printf("%s[DEBUG]%s Exécution du corps de la fonction...\n", COLOR_YELLOW, COLOR_RESET);
+        if (func->body) {
+            execute(func->body);
+        } else {
+            printf("%s[DEBUG ERROR]%s Corps de fonction NULL!\n", COLOR_RED, COLOR_RESET);
+        }
+        
+        printf("%s[DEBUG]%s Fonction terminée. Retour = %g\n",
+               COLOR_YELLOW, COLOR_RESET, func->return_value);
+        
+        // Restaure
+        scope_level = old_scope;
+        current_function = prev_func;
+        
+        return func->return_value;
     }
+    
+    printf("%s[EXEC ERROR]%s Function not found: %s\n", COLOR_RED, COLOR_RESET, node->data.name);
+    return 0.0;
 }
-
 static char* evalString(ASTNode* node) {
     if (!node) return str_copy("");
     
