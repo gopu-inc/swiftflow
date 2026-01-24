@@ -292,97 +292,101 @@ static bool isLocalImport(const char* import_path) {
     return import_path[0] == '.' || import_path[0] == '/';
 }
 
-static char* resolveImportPath(const char* import_path, const char* from_package) {
+static char* resolveModulePath(const char* import_path, const char* from_module) {
     char* resolved = malloc(PATH_MAX);
     if (!resolved) return NULL;
-    resolved[0] = '\0';
     
-    int needed = 0;
+    // Si chemin absolu
+    if (import_path[0] == '/') {
+        snprintf(resolved, PATH_MAX, "%s", import_path);
+        if (!strstr(resolved, ".swf")) {
+            strcat(resolved, ".swf");
+        }
+        return resolved;
+    }
     
-    if (isLocalImport(import_path)) {
-        if (import_path[0] == '/') {
-            needed = snprintf(NULL, 0, "%s", import_path);
-            if (needed < PATH_MAX - 10) {
-                snprintf(resolved, PATH_MAX, "%s", import_path);
-            }
-        } else if (strncmp(import_path, "./", 2) == 0) {
-            needed = snprintf(NULL, 0, "%s/%s", current_working_dir, import_path + 2);
-            if (needed < PATH_MAX - 10) {
-                snprintf(resolved, PATH_MAX, "%s/%s", current_working_dir, import_path + 2);
-            }
-        } else if (strncmp(import_path, "../", 3) == 0) {
-            char parent_dir[PATH_MAX];
-            strncpy(parent_dir, current_working_dir, sizeof(parent_dir) - 1);
-            parent_dir[sizeof(parent_dir) - 1] = '\0';
+    // Si chemin relatif (commence par . ou ..)
+    if (import_path[0] == '.') {
+        if (from_module && from_module[0]) {
+            // Construire le chemin relatif au module appelant
+            char module_dir[PATH_MAX];
+            strncpy(module_dir, from_module, PATH_MAX);
+            char* dir = dirname(module_dir);
             
-            char* last_slash = strrchr(parent_dir, '/');
-            if (last_slash) {
-                *last_slash = '\0';
-            } else {
-                strcpy(parent_dir, ".");
-            }
-            
-            needed = snprintf(NULL, 0, "%s/%s", parent_dir, import_path + 3);
-            if (needed < PATH_MAX - 10) {
-                snprintf(resolved, PATH_MAX, "%s/%s", parent_dir, import_path + 3);
-            }
+            snprintf(resolved, PATH_MAX, "%s/%s", dir, import_path);
         } else {
-            needed = snprintf(NULL, 0, "%s/%s", current_working_dir, import_path);
-            if (needed < PATH_MAX - 10) {
-                snprintf(resolved, PATH_MAX, "%s/%s", current_working_dir, import_path);
-            }
+            // Relatif au répertoire courant
+            snprintf(resolved, PATH_MAX, "%s/%s", current_working_dir, import_path);
         }
         
-        if (needed >= PATH_MAX - 10 || resolved[0] == '\0') {
+        // Normaliser le chemin
+        char* normalized = realpath(resolved, NULL);
+        if (normalized) {
             free(resolved);
-            return NULL;
+            resolved = normalized;
         }
         
         if (!strstr(resolved, ".swf")) {
             strcat(resolved, ".swf");
         }
-        
         return resolved;
     }
     
-    // Package imports
-    if (from_package) {
-        needed = snprintf(NULL, 0, "/usr/local/lib/swift/%s/%s.swf", from_package, import_path);
-    } else {
-        needed = snprintf(NULL, 0, "/usr/local/lib/swift/modules/%s.swf", import_path);
-    }
+    // Recherche dans les chemins système
+    const char* search_paths[] = {
+        "/usr/local/lib/swift/modules/",
+        "/usr/local/lib/swift/packages/",
+        "/usr/local/lib/swift/lib/",
+        current_working_dir,
+        NULL
+    };
     
-    if (needed < PATH_MAX) {
-        if (from_package) {
-            snprintf(resolved, PATH_MAX, "/usr/local/lib/swift/%s/%s.swf", from_package, import_path);
-        } else {
-            snprintf(resolved, PATH_MAX, "/usr/local/lib/swift/modules/%s.swf", import_path);
+    // Si c'est un module avec structure: "math" -> "math/math.swf"
+    for (int i = 0; search_paths[i]; i++) {
+        // Essayer comme fichier direct
+        snprintf(resolved, PATH_MAX, "%s/%s.swf", search_paths[i], import_path);
+        if (access(resolved, F_OK) == 0) {
+            return resolved;
         }
-        return resolved;
+        
+        // Essayer comme dossier avec point d'entrée
+        snprintf(resolved, PATH_MAX, "%s/%s/%s.swf", search_paths[i], import_path, import_path);
+        if (access(resolved, F_OK) == 0) {
+            return resolved;
+        }
+        
+        // Essayer comme dossier avec index.swf
+        snprintf(resolved, PATH_MAX, "%s/%s/index.swf", search_paths[i], import_path);
+        if (access(resolved, F_OK) == 0) {
+            return resolved;
+        }
     }
     
     free(resolved);
     return NULL;
 }
-static bool loadAndExecuteModule(const char* import_path, const char* from_package) {
-    char* full_path = resolveImportPath(import_path, from_package);
+
+static bool loadAndExecuteModule(const char* import_path, const char* from_module, 
+                                bool import_named, char** named_symbols, int symbol_count) {
+    char* full_path = resolveModulePath(import_path, from_module);
     if (!full_path) {
-        printf("%s[IMPORT ERROR]%s Failed to resolve import path: %s\n", 
+        printf("%s[IMPORT ERROR]%s Module not found: %s\n", 
                COLOR_RED, COLOR_RESET, import_path);
         return false;
     }
     
-    printf("%s[IMPORT]%s Looking for: %s\n", COLOR_CYAN, COLOR_RESET, full_path);
+    printf("%s[IMPORT]%s Loading: %s -> %s\n", 
+           COLOR_CYAN, COLOR_RESET, import_path, full_path);
     
     FILE* f = fopen(full_path, "r");
     if (!f) {
-        printf("%s[IMPORT ERROR]%s Not found: %s\n", COLOR_RED, COLOR_RESET, full_path);
+        printf("%s[IMPORT ERROR]%s Cannot open: %s\n", 
+               COLOR_RED, COLOR_RESET, full_path);
         free(full_path);
         return false;
     }
     
-    printf("%s[IMPORT]%s Found: %s\n", COLOR_GREEN, COLOR_RESET, full_path);
-    
+    // Lire le fichier
     fseek(f, 0, SEEK_END);
     long size = ftell(f);
     fseek(f, 0, SEEK_SET);
@@ -398,85 +402,258 @@ static bool loadAndExecuteModule(const char* import_path, const char* from_packa
     source[size] = '\0';
     fclose(f);
     
-    if (import_count < 100) {
-        imports[import_count].name = str_copy(import_path);
-        imports[import_count].file_path = str_copy(full_path);
-        imports[import_count].is_loaded = true;
-        import_count++;
+    // Extraire le nom du module pour le namespace
+    char module_name[100];
+    strncpy(module_name, import_path, 99);
+    char* slash = strrchr(module_name, '/');
+    if (slash) {
+        strcpy(module_name, slash + 1);
     }
+    char* dot = strrchr(module_name, '.');
+    if (dot) *dot = '\0';
     
+    // Sauvegarder l'état actuel
     char old_dir[PATH_MAX];
-    strncpy(old_dir, current_working_dir, sizeof(old_dir));
+    strncpy(old_dir, current_working_dir, PATH_MAX);
     
-    char module_path[PATH_MAX];
-    strncpy(module_path, full_path, sizeof(module_path));
-    char* module_dir = dirname(module_path);
-    strncpy(current_working_dir, module_dir, sizeof(current_working_dir));
+    char module_dir[PATH_MAX];
+    strncpy(module_dir, full_path, PATH_MAX);
+    char* dir = dirname(module_dir);
+    strncpy(current_working_dir, dir, PATH_MAX);
     
-    printf("%s[IMPORT]%s Executing module...\n", COLOR_BLUE, COLOR_RESET);
-    
+    // Parser et exécuter le module
     int count = 0;
     ASTNode** nodes = parse(source, &count);
     
-    if (nodes) {
-        // Première passe : enregistrer les fonctions et exports
+    if (!nodes) {
+        free(source);
+        free(full_path);
+        strncpy(current_working_dir, old_dir, PATH_MAX);
+        return false;
+    }
+    
+    // Traiter les exports du module
+    if (import_named && named_symbols) {
+        // Import nommé: ne charger que les symboles demandés
+        for (int i = 0; i < symbol_count; i++) {
+            char* requested = named_symbols[i];
+            bool found = false;
+            
+            // Chercher dans les exports du module
+            for (int j = 0; j < export_count; j++) {
+                if (strcmp(exports[j].symbol, requested) == 0 ||
+                    strcmp(exports[j].alias, requested) == 0) {
+                    // Importer ce symbole
+                    printf("%s[IMPORT]%s Importing symbol: %s\n", 
+                           COLOR_GREEN, COLOR_RESET, requested);
+                    found = true;
+                    break;
+                }
+            }
+            
+            if (!found) {
+                printf("%s[IMPORT WARNING]%s Symbol not exported: %s\n", 
+                       COLOR_YELLOW, COLOR_RESET, requested);
+            }
+        }
+    } else {
+        // Import complet: charger tout le module
         for (int i = 0; i < count; i++) {
-            if (nodes[i]) {
-                if (nodes[i]->type == NODE_FUNC) {
-                    int param_count = 0;
-                    ASTNode* param = nodes[i]->left;
-                    while (param) {
-                        param_count++;
-                        param = param->right;
-                    }
-                    registerFunction(nodes[i]->data.name, nodes[i]->left, nodes[i]->right, param_count);
+            if (nodes[i] && nodes[i]->type == NODE_FUNC) {
+                // Enregistrer avec namespace: module.func
+                char prefixed_name[200];
+                snprintf(prefixed_name, sizeof(prefixed_name), "%s.%s", 
+                         module_name, nodes[i]->data.name);
+                
+                int param_count = 0;
+                ASTNode* param = nodes[i]->left;
+                while (param) {
+                    param_count++;
+                    param = param->right;
                 }
-                else if (nodes[i]->type == NODE_EXPORT) {
-                    execute(nodes[i]); // Enregistrer l'export
-                }
-                else if (nodes[i]->type == NODE_VAR_DECL || 
-                        nodes[i]->type == NODE_CONST_DECL ||
-                        nodes[i]->type == NODE_NET_DECL ||
-                        nodes[i]->type == NODE_CLOG_DECL ||
-                        nodes[i]->type == NODE_DOS_DECL ||
-                        nodes[i]->type == NODE_SEL_DECL) {
-                    // Exécuter les déclarations de variables pour les exporter
-                    execute(nodes[i]);
-                }
+                registerFunction(prefixed_name, nodes[i]->left, 
+                               nodes[i]->right, param_count);
             }
         }
         
-        // Deuxième passe : exécuter le reste (sauf main)
+        // Exécuter le code du module (sauf fonctions)
         for (int i = 0; i < count; i++) {
             if (nodes[i] && nodes[i]->type != NODE_FUNC && 
-                nodes[i]->type != NODE_EXPORT &&
-                nodes[i]->type != NODE_MAIN &&
-                nodes[i]->type != NODE_VAR_DECL &&
-                nodes[i]->type != NODE_CONST_DECL) {
+                nodes[i]->type != NODE_EXPORT) {
                 execute(nodes[i]);
             }
         }
-        
-        // Libération mémoire
-        for (int i = 0; i < count; i++) {
-            if (nodes[i]) {
-                if (nodes[i]->type == NODE_STRING && nodes[i]->data.str_val) {
-                    free(nodes[i]->data.str_val);
-                }
-                if (nodes[i]->type == NODE_IDENT && nodes[i]->data.name) {
-                    free(nodes[i]->data.name);
-                }
-                free(nodes[i]);
-            }
-        }
-        free(nodes);
     }
     
-    strncpy(current_working_dir, old_dir, sizeof(current_working_dir));
+    // Restaurer et nettoyer
+    strncpy(current_working_dir, old_dir, PATH_MAX);
     
+    for (int i = 0; i < count; i++) {
+        if (nodes[i]) {
+            if (nodes[i]->type == NODE_STRING && nodes[i]->data.str_val) {
+                free(nodes[i]->data.str_val);
+            }
+            if (nodes[i]->type == NODE_IDENT && nodes[i]->data.name) {
+                free(nodes[i]->data.name);
+            }
+            free(nodes[i]);
+        }
+    }
+    free(nodes);
     free(source);
     free(full_path);
+    
     return true;
+}
+
+
+static ASTNode* exportStatement() {
+    // 1. Export de liste: export { add, PI as pi }
+    if (match(TK_LBRACE)) {
+        ASTNode* export_list = newNode(NODE_EXPORT);
+        ASTNode* first_export = NULL;
+        ASTNode* current_export = NULL;
+        
+        do {
+            if (match(TK_IDENT) || match(TK_STRING)) {
+                char* symbol = str_copy(previous.value.str_val);
+                char* alias = str_copy(symbol);
+                
+                if (match(TK_AS)) {
+                    if (!match(TK_IDENT) && !match(TK_STRING)) {
+                        errorAtCurrent("Expected alias name after 'as'");
+                        free(symbol);
+                        free(alias);
+                        break;
+                    }
+                    free(alias);
+                    alias = str_copy(previous.value.str_val);
+                }
+                
+                // Créer un nœud d'export individuel
+                ASTNode* single_export = newNode(NODE_EXPORT);
+                single_export->data.export.symbol = symbol;
+                single_export->data.export.alias = alias;
+                
+                if (!first_export) {
+                    first_export = single_export;
+                    current_export = single_export;
+                } else {
+                    current_export->right = single_export;
+                    current_export = single_export;
+                }
+            } else {
+                errorAtCurrent("Expected symbol name in export list");
+                break;
+            }
+        } while (match(TK_COMMA));
+        
+        consume(TK_RBRACE, "Expected '}' after export list");
+        
+        // Optionnel: 'from' clause
+        if (match(TK_FROM)) {
+            if (!match(TK_STRING)) {
+                errorAtCurrent("Expected module name after 'from'");
+                return NULL;
+            }
+            // Stocker le module source
+            export_list->data.imports.from_module = str_copy(previous.value.str_val);
+        }
+        
+        consume(TK_SEMICOLON, "Expected ';' after export statement");
+        
+        export_list->left = first_export;
+        return export_list;
+    }
+    
+    // 2. Export de déclaration: export func add() {...}
+    if (match(TK_FUNC) || match(TK_VAR) || match(TK_LET) || match(TK_CONST) ||
+        match(TK_NET) || match(TK_CLOG) || match(TK_DOS) || match(TK_SEL) ||
+        match(TK_CLASS) || match(TK_STRUCT) || match(TK_ENUM)) {
+        
+        TokenKind decl_type = previous.kind;
+        ASTNode* declaration = NULL;
+        char* symbol_name = NULL;
+        
+        switch (decl_type) {
+            case TK_FUNC:
+                declaration = functionDeclaration(true);
+                if (declaration && declaration->data.name) {
+                    symbol_name = str_copy(declaration->data.name);
+                }
+                break;
+            default:
+                declaration = variableDeclaration();
+                if (declaration && declaration->data.name) {
+                    symbol_name = str_copy(declaration->data.name);
+                }
+                break;
+        }
+        
+        if (!declaration) {
+            return NULL;
+        }
+        
+        // Optionnel: alias avec 'as'
+        char* alias_name = NULL;
+        if (match(TK_AS)) {
+            if (!match(TK_IDENT) && !match(TK_STRING)) {
+                errorAtCurrent("Expected alias name after 'as'");
+                if (symbol_name) free(symbol_name);
+                return NULL;
+            }
+            alias_name = str_copy(previous.value.str_val);
+        } else {
+            alias_name = str_copy(symbol_name);
+        }
+        
+        ASTNode* export_node = newNode(NODE_EXPORT);
+        export_node->data.export.symbol = symbol_name;
+        export_node->data.export.alias = alias_name;
+        export_node->left = declaration;
+        
+        return export_node;
+    }
+    
+    // 3. Export simple: export add;
+    if (match(TK_IDENT) || match(TK_STRING)) {
+        char* symbol = str_copy(previous.value.str_val);
+        char* alias = str_copy(symbol);
+        
+        if (match(TK_AS)) {
+            if (!match(TK_IDENT) && !match(TK_STRING)) {
+                errorAtCurrent("Expected alias name after 'as'");
+                free(symbol);
+                free(alias);
+                return NULL;
+            }
+            free(alias);
+            alias = str_copy(previous.value.str_val);
+        }
+        
+        ASTNode* export_node = newNode(NODE_EXPORT);
+        export_node->data.export.symbol = symbol;
+        export_node->data.export.alias = alias;
+        
+        // Optionnel: 'from' clause
+        if (match(TK_FROM)) {
+            if (!match(TK_STRING)) {
+                errorAtCurrent("Expected module name after 'from'");
+                free(symbol);
+                free(alias);
+                free(export_node);
+                return NULL;
+            }
+            export_node->data.imports.from_module = str_copy(previous.value.str_val);
+        }
+        
+        consume(TK_SEMICOLON, "Expected ';' after export statement");
+        
+        return export_node;
+    }
+    
+    errorAtCurrent("Expected export declaration");
+    return NULL;
 }
 static bool isSymbolExported(const char* symbol, const char* module_path) {
     for (int i = 0; i < export_count; i++) {
