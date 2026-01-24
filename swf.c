@@ -138,7 +138,6 @@ typedef struct {
 
 static ImportedModule imports[100];
 static int import_count = 0;
-static char current_working_dir[PATH_MAX];
 
 // ======================================================
 // [SECTION] FILE I/O SYSTEM
@@ -267,41 +266,6 @@ static void registerFunction(const char* name, ASTNode* params, ASTNode* body, i
     }
 }
 
-static Function* findFunction(const char* name) {
-    // Chercher exact
-    for (int i = 0; i < func_count; i++) {
-        if (strcmp(functions[i].name, name) == 0) {
-            return &functions[i];
-        }
-    }
-    
-    // Si nom contient un point (module.func), extraire module
-    const char* dot = strchr(name, '.');
-    if (dot) {
-        // Essayer de trouver une fonction correspondante sans namespace
-        const char* func_name = dot + 1;
-        for (int i = 0; i < func_count; i++) {
-            const char* func_dot = strchr(functions[i].name, '.');
-            if (func_dot && strcmp(func_dot + 1, func_name) == 0) {
-                return &functions[i];
-            }
-        }
-    }
-    
-    // Chercher dans les exports
-    for (int i = 0; i < export_count; i++) {
-        if (strcmp(exports[i].alias, name) == 0) {
-            // Trouver la fonction par son nom original
-            for (int j = 0; j < func_count; j++) {
-                if (strcmp(functions[j].name, exports[i].symbol) == 0) {
-                    return &functions[j];
-                }
-            }
-        }
-    }
-    
-    return NULL;
-}
 static Function* findFunction(const char* name) {
     // Chercher exact
     for (int i = 0; i < func_count; i++) {
@@ -568,155 +532,6 @@ static bool loadAndExecuteModule(const char* import_path, const char* from_modul
     return true;
 }
 
-
-static ASTNode* exportStatement() {
-    // 1. Export de liste: export { add, PI as pi }
-    if (match(TK_LBRACE)) {
-        ASTNode* export_list = newNode(NODE_EXPORT);
-        ASTNode* first_export = NULL;
-        ASTNode* current_export = NULL;
-        
-        do {
-            if (match(TK_IDENT) || match(TK_STRING)) {
-                char* symbol = str_copy(previous.value.str_val);
-                char* alias = str_copy(symbol);
-                
-                if (match(TK_AS)) {
-                    if (!match(TK_IDENT) && !match(TK_STRING)) {
-                        errorAtCurrent("Expected alias name after 'as'");
-                        free(symbol);
-                        free(alias);
-                        break;
-                    }
-                    free(alias);
-                    alias = str_copy(previous.value.str_val);
-                }
-                
-                // Créer un nœud d'export individuel
-                ASTNode* single_export = newNode(NODE_EXPORT);
-                single_export->data.export.symbol = symbol;
-                single_export->data.export.alias = alias;
-                
-                if (!first_export) {
-                    first_export = single_export;
-                    current_export = single_export;
-                } else {
-                    current_export->right = single_export;
-                    current_export = single_export;
-                }
-            } else {
-                errorAtCurrent("Expected symbol name in export list");
-                break;
-            }
-        } while (match(TK_COMMA));
-        
-        consume(TK_RBRACE, "Expected '}' after export list");
-        
-        // Optionnel: 'from' clause
-        if (match(TK_FROM)) {
-            if (!match(TK_STRING)) {
-                errorAtCurrent("Expected module name after 'from'");
-                return NULL;
-            }
-            // Stocker le module source
-            export_list->data.imports.from_module = str_copy(previous.value.str_val);
-        }
-        
-        consume(TK_SEMICOLON, "Expected ';' after export statement");
-        
-        export_list->left = first_export;
-        return export_list;
-    }
-    
-    // 2. Export de déclaration: export func add() {...}
-    if (match(TK_FUNC) || match(TK_VAR) || match(TK_LET) || match(TK_CONST) ||
-        match(TK_NET) || match(TK_CLOG) || match(TK_DOS) || match(TK_SEL) ||
-        match(TK_CLASS) || match(TK_STRUCT) || match(TK_ENUM)) {
-        
-        TokenKind decl_type = previous.kind;
-        ASTNode* declaration = NULL;
-        char* symbol_name = NULL;
-        
-        switch (decl_type) {
-            case TK_FUNC:
-                declaration = functionDeclaration(true);
-                if (declaration && declaration->data.name) {
-                    symbol_name = str_copy(declaration->data.name);
-                }
-                break;
-            default:
-                declaration = variableDeclaration();
-                if (declaration && declaration->data.name) {
-                    symbol_name = str_copy(declaration->data.name);
-                }
-                break;
-        }
-        
-        if (!declaration) {
-            return NULL;
-        }
-        
-        // Optionnel: alias avec 'as'
-        char* alias_name = NULL;
-        if (match(TK_AS)) {
-            if (!match(TK_IDENT) && !match(TK_STRING)) {
-                errorAtCurrent("Expected alias name after 'as'");
-                if (symbol_name) free(symbol_name);
-                return NULL;
-            }
-            alias_name = str_copy(previous.value.str_val);
-        } else {
-            alias_name = str_copy(symbol_name);
-        }
-        
-        ASTNode* export_node = newNode(NODE_EXPORT);
-        export_node->data.export.symbol = symbol_name;
-        export_node->data.export.alias = alias_name;
-        export_node->left = declaration;
-        
-        return export_node;
-    }
-    
-    // 3. Export simple: export add;
-    if (match(TK_IDENT) || match(TK_STRING)) {
-        char* symbol = str_copy(previous.value.str_val);
-        char* alias = str_copy(symbol);
-        
-        if (match(TK_AS)) {
-            if (!match(TK_IDENT) && !match(TK_STRING)) {
-                errorAtCurrent("Expected alias name after 'as'");
-                free(symbol);
-                free(alias);
-                return NULL;
-            }
-            free(alias);
-            alias = str_copy(previous.value.str_val);
-        }
-        
-        ASTNode* export_node = newNode(NODE_EXPORT);
-        export_node->data.export.symbol = symbol;
-        export_node->data.export.alias = alias;
-        
-        // Optionnel: 'from' clause
-        if (match(TK_FROM)) {
-            if (!match(TK_STRING)) {
-                errorAtCurrent("Expected module name after 'from'");
-                free(symbol);
-                free(alias);
-                free(export_node);
-                return NULL;
-            }
-            export_node->data.imports.from_module = str_copy(previous.value.str_val);
-        }
-        
-        consume(TK_SEMICOLON, "Expected ';' after export statement");
-        
-        return export_node;
-    }
-    
-    errorAtCurrent("Expected export declaration");
-    return NULL;
-}
 static bool isSymbolExported(const char* symbol, const char* module_path) {
     for (int i = 0; i < export_count; i++) {
         if (strcmp(exports[i].symbol, symbol) == 0 &&
