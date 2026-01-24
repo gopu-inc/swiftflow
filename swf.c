@@ -15,10 +15,14 @@
 #include <sys/param.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <linux/limits.h>  
 #include "common.h"
 
+// ======================================================
+// [SECTION] GLOBAL STATE
+// ======================================================
+static char current_working_dir[PATH_MAX];
 extern ASTNode** parse(const char* source, int* count);
-// Dans swf.c, après les autres déclarations de fonction (environ ligne 70-80):
 
 // Fonctions IO
 void io_open(ASTNode* node);
