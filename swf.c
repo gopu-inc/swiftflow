@@ -1421,7 +1421,7 @@ static void run(const char* source, const char* filename) {
     }
     class_count = 0;
 }
-init_io_module();
+
 // ======================================================
 // [SECTION] REPL
 // ======================================================
@@ -1509,7 +1509,7 @@ static char* loadFile(const char* filename) {
 // ======================================================
 int main(int argc, char* argv[]) {
     srand(time(NULL));
-    
+    init_io_module();
     // Handle command line arguments
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--version") == 0 || strcmp(argv[i], "-v") == 0) {
