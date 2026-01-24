@@ -1,4 +1,4 @@
-// io.c
+// io.c - Module IO complet pour SwiftFlow
 #define _POSIX_C_SOURCE 200809L
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,6 +7,7 @@
 #include <dirent.h>
 #include <unistd.h>
 #include <errno.h>
+#include <limits.h>
 #include "common.h"
 
 // ======================================================
@@ -72,11 +73,19 @@ static void close_fd(int fd) {
     }
 }
 
+// Déclarations externes depuis swf.c
+extern Variable vars[1000];
+extern int var_count;
+extern int scope_level;
+extern int findVar(const char* name);
+extern char* evalString(ASTNode* node);
+extern double evalFloat(ASTNode* node);
+
 // ======================================================
 // [SECTION] FONCTIONS D'EXÉCUTION IO
 // ======================================================
 void io_open(ASTNode* node) {
-    if (!node->left || !node->right) {
+    if (!node || !node->left || !node->right) {
         printf("%s[IO ERROR]%s Missing filename or mode\n", COLOR_RED, COLOR_RESET);
         return;
     }
@@ -173,7 +182,7 @@ void io_open(ASTNode* node) {
 }
 
 void io_close(ASTNode* node) {
-    if (!node->left) {
+    if (!node || !node->left) {
         printf("%s[IO ERROR]%s Missing file descriptor\n", COLOR_RED, COLOR_RESET);
         return;
     }
@@ -199,7 +208,7 @@ void io_close(ASTNode* node) {
 }
 
 void io_read(ASTNode* node) {
-    if (!node->left) {
+    if (!node || !node->left) {
         printf("%s[IO ERROR]%s Missing file descriptor\n", COLOR_RED, COLOR_RESET);
         return;
     }
@@ -227,9 +236,10 @@ void io_read(ASTNode* node) {
     
     size_t size = 1024; // Taille par défaut
     if (node->right) {
-        size = (size_t)evalFloat(node->right);
-        if (size <= 0) size = 1024;
-        if (size > 65536) size = 65536; // Limite
+        size_t temp_size = (size_t)evalFloat(node->right);
+        if (temp_size > 0 && temp_size <= 65536) {
+            size = temp_size;
+        }
     }
     
     char* buffer = malloc(size + 1);
@@ -281,7 +291,7 @@ void io_read(ASTNode* node) {
 }
 
 void io_write(ASTNode* node) {
-    if (!node->left || !node->right) {
+    if (!node || !node->left || !node->right) {
         printf("%s[IO ERROR]%s Missing file descriptor or data\n", COLOR_RED, COLOR_RESET);
         return;
     }
@@ -328,7 +338,7 @@ void io_write(ASTNode* node) {
 }
 
 void io_seek(ASTNode* node) {
-    if (!node->left || !node->right) {
+    if (!node || !node->left || !node->right) {
         printf("%s[IO ERROR]%s Missing file descriptor or position\n", COLOR_RED, COLOR_RESET);
         return;
     }
@@ -374,7 +384,7 @@ void io_seek(ASTNode* node) {
 }
 
 void io_tell(ASTNode* node) {
-    if (!node->left) {
+    if (!node || !node->left) {
         printf("%s[IO ERROR]%s Missing file descriptor\n", COLOR_RED, COLOR_RESET);
         return;
     }
@@ -429,7 +439,7 @@ void io_tell(ASTNode* node) {
 // [SECTION] FONCTIONS DE SYSTÈME DE FICHIERS
 // ======================================================
 void io_exists(ASTNode* node) {
-    if (!node->left) {
+    if (!node || !node->left) {
         printf("%s[IO ERROR]%s Missing path\n", COLOR_RED, COLOR_RESET);
         return;
     }
@@ -470,7 +480,7 @@ void io_exists(ASTNode* node) {
 }
 
 void io_isfile(ASTNode* node) {
-    if (!node->left) {
+    if (!node || !node->left) {
         printf("%s[IO ERROR]%s Missing path\n", COLOR_RED, COLOR_RESET);
         return;
     }
@@ -510,7 +520,7 @@ void io_isfile(ASTNode* node) {
 }
 
 void io_isdir(ASTNode* node) {
-    if (!node->left) {
+    if (!node || !node->left) {
         printf("%s[IO ERROR]%s Missing path\n", COLOR_RED, COLOR_RESET);
         return;
     }
@@ -550,31 +560,31 @@ void io_isdir(ASTNode* node) {
 }
 
 void io_mkdir(ASTNode* node) {
-    if (!node->left) {
+    if (!node || !node->left) {
         printf("%s[IO ERROR]%s Missing directory name\n", COLOR_RED, COLOR_RESET);
         return;
     }
     
-    char* dirname = evalString(node->left);
-    if (!dirname) return;
+    char* dirname_str = evalString(node->left);
+    if (!dirname_str) return;
     
     int mode = 0755; // Mode par défaut
     if (node->right) {
         mode = (int)evalFloat(node->right);
     }
     
-    if (mkdir(dirname, mode) != 0) {
+    if (mkdir(dirname_str, mode) != 0) {
         printf("%s[IO ERROR]%s Cannot create directory: %s (%s)\n", 
-               COLOR_RED, COLOR_RESET, dirname, strerror(errno));
+               COLOR_RED, COLOR_RESET, dirname_str, strerror(errno));
     } else {
-        printf("%s[IO]%s Directory created: %s\n", COLOR_GREEN, COLOR_RESET, dirname);
+        printf("%s[IO]%s Directory created: %s\n", COLOR_GREEN, COLOR_RESET, dirname_str);
     }
     
-    free(dirname);
+    free(dirname_str);
 }
 
 void io_listdir(ASTNode* node) {
-    if (!node->left) {
+    if (!node || !node->left) {
         printf("%s[IO ERROR]%s Missing directory path\n", COLOR_RED, COLOR_RESET);
         return;
     }
@@ -635,7 +645,6 @@ void init_io_module() {
     file_descriptors[0].mode = str_copy("r");
     file_descriptors[0].is_open = true;
     file_descriptors[0].position = 0;
-    fd_count++;
     
     file_descriptors[1].id = 1;
     file_descriptors[1].name = str_copy("stdout");
@@ -644,7 +653,6 @@ void init_io_module() {
     file_descriptors[1].mode = str_copy("w");
     file_descriptors[1].is_open = true;
     file_descriptors[1].position = 0;
-    fd_count++;
     
     file_descriptors[2].id = 2;
     file_descriptors[2].name = str_copy("stderr");
@@ -653,7 +661,8 @@ void init_io_module() {
     file_descriptors[2].mode = str_copy("w");
     file_descriptors[2].is_open = true;
     file_descriptors[2].position = 0;
-    fd_count++;
+    
+    fd_count = 3;
     
     printf("%s[IO MODULE]%s Initialized with %d file descriptors\n", 
            COLOR_GREEN, COLOR_RESET, fd_count);
