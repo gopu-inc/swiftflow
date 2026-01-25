@@ -44,6 +44,12 @@ typedef enum {
     TK_IDENT, TK_AS, TK_OF, TK_IMPORTDB,
     
     // Operators
+
+   TK_HTTP_GET, TK_HTTP_POST, TK_HTTP_DOWNLOAD,
+    TK_SYS_EXEC, TK_SYS_ARGV, TK_SYS_EXIT,
+    TK_JSON_GET,
+
+
     TK_PLUS, TK_MINUS, TK_MULT, TK_DIV, TK_MOD,
     TK_POW, TK_CONCAT, TK_SPREAD, TK_NULLISH,
     
@@ -160,6 +166,16 @@ typedef struct {
 } Keyword;
 
 static const Keyword keywords[] = {
+    //systeme et HTTP
+    {"http.get", TK_HTTP_GET},
+    {"http.post", TK_HTTP_POST},
+    {"http.download", TK_HTTP_DOWNLOAD},
+    {"sys.exec", TK_SYS_EXEC},
+    {"sys.argv", TK_SYS_ARGV},
+    {"sys.exit", TK_SYS_EXIT},
+    {"json.get", TK_JSON_GET},
+
+
     // Variables
     {"var", TK_VAR}, {"let", TK_LET}, {"const", TK_CONST},
     {"net", TK_NET}, {"clog", TK_CLOG}, {"dos", TK_DOS}, {"sel", TK_SEL},
@@ -251,7 +267,14 @@ static const Keyword keywords[] = {
 // ======================================================
 // Dans common.h - Section NodeType
 typedef enum {
-    // Expressions
+    // http et systeme
+    NODE_HTTP_GET,
+    NODE_HTTP_POST,
+    NODE_HTTP_DOWNLOAD,
+    NODE_SYS_EXEC,
+    NODE_SYS_ARGV,
+    NODE_SYS_EXIT,
+    NODE_JSON_GET,
     // reseaux
     NODE_NET_SOCKET,
     NODE_NET_CONNECT,
