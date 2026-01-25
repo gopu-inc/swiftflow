@@ -1,0 +1,41 @@
+cmake_minimum_required(VERSION 3.10)
+project(SwiftFlow C)
+
+# Standard C99
+set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_STANDARD_REQUIRED True)
+
+# Options de compilation et Macros
+add_compile_options(-g -Wall -Wextra -Wno-format-truncation)
+add_definitions(-D_POSIX_C_SOURCE=200809L)
+
+# Recherche des bibliothèques externes
+find_package(CURL REQUIRED)
+# Pour SQLite3, parfois CMake ne le trouve pas directement, on tente le standard
+find_package(SQLite3)
+
+# Liste des fichiers sources
+set(SOURCES
+    swf.c
+    lexer.c
+    parser.c
+    io.c
+    net.c
+    sys.c
+    http.c
+    json.c
+)
+
+# Création de l'exécutable
+add_executable(swift ${SOURCES})
+
+# Inclusion des headers
+target_include_directories(swift PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CURL_INCLUDE_DIRS})
+
+# Liaison des bibliothèques
+# Si SQLite3 n'est pas trouvé par le module CMake, on lie directement 'sqlite3'
+if(SQLite3_FOUND)
+    target_link_libraries(swift PRIVATE ${CURL_LIBRARIES} SQLite::SQLite3 m)
+else()
+    target_link_libraries(swift PRIVATE ${CURL_LIBRARIES} sqlite3 m)
+endif()
