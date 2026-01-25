@@ -200,6 +200,13 @@ static ASTNode* call();
 static ASTNode* memberAccess();
 static ASTNode* primary();
 static ASTNode* lambdaExpression();
+static ASTNode* netSocketStatement();
+static ASTNode* netConnectStatement();
+static ASTNode* netListenStatement();
+static ASTNode* netAcceptStatement();
+static ASTNode* netSendStatement();
+static ASTNode* netRecvStatement();
+static ASTNode* netCloseStatement();
 
 // Main expression entry point
 static ASTNode* expression() {
