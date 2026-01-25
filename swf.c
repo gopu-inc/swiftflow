@@ -268,7 +268,7 @@ static void registerFunction(const char* name, ASTNode* params, ASTNode* body, i
 }
 
 static Function* findFunction(const char* name) {
-    printf("%s[FIND FUNC]%s search: '%s'\n" COLOR_MAGENTA, COLOR_RESET, name,);
+    printf("%s[FIND FUNC]%s search: '%s'\n" COLOR_MAGENTA, COLOR_RESET, name);
     // Chercher exact
     
     for (int i = 0; i < func_count; i++) {
