@@ -209,6 +209,7 @@ static int calculateVariableSize(TokenKind type) {
 static const char* getTypeName(TokenKind type) {
     switch (type) {
         case TK_VAR: return "var";
+        case TK_CONST return "const",
         case TK_NET: return "net";
         case TK_CLOG: return "clog";
         case TK_DOS: return "dos";
@@ -232,6 +233,7 @@ static int findVar(const char* name) {
 
 static void registerFunction(const char* name, ASTNode* params, ASTNode* body, int param_count) {
     if (func_count < 200) {
+        printf("%s[REGISTER FUNC]%s register: %s (params: %d)\n", COLOR_MAGENTA, COLOR_RESET, name, param_count);
         Function* func = &functions[func_count];
         strncpy(func->name, name, 99);
         func->name[99] = '\0';
@@ -267,7 +269,9 @@ static void registerFunction(const char* name, ASTNode* params, ASTNode* body, i
 }
 
 static Function* findFunction(const char* name) {
+    printf("%s[FIND FUNC]%s search: '%s'\n" COLOR_MAGENTA, COLOR_RESET, name, 
     // Chercher exact
+    
     for (int i = 0; i < func_count; i++) {
         if (strcmp(functions[i].name, name) == 0) {
             return &functions[i];
@@ -298,7 +302,8 @@ static Function* findFunction(const char* name) {
             }
         }
     }
-    
+    printf("%s[FIND FUNCTION]%s Not found: '%s'\n",
+           COLOR_RED, COLOR_RESET, name);
     return NULL;
 }
 
