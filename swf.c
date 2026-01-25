@@ -1272,10 +1272,20 @@ static void execute(ASTNode* node) {
     if (!node) return;
     
     switch (node->type) {
-        case NODE_EXPORT:
-            registerExport(node->data.export.symbol, 
-                   node->data.export.alias);
-            break;
+        case NODE_EXPORT: {
+    printf("%s[EXECUTE EXPORT]%s Processing export\n", COLOR_MAGENTA, COLOR_RESET);
+    
+    if (node->data.export.symbol) {
+        char* symbol = node->data.export.symbol;
+        char* alias = node->data.export.alias ? node->data.export.alias : symbol;
+        
+        printf("%s[EXECUTE EXPORT]%s Registering export: %s as %s\n",
+               COLOR_MAGENTA, COLOR_RESET, symbol, alias);
+        
+        registerExport(symbol, alias);
+    }
+    break;
+}
         
         case NODE_VAR_DECL:
         case NODE_NET_DECL:
@@ -1680,20 +1690,7 @@ case NODE_DIR_LIST:
                          node->data.class_def.parent ? node->data.class_def.parent->data.name : NULL,
                          node->data.class_def.members);
             break;
-        case NODE_EXPORT: {
-    printf("%s[EXECUTE EXPORT]%s Processing export\n", COLOR_MAGENTA, COLOR_RESET);
-    
-    if (node->data.export.symbol) {
-        char* symbol = node->data.export.symbol;
-        char* alias = node->data.export.alias ? node->data.export.alias : symbol;
         
-        printf("%s[EXECUTE EXPORT]%s Registering export: %s as %s\n",
-               COLOR_MAGENTA, COLOR_RESET, symbol, alias);
-        
-        registerExport(symbol, alias);
-    }
-    break;
-}
             
         case NODE_TYPEDEF:
             printf("%s[TYPEDEF]%s Type definition\n", COLOR_CYAN, COLOR_RESET);
