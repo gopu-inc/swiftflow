@@ -1722,6 +1722,7 @@ static void run(const char* source, const char* filename) {
         return;
     }
     
+    // 1. ÉTAPE DE PRÉ-ENREGISTREMENT (Fonctions et Classes)
     for (int i = 0; i < count; i++) {
         if (nodes[i]) {
             if (nodes[i]->type == NODE_FUNC) {
@@ -1733,30 +1734,40 @@ static void run(const char* source, const char* filename) {
                 }
                 registerFunction(nodes[i]->data.name, nodes[i]->left, nodes[i]->right, param_count);
             } else if (nodes[i]->type == NODE_CLASS) {
-                execute(nodes[i]);
+                execute(nodes[i]); // Enregistrement des classes
             }
         }
     }
     
     ASTNode* main_node = NULL;
+    
+    // 2. ÉTAPE D'EXÉCUTION GLOBALE (Imports, Variables Globales, etc.)
+    // On exécute tout ce qui n'est PAS une définition de fonction, ni le main
     for (int i = 0; i < count; i++) {
-        if (nodes[i] && nodes[i]->type == NODE_MAIN) {
+        if (!nodes[i]) continue;
+
+        // On sauvegarde le pointeur vers main pour plus tard
+        if (nodes[i]->type == NODE_MAIN) {
             main_node = nodes[i];
-            break;
+            continue; 
         }
+
+        // On ignore les définitions de fonctions (déjà enregistrées à l'étape 1)
+        if (nodes[i]->type == NODE_FUNC || nodes[i]->type == NODE_CLASS) {
+            continue;
+        }
+
+        // On exécute tout le reste (Imports, Variables globales, print, etc.)
+        execute(nodes[i]);
     }
     
+    // 3. ÉTAPE D'EXÉCUTION DU MAIN
     if (main_node) {
+        printf("%s[EXEC]%s Starting main function...\n", COLOR_BLUE, COLOR_RESET);
         execute(main_node);
-    } else {
-        for (int i = 0; i < count; i++) {
-            if (nodes[i] && nodes[i]->type != NODE_FUNC && 
-                nodes[i]->type != NODE_CLASS) {
-                execute(nodes[i]);
-            }
-        }
     }
     
+    // NETTOYAGE
     for (int i = 0; i < count; i++) {
         if (nodes[i]) {
             if (nodes[i]->type == NODE_STRING && nodes[i]->data.str_val) {
@@ -1770,6 +1781,7 @@ static void run(const char* source, const char* filename) {
     }
     free(nodes);
     
+    // Nettoyage variables globales
     for (int i = 0; i < var_count; i++) {
         if (vars[i].is_string && vars[i].value.str_val) {
             free(vars[i].value.str_val);
@@ -1778,6 +1790,7 @@ static void run(const char* source, const char* filename) {
     var_count = 0;
     scope_level = 0;
     
+    // Nettoyage fonctions
     for (int i = 0; i < func_count; i++) {
         if (functions[i].param_names) {
             for (int j = 0; j < functions[i].param_count; j++) {
