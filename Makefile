@@ -1,20 +1,23 @@
-CC = gcc
+# Dans ton Makefile
 CFLAGS = -std=c99 -g -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Wno-format-truncation
-LDFLAGS = -lm
+LIBS = -lm -lsqlite3
 
-SRCS = swf.c lexer.c parser.c io.c
-OBJS = $(SRCS:.c=.o)
-TARGET = swift
+all: swift
 
-all: $(TARGET)
+swift: swf.o lexer.o parser.o io.o
+	$(CC) $(CFLAGS) -o swift swf.o lexer.o parser.o io.o $(LIBS)
 
-$(TARGET): $(OBJS)
-	$(CC) $(CFLAGS) -o $(TARGET) $(OBJS) $(LDFLAGS)
+swf.o: swf.c common.h io.h
+	$(CC) $(CFLAGS) -c swf.c -o swf.o
 
-%.o: %.c common.h io.h
-	$(CC) $(CFLAGS) -c $< -o $@
+lexer.o: lexer.c common.h
+	$(CC) $(CFLAGS) -c lexer.c -o lexer.o
+
+parser.o: parser.c common.h
+	$(CC) $(CFLAGS) -c parser.c -o parser.o
+
+io.o: io.c common.h io.h
+	$(CC) $(CFLAGS) -c io.c -o io.o
 
 clean:
-	rm -f $(OBJS) $(TARGET)
-
-.PHONY: all clean
+	rm -f *.o swift swift.db
