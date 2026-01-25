@@ -437,55 +437,6 @@ static void close_import_db() {
     printf("%s[DB]%s Import database closed\n", COLOR_GREEN, COLOR_RESET);
 }
 
-static bool register_import(const char* module_path, const char* resolved_path, 
-                           const char* from_module) {
-    if (!init_import_db()) return false;
-    
-    // Vérifier si déjà importé
-    sqlite3_stmt* stmt;
-    const char* check_sql = "SELECT id FROM imports WHERE module_path = ? AND from_module = ?";
-    
-    int rc = sqlite3_prepare_v2(import_db, check_sql, -1, &stmt, NULL);
-    if (rc != SQLITE_OK) return false;
-    
-    sqlite3_bind_text(stmt, 1, module_path, -1, SQLITE_STATIC);
-    sqlite3_bind_text(stmt, 2, from_module ? from_module : "", -1, SQLITE_STATIC);
-    
-    bool already_imported = (sqlite3_step(stmt) == SQLITE_ROW);
-    sqlite3_finalize(stmt);
-    
-    if (already_imported) {
-        printf("%s[DB INFO]%s Module already imported: %s\n", 
-               COLOR_YELLOW, COLOR_RESET, module_path);
-        return true;
-    }
-    
-    // Insérer le nouvel import
-    const char* insert_sql = 
-        "INSERT INTO imports (module_path, resolved_path, from_module, import_time) "
-        "VALUES (?, ?, ?, ?)";
-    
-    rc = sqlite3_prepare_v2(import_db, insert_sql, -1, &stmt, NULL);
-    if (rc != SQLITE_OK) return false;
-    
-    sqlite3_bind_text(stmt, 1, module_path, -1, SQLITE_STATIC);
-    sqlite3_bind_text(stmt, 2, resolved_path, -1, SQLITE_STATIC);
-    sqlite3_bind_text(stmt, 3, from_module ? from_module : "", -1, SQLITE_STATIC);
-    sqlite3_bind_int64(stmt, 4, time(NULL));
-    
-    rc = sqlite3_step(stmt);
-    sqlite3_finalize(stmt);
-    
-    if (rc != SQLITE_DONE) {
-        printf("%s[DB ERROR]%s Failed to register import: %s\n", 
-               COLOR_RED, COLOR_RESET, module_path);
-        return false;
-    }
-    
-    printf("%s[DB]%s Registered import: %s\n", COLOR_GREEN, COLOR_RESET, module_path);
-    return true;
-}
-
 static bool record_export(const char* module_path, const char* symbol, 
                          const char* alias, const char* symbol_type) {
     if (!init_import_db()) return false;
