@@ -2139,6 +2139,8 @@ static ASTNode* namespaceDeclaration() {
 // ======================================================
 // [SECTION] MODULE DECLARATIONS
 // ======================================================
+// [FICHIER: parser.c] Remplacer la fonction importStatement
+
 static ASTNode* importStatement() {
     Token import_token = previous;
     
@@ -2150,36 +2152,20 @@ static ASTNode* importStatement() {
     char* module_name = str_copy(previous.value.str_val);
     ASTNode* node = newNode(NODE_IMPORT);
     
+    // Initialisation
     node->data.imports.modules = malloc(sizeof(char*));
     node->data.imports.modules[0] = module_name;
     node->data.imports.module_count = 1;
+    node->data.imports.from_module = NULL; // Sert aussi à stocker l'alias ici pour simplifier
     
-    // Multiple imports
-    while (match(TK_COMMA)) {
-        if (!match(TK_STRING)) {
-            errorAtCurrent("Expected module name after comma");
-            break;
-        }
-        
-        node->data.imports.module_count++;
-        node->data.imports.modules = realloc(node->data.imports.modules, 
-                                           node->data.imports.module_count * sizeof(char*));
-        node->data.imports.modules[node->data.imports.module_count - 1] = 
-            str_copy(previous.value.str_val);
-    }
-    
-    // Optional 'from' clause
-    if (match(TK_FROM)) {
-        if (!match(TK_STRING)) {
-            errorAtCurrent("Expected package name after 'from'");
-            // Cleanup
-            for (int i = 0; i < node->data.imports.module_count; i++) {
-                free(node->data.imports.modules[i]);
-            }
-            free(node->data.imports.modules);
-            free(node);
+    // GESTION DU "AS" (ALIAS)
+    if (match(TK_AS)) {
+        if (!match(TK_IDENT)) {
+            errorAtCurrent("Expected alias name after 'as'");
             return NULL;
         }
+        // On stocke l'alias dans from_module (hack pour éviter de changer la structure ASTNode)
+        // Ou mieux, ajoutez un champ char* alias dans la struct imports de ASTNode
         node->data.imports.from_module = str_copy(previous.value.str_val);
     }
     
@@ -2187,7 +2173,6 @@ static ASTNode* importStatement() {
     
     return node;
 }
-
 
 static ASTNode* exportStatement() {
     // 1. Export de liste: export { add, PI as pi }
