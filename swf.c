@@ -369,29 +369,23 @@ static char* resolveModulePath(const char* import_path, const char* from_module)
 // ======================================================
 static bool loadAndExecuteModule(const char* import_path, const char* from_module, 
                                  bool import_named, char** named_symbols, int symbol_count) {
-    printf("\n%s-%s\n", 
-           COLOR_BRIGHT_RED, COLOR_RESET);
-    printf("%s>>> LOAD AND EXEC MODULE: %s <<<%s\n", 
-           COLOR_BRIGHT_RED, COLOR_RESET, import_path);
-    printf("%s-%s\n\n", 
-           COLOR_BRIGHT_RED, COLOR_RESET);
+    printf("\n%s-%s\n", COLOR_BRIGHT_RED, COLOR_RESET);
+    printf("%s>>> LOAD AND EXEC MODULE: %s <<<%s\n", COLOR_BRIGHT_RED, COLOR_RESET, import_path);
+    printf("%s-%s\n\n", COLOR_BRIGHT_RED, COLOR_RESET);
     
     // 1. Résoudre le chemin du module
     char* full_path = resolveModulePath(import_path, from_module);
     if (!full_path) {
-        printf("%s[IMPORT ERROR]%s Cannot resolve module path: %s\n", 
-               COLOR_RED, COLOR_RESET, import_path);
+        printf("%s[IMPORT ERROR]%s Cannot resolve module path: %s\n", COLOR_RED, COLOR_RESET, import_path);
         return false;
     }
     
-    printf("%s[IMPORT DEBUG]%s Resolved path: %s\n", 
-           COLOR_YELLOW, COLOR_RESET, full_path);
+    printf("%s[IMPORT DEBUG]%s Resolved path: %s\n", COLOR_YELLOW, COLOR_RESET, full_path);
     
     // 2. Ouvrir le fichier
     FILE* f = fopen(full_path, "r");
     if (!f) {
-        printf("%s[IMPORT ERROR]%s Cannot open file: %s\n", 
-               COLOR_RED, COLOR_RESET, full_path);
+        printf("%s[IMPORT ERROR]%s Cannot open file: %s\n", COLOR_RED, COLOR_RESET, full_path);
         free(full_path);
         return false;
     }
@@ -403,8 +397,7 @@ static bool loadAndExecuteModule(const char* import_path, const char* from_modul
     
     char* source = malloc(size + 1);
     if (!source) {
-        printf("%s[IMPORT ERROR]%s Memory allocation failed\n", 
-               COLOR_RED, COLOR_RESET);
+        printf("%s[IMPORT ERROR]%s Memory allocation failed\n", COLOR_RED, COLOR_RESET);
         fclose(f);
         free(full_path);
         return false;
@@ -414,8 +407,7 @@ static bool loadAndExecuteModule(const char* import_path, const char* from_modul
     source[size] = '\0';
     fclose(f);
     
-    printf("%s[IMPORT DEBUG]%s File read: %ld bytes\n", 
-           COLOR_YELLOW, COLOR_RESET, size);
+    printf("%s[IMPORT DEBUG]%s File read: %ld bytes\n", COLOR_YELLOW, COLOR_RESET, size);
     
     // 4. Sauvegarder l'état actuel
     char old_dir[PATH_MAX];
@@ -429,7 +421,7 @@ static bool loadAndExecuteModule(const char* import_path, const char* from_modul
     printf("%s[IMPORT DEBUG]%s Working directory changed: %s -> %s\n", 
            COLOR_YELLOW, COLOR_RESET, old_dir, current_working_dir);
     
-    // 5. Sauvegarder les exports existants AVANT l'import
+    // 5. Sauvegarder le compteur d'exports AVANT l'import
     int old_export_count = export_count;
     
     // 6. Parser le module
@@ -447,23 +439,37 @@ static bool loadAndExecuteModule(const char* import_path, const char* from_modul
     
     printf("%s[IMPORT DEBUG]%s Module parsed successfully: %d nodes\n", 
            COLOR_GREEN, COLOR_RESET, node_count);
+
+    // =================================================================
+    // [FIX] 6.5 PRÉ-TRAITEMENT : EXÉCUTER LES EXPORTS
+    // =================================================================
+    // C'est l'étape manquante. Il faut exécuter les noeuds NODE_EXPORT 
+    // maintenant pour qu'ils appellent registerExport() et remplissent
+    // le tableau global 'exports' avant qu'on essaie de le lire.
+    printf("%s[IMPORT DEBUG]%s Pre-processing exports...\n", COLOR_YELLOW, COLOR_RESET);
+    for (int i = 0; i < node_count; i++) {
+        if (nodes[i] && nodes[i]->type == NODE_EXPORT) {
+            execute(nodes[i]); 
+        }
+    }
+    // =================================================================
     
-    // 7. Collecter les nouveaux exports créés par ce module
+    // 7. Collecter les nouveaux exports et créer les fonctions/variables correspondantes
     printf("%s[IMPORT DEBUG]%s Collecting exports from module...\n", COLOR_YELLOW, COLOR_RESET);
     
+    // Maintenant export_count a été mis à jour par l'étape 6.5
     for (int i = old_export_count; i < export_count; i++) {
         ExportEntry* exp = &exports[i];
-        printf("%s[IMPORT DEBUG]%s Found export: %s (alias: %s)\n",
+        printf("%s[IMPORT DEBUG]%s Found export entry: %s (alias: %s)\n",
                COLOR_GREEN, COLOR_RESET, 
                exp->symbol ? exp->symbol : "NULL", 
                exp->alias ? exp->alias : "NULL");
         
-        // Chercher la fonction ou constante correspondante dans l'AST
+        // Chercher le nœud correspondant dans l'AST du module
         for (int j = 0; j < node_count; j++) {
             if (!nodes[j]) continue;
             
-            // --- CORRECTION: Gestion des noeuds NODE_EXPORT ---
-            
+            // --- GESTION DES FONCTIONS ---
             ASTNode* target_func = NULL;
             
             // Cas 1: C'est directement une fonction
@@ -475,7 +481,6 @@ static bool loadAndExecuteModule(const char* import_path, const char* from_modul
                 target_func = nodes[j]->left;
             }
 
-            // Si on a trouvé la fonction correspondant au symbole recherché
             if (target_func && target_func->data.name && 
                 exp->symbol && strcmp(target_func->data.name, exp->symbol) == 0) {
                 
@@ -491,13 +496,12 @@ static bool loadAndExecuteModule(const char* import_path, const char* from_modul
                     param = param->right;
                 }
                 
-                // Enregistrer la fonction
+                // Enregistrer la fonction dans le système global
                 registerFunction(name_to_use, target_func->left, target_func->right, param_count);
-                break; // Trouvé, passer à l'export suivant
+                break; // Symbole trouvé
             }
             
-            // --- GESTION DES VARIABLES EXPORTÉES ---
-            
+            // --- GESTION DES VARIABLES ---
             ASTNode* target_var = NULL;
             
             // Cas 1: Déclaration directe
@@ -519,21 +523,19 @@ static bool loadAndExecuteModule(const char* import_path, const char* from_modul
                 printf("%s[IMPORT DEBUG]%s Creating constant/var: %s -> %s\n",
                        COLOR_GREEN, COLOR_RESET, exp->symbol, name_to_use);
                 
-                // Créer une variable
                 if (var_count < 1000) {
                     Variable* var = &vars[var_count];
                     strncpy(var->name, name_to_use, 99);
                     var->name[99] = '\0';
                     
-                    // Déterminer le type (par défaut CONST si exporté comme const, sinon VAR)
                     if (target_var->type == NODE_CONST_DECL) var->type = TK_CONST;
                     else var->type = TK_VAR;
 
-                    var->scope_level = 0;
+                    var->scope_level = 0; // Scope global pour l'importateur
                     var->is_constant = (var->type == TK_CONST);
                     var->is_initialized = true;
                     
-                    // Récupération de la valeur
+                    // Copie de la valeur (très simplifié, ne gère pas les expressions complexes)
                     if (target_var->left) {
                         if (target_var->left->type == NODE_INT) {
                             var->is_float = false;
@@ -555,12 +557,12 @@ static bool loadAndExecuteModule(const char* import_path, const char* from_modul
                     }
                     var_count++;
                 }
-                break; // Trouvé
+                break; // Symbole trouvé
             }
         }
     }
     
-    // 8. Si import nommé, vérifier que les symboles demandés sont disponibles
+    // 8. Si import nommé (import {a, b} from ...), vérifier la présence
     if (import_named && named_symbols) {
         for (int i = 0; i < symbol_count; i++) {
             if (!named_symbols[i]) continue;
@@ -581,45 +583,27 @@ static bool loadAndExecuteModule(const char* import_path, const char* from_modul
         }
     }
     
-    // 9. Exécuter le code d'initialisation du module (sauf fonctions et déclarations)
-    printf("%s[IMPORT DEBUG]%s Executing module initialization code...\n",
-           COLOR_YELLOW, COLOR_RESET);
+    // 9. Exécuter le code d'initialisation du module (top-level code)
+    // On évite les déclarations de fonctions (déjà gérées) et les exports (déjà faits en 6.5)
+    printf("%s[IMPORT DEBUG]%s Executing module initialization code...\n", COLOR_YELLOW, COLOR_RESET);
     
     for (int i = 0; i < node_count; i++) {
         if (nodes[i] && nodes[i]->type != NODE_FUNC && nodes[i]->type != NODE_EXPORT) {
-            // On évite d'exécuter les déclarations de fonctions ou les exports (déjà traités)
-            // Mais on exécute les appels de fonction de haut niveau ou autres instructions
-            printf("%s[IMPORT DEBUG]%s Executing node %d (type: %d)\n",
-                   COLOR_YELLOW, COLOR_RESET, i, nodes[i]->type);
             execute(nodes[i]);
         }
     }
     
-    // 11. Restaurer l'état
+    // 10. Restaurer l'état
     strncpy(current_working_dir, old_dir, PATH_MAX);
-    printf("%s[IMPORT DEBUG]%s Working directory restored: %s\n",
-           COLOR_YELLOW, COLOR_RESET, current_working_dir);
+    printf("%s[IMPORT DEBUG]%s Working directory restored: %s\n", COLOR_YELLOW, COLOR_RESET, current_working_dir);
     
-    // 12. Nettoyer
-    printf("%s[IMPORT DEBUG]%s Cleaning up AST nodes...\n", COLOR_YELLOW, COLOR_RESET);
-    
+    // 11. Nettoyer
+    // Note: On ne fait qu'un nettoyage partiel car les pointeurs des noms de fonctions/vars 
+    // sont maintenant utilisés par le système global.
     for (int i = 0; i < node_count; i++) {
         if (nodes[i]) {
-            // Libérer la mémoire des nœuds
-            if (nodes[i]->type == NODE_STRING && nodes[i]->data.str_val) {
-                free(nodes[i]->data.str_val);
-            }
-            if (nodes[i]->type == NODE_IDENT && nodes[i]->data.name) {
-                free(nodes[i]->data.name);
-            }
-            // Attention: on ne libère pas le nom de la fonction si on l'a enregistré dans registerFunction
-            // (registerFunction fait souvent une copie ou utilise le pointeur)
-            // Ici on fait un nettoyage basique
-            if (nodes[i]->type == NODE_FUNC && nodes[i]->data.name) {
-                // Si la fonction n'a pas été enregistrée (ex: locale au module), on devrait libérer
-                // Mais pour simplifier et éviter double-free si registerFunction utilise le pointeur, on peut laisser
-                free(nodes[i]->data.name); 
-            }
+            // Nettoyage spécifique si nécessaire, sinon juste free du noeud conteneur
+            // Dans une vraie implémentation, il faudrait un compteur de références ou deep copy
             free(nodes[i]);
         }
     }
@@ -627,15 +611,7 @@ static bool loadAndExecuteModule(const char* import_path, const char* from_modul
     free(source);
     free(full_path);
     
-    printf("%s[IMPORT]%s Module import completed: %s\n", 
-           COLOR_GREEN, COLOR_RESET, import_path);
-    printf("%s[IMPORT DEBUG]%s Total functions registered: %d\n",
-           COLOR_GREEN, COLOR_RESET, func_count);
-    printf("%s[IMPORT DEBUG]%s Total variables: %d\n",
-           COLOR_GREEN, COLOR_RESET, var_count);
-    printf("%s[IMPORT DEBUG]%s Total exports: %d\n",
-           COLOR_GREEN, COLOR_RESET, export_count);
-    
+    printf("%s[IMPORT]%s Module import completed: %s\n", COLOR_GREEN, COLOR_RESET, import_path);
     return true;
 }
 
