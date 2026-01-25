@@ -497,5 +497,29 @@ static inline char* str_ncopy(const char* src, int n) {
     }
     return dest;
 }
+// ======================================================
+// [SECTION] SQLITE IMPORT DATABASE
+// ======================================================
+#ifdef USE_SQLITE
+#include <sqlite3.h>
+
+typedef struct {
+    sqlite3* db;
+    bool initialized;
+} ImportDatabase;
+
+// Fonctions pour gérer la base de données d'imports
+bool init_import_db(void);
+void close_import_db(void);
+bool register_import(const char* module_path, const char* resolved_path, 
+                     const char* from_module, time_t import_time);
+bool is_module_imported(const char* module_path, const char* from_module);
+void show_import_db(void);
+void clear_import_db(void);
+bool record_export(const char* module_path, const char* symbol, 
+                   const char* alias, const char* symbol_type);
+bool get_exports_for_module(const char* module_path, char*** symbols, 
+                           char*** aliases, char*** types, int* count);
+#endif
 
 #endif // COMMON_H
