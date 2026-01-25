@@ -2173,6 +2173,7 @@ static char* loadFile(const char* filename) {
 int main(int argc, char* argv[]) {
     srand(time(NULL));
     init_io_module();
+    init_import_db();
     // Handle command line arguments
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--version") == 0 || strcmp(argv[i], "-v") == 0) {
@@ -2206,6 +2207,6 @@ int main(int argc, char* argv[]) {
         run(source, argv[1]);
         free(source);
     }
-    
+    close_import_db();
     return 0;
 }
