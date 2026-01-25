@@ -898,6 +898,21 @@ static char* evalString(ASTNode* node) {
     if (!node) return str_copy("");
     
     switch (node->type) {
+        // DANS evalString(ASTNode* node)
+case NODE_WELD: {
+    char* prompt = NULL;
+    if (node->left) {
+        prompt = evalString(node->left);
+    }
+    
+    // On utilise la fonction helper existante
+    char* input = weldInput(prompt);
+    
+    if (prompt) free(prompt);
+    
+    // On retourne la chaîne saisie
+    return input ? input : str_copy("");
+}
         case NODE_HTTP_GET: {
             char* url = evalString(node->left);
             char* res = http_get(url);
@@ -1548,38 +1563,6 @@ case NODE_DIR_LIST:
                 }
             }
             printf("\n");
-            break;
-        }
-            
-        case NODE_WELD: {
-            char* prompt = NULL;
-            if (node->left) {
-                prompt = evalString(node->left);
-            }
-            
-            char* input = weldInput(prompt);
-            if (prompt) free(prompt);
-            
-            int idx = findVar("__weld_input__");
-            if (idx == -1 && var_count < 1000) {
-                Variable* var = &vars[var_count];
-                strcpy(var->name, "__weld_input__");
-                var->type = TK_VAR;
-                var->size_bytes = strlen(input) + 1;
-                var->scope_level = scope_level;
-                var->is_constant = false;
-                var->is_initialized = true;
-                var->is_string = true;
-                var->is_float = false;
-                var->value.str_val = str_copy(input);
-                var_count++;
-            } else if (idx >= 0) {
-                if (vars[idx].value.str_val) free(vars[idx].value.str_val);
-                vars[idx].value.str_val = str_copy(input);
-                vars[idx].is_initialized = true;
-            }
-            
-            free(input);
             break;
         }
             
