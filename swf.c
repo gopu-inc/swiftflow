@@ -209,7 +209,6 @@ static int calculateVariableSize(TokenKind type) {
 static const char* getTypeName(TokenKind type) {
     switch (type) {
         case TK_VAR: return "var";
-        case TK_CONST return "const",
         case TK_NET: return "net";
         case TK_CLOG: return "clog";
         case TK_DOS: return "dos";
