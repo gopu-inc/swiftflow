@@ -693,6 +693,16 @@ static ASTNode* primary() {
     // Try lambda first
     ASTNode* lambda = lambdaExpression();
     if (lambda) return lambda;
+    
+    if (match(TK_WELD)) {
+       ASTNode* node = newNode(NODE_WELD);
+        consume(TK_LPAREN, "Expected '(' after weld");
+        if (!check(TK_RPAREN)) {
+            node->left = expression(); // le prompt
+        }
+    consume(TK_RPAREN, "Expected ')'");
+    return node;
+    } 
     if (match(TK_HTTP_GET)) return httpGetStatement();
     if (match(TK_HTTP_POST)) return httpPostStatement();
     if (match(TK_HTTP_DOWNLOAD)) return httpDownloadStatement();
@@ -2490,7 +2500,7 @@ static ASTNode* statement() {
     if (match(TK_IO_REMOVE)) return ioRemoveStatement();
     if (match(TK_IO_RENAME)) return ioRenameStatement();
     if (match(TK_IO_COPY)) return ioCopyStatement();
-    if (match(TK_WELD)) return weldStatement();
+   /* if (match(TK_WELD)) return weldStatement();*/
     if (match(TK_READ)) return readStatement();
     if (match(TK_WRITE)) return writeStatement();
     if (match(TK_ASSERT)) return assertStatement();
