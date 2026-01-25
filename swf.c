@@ -299,7 +299,6 @@ static void registerClass(const char* name, char* parent, ASTNode* members) {
 static bool isLocalImport(const char* import_path) {
     return import_path[0] == '.' || import_path[0] == '/';
 }
-
 static char* resolveModulePath(const char* import_path, const char* from_module) {
     char* resolved = malloc(PATH_MAX);
     if (!resolved) return NULL;
@@ -328,7 +327,7 @@ static char* resolveModulePath(const char* import_path, const char* from_module)
         
         // Normaliser le chemin
         char normalized[PATH_MAX];
-        if (realpath(resolved, normalized) != NULL) {
+        if (realpath(resolved, normalized) != NULL) {  // CORRIGÉ: != NULL au lieu de ) != NULL)
             free(resolved);
             resolved = strdup(normalized);
         }
@@ -363,6 +362,7 @@ static char* resolveModulePath(const char* import_path, const char* from_module)
     free(resolved);
     return NULL;
 }
+
 // ======================================================
 // [SECTION] FONCTION D'IMPORT - MODIFIÉE
 // ======================================================
@@ -1600,17 +1600,25 @@ case NODE_DIR_LIST:
     break;
 }
             
-       // Dans exportStatement(), section pour les fonctions
-     case TK_FUNC:
-         declaration = functionDeclaration(true);  // Note: true pour is_exported
-         if (declaration && declaration->data.name) { 
-             symbol_name = str_copy(declaration->data.name);
+       
+        case NODE_FUNC: {
+    // Enregistrer la fonction SEULEMENT si on est dans le scope global
+    // et si ce n'est pas dans un module importé (géré par loadAndExecuteModule)
+    if (node->data.name && scope_level == 0) {
+        printf("%s[EXECUTE]%s Registering function: %s\n", 
+               COLOR_MAGENTA, COLOR_RESET, node->data.name);
         
-        // DEBUG IMPORTANT
-          printf("%s[PARSER EXPORT]%s Exporting function '%s'\n",
-               COLOR_MAGENTA, COLOR_RESET, symbol_name);
+        int param_count = 0;
+        ASTNode* param = node->left;
+        while (param) {
+            param_count++;
+            param = param->right;
+        }
+        
+        registerFunction(node->data.name, node->left, node->right, param_count);
     }
-    break; 
+    break;
+} 
             
         case NODE_FUNC_CALL:
             evalFloat(node);
