@@ -391,7 +391,6 @@ static char* resolveModulePath(const char* import_path, const char* from_module)
     free(resolved);
     return NULL;
 }
-
 static bool loadAndExecuteModule(const char* import_path, const char* from_module, 
                                  bool import_named, char** named_symbols, int symbol_count) {
     char* full_path = resolveModulePath(import_path, from_module);
@@ -428,16 +427,6 @@ static bool loadAndExecuteModule(const char* import_path, const char* from_modul
     source[size] = '\0';
     fclose(f);
     
-    // Extraire le nom du module pour le namespace
-    char module_name[100];
-    strncpy(module_name, import_path, 99);
-    char* slash = strrchr(module_name, '/');
-    if (slash) {
-        strcpy(module_name, slash + 1);
-    }
-    char* dot = strrchr(module_name, '.');
-    if (dot) *dot = '\0';
-    
     // Sauvegarder l'état actuel
     char old_dir[PATH_MAX];
     strncpy(old_dir, current_working_dir, PATH_MAX);
@@ -447,7 +436,7 @@ static bool loadAndExecuteModule(const char* import_path, const char* from_modul
     char* dir = dirname(module_dir);
     strncpy(current_working_dir, dir, PATH_MAX);
     
-    // Parser et exécuter le module
+    // Parser le module
     int count = 0;
     ASTNode** nodes = parse(source, &count);
     
@@ -458,139 +447,120 @@ static bool loadAndExecuteModule(const char* import_path, const char* from_modul
         return false;
     }
     
-    // Traiter les exports du module
-    if (import_named && named_symbols) {
-        // Import nommé: ne charger que les symboles demandés
-        for (int i = 0; i < symbol_count; i++) {
-            char* requested = named_symbols[i];
-            bool found = false;
+    printf("%s[IMPORT DEBUG]%s Module parsé: %d nœuds\n", 
+           COLOR_YELLOW, COLOR_RESET, count);
+    
+    // 1. D'abord, collecter toutes les exports
+    typedef struct {
+        char* symbol;
+        char* alias;
+        ASTNode* node;  // Le nœud correspondant (FUNC ou VAR_DECL)
+    } ExportInfo;
+    
+    ExportInfo exports_to_import[100];
+    int export_count_local = 0;
+    
+    for (int i = 0; i < count; i++) {
+        if (nodes[i] && nodes[i]->type == NODE_EXPORT) {
+            char* symbol = nodes[i]->data.export.symbol;
+            char* alias = nodes[i]->data.export.alias;
             
-            // Chercher dans les exports du module
-            for (int j = 0; j < export_count; j++) {
-                if (strcmp(exports[j].symbol, requested) == 0 ||
-                    strcmp(exports[j].alias, requested) == 0) {
-                    // Importer ce symbole
-                    printf("%s[IMPORT]%s Importing symbol: %s\n", 
-                           COLOR_GREEN, COLOR_RESET, requested);
-                    found = true;
-                    
-                    // Chercher la fonction correspondante
-                    for (int k = 0; k < count; k++) {
-                        if (nodes[k] && nodes[k]->type == NODE_FUNC && 
-                            nodes[k]->data.name && 
-                            strcmp(nodes[k]->data.name, exports[j].symbol) == 0) {
-                            
-                            int param_count = 0;
-                            ASTNode* param = nodes[k]->left;
-                            while (param) {
-                                param_count++;
-                                param = param->right;
-                            }
-                            
-                            char* func_name = exports[j].alias ? 
-                                            exports[j].alias : 
-                                            exports[j].symbol;
-                            
-                            registerFunction(func_name, nodes[k]->left, 
-                                           nodes[k]->right, param_count);
-                            break;
-                        }
+            if (symbol) {
+                // Chercher le nœud correspondant
+                for (int j = 0; j < count; j++) {
+                    if (nodes[j] && 
+                        ((nodes[j]->type == NODE_FUNC && 
+                          nodes[j]->data.name && 
+                          strcmp(nodes[j]->data.name, symbol) == 0) ||
+                         (nodes[j]->type == NODE_CONST_DECL && 
+                          nodes[j]->data.name && 
+                          strcmp(nodes[j]->data.name, symbol) == 0))) {
+                        
+                        exports_to_import[export_count_local].symbol = str_copy(symbol);
+                        exports_to_import[export_count_local].alias = alias ? str_copy(alias) : str_copy(symbol);
+                        exports_to_import[export_count_local].node = nodes[j];
+                        export_count_local++;
+                        
+                        printf("%s[IMPORT DEBUG]%s Export trouvé: %s -> %s (type: %d)\n", 
+                               COLOR_GREEN, COLOR_RESET, 
+                               symbol, 
+                               alias ? alias : symbol,
+                               nodes[j]->type);
+                        break;
                     }
-                    break;
                 }
-            }
-            
-            if (!found) {
-                printf("%s[IMPORT WARNING]%s Symbol not exported: %s\n", 
-                       COLOR_YELLOW, COLOR_RESET, requested);
             }
         }
-    } else {
-        // Import complet: chercher toutes les exportations
-        for (int i = 0; i < count; i++) {
-            if (nodes[i] && nodes[i]->type == NODE_EXPORT) {
-                // C'est une exportation
-                char* symbol = nodes[i]->data.export.symbol;
-                char* alias = nodes[i]->data.export.alias;
+    }
+    
+    // 2. Importer les exports
+    for (int i = 0; i < export_count_local; i++) {
+        char* name_to_use = exports_to_import[i].alias;
+        ASTNode* node = exports_to_import[i].node;
+        
+        if (node->type == NODE_FUNC) {
+            // Enregistrer la fonction
+            int param_count = 0;
+            ASTNode* param = node->left;
+            while (param) {
+                param_count++;
+                param = param->right;
+            }
+            
+            printf("%s[IMPORT]%s Importing function: %s (%d params)\n", 
+                   COLOR_GREEN, COLOR_RESET, name_to_use, param_count);
+            
+            registerFunction(name_to_use, node->left, node->right, param_count);
+            
+        } else if (node->type == NODE_CONST_DECL) {
+            // Créer la constante
+            if (var_count < 1000) {
+                Variable* var = &vars[var_count];
+                strncpy(var->name, name_to_use, 99);
+                var->name[99] = '\0';
+                var->type = TK_CONST;
+                var->scope_level = 0;
+                var->is_constant = true;
+                var->is_initialized = true;
                 
-                if (symbol) {
-                    // Chercher la fonction correspondante
-                    for (int j = 0; j < count; j++) {
-                        if (nodes[j] && nodes[j]->type == NODE_FUNC && 
-                            nodes[j]->data.name && 
-                            strcmp(nodes[j]->data.name, symbol) == 0) {
-                            
-                            int param_count = 0;
-                            ASTNode* param = nodes[j]->left;
-                            while (param) {
-                                param_count++;
-                                param = param->right;
-                            }
-                            
-                            char* func_name = alias ? alias : symbol;
-                            
-                            registerFunction(func_name, nodes[j]->left, 
-                                           nodes[j]->right, param_count);
-                            printf("%s[IMPORT]%s Imported function: %s\n", 
-                                   COLOR_GREEN, COLOR_RESET, func_name);
-                            break;
-                        }
+                if (node->left) {
+                    if (node->left->type == NODE_FLOAT) {
+                        var->is_float = true;
+                        var->is_string = false;
+                        var->value.float_val = node->left->data.float_val;
+                        printf("%s[IMPORT]%s Importing constant: %s = %g\n", 
+                               COLOR_GREEN, COLOR_RESET, name_to_use, var->value.float_val);
+                    } 
+                    else if (node->left->type == NODE_STRING) {
+                        var->is_string = true;
+                        var->is_float = false;
+                        var->value.str_val = str_copy(node->left->data.str_val);
+                        printf("%s[IMPORT]%s Importing constant: %s = '%s'\n", 
+                               COLOR_GREEN, COLOR_RESET, name_to_use, var->value.str_val);
                     }
-                    
-                    // Chercher aussi les constantes/variables exportées
-                    for (int j = 0; j < count; j++) {
-                        if (nodes[j] && 
-                            (nodes[j]->type == NODE_CONST_DECL || 
-                             nodes[j]->type == NODE_VAR_DECL) &&
-                            nodes[j]->data.name && 
-                            strcmp(nodes[j]->data.name, symbol) == 0) {
-                            
-                            // Créer la variable dans le scope global
-                            if (var_count < 1000) {
-                                Variable* var = &vars[var_count];
-                                char* var_name = alias ? alias : symbol;
-                                
-                                strncpy(var->name, var_name, 99);
-                                var->name[99] = '\0';
-                                var->type = TK_CONST;
-                                var->scope_level = 0; // Scope global
-                                var->is_constant = true;
-                                var->is_initialized = true;
-                                
-                                // Copier la valeur
-                                if (nodes[j]->left) {
-                                    if (nodes[j]->left->type == NODE_FLOAT) {
-                                        var->is_float = true;
-                                        var->is_string = false;
-                                        var->value.float_val = nodes[j]->left->data.float_val;
-                                    } else if (nodes[j]->left->type == NODE_STRING) {
-                                        var->is_string = true;
-                                        var->is_float = false;
-                                        var->value.str_val = str_copy(nodes[j]->left->data.str_val);
-                                    } else if (nodes[j]->left->type == NODE_INT) {
-                                        var->is_float = false;
-                                        var->is_string = false;
-                                        var->value.int_val = nodes[j]->left->data.int_val;
-                                    }
-                                }
-                                
-                                var_count++;
-                                printf("%s[IMPORT]%s Imported variable: %s\n", 
-                                       COLOR_GREEN, COLOR_RESET, var_name);
-                            }
-                            break;
-                        }
+                    else if (node->left->type == NODE_INT) {
+                        var->is_float = false;
+                        var->is_string = false;
+                        var->value.int_val = node->left->data.int_val;
+                        printf("%s[IMPORT]%s Importing constant: %s = %lld\n", 
+                               COLOR_GREEN, COLOR_RESET, name_to_use, var->value.int_val);
                     }
                 }
+                
+                var_count++;
             }
         }
         
-        // Exécuter le code du module (sauf fonctions et exports)
-        for (int i = 0; i < count; i++) {
-            if (nodes[i] && nodes[i]->type != NODE_FUNC && 
-                nodes[i]->type != NODE_EXPORT) {
-                execute(nodes[i]);
-            }
+        // Libérer les copies
+        free(exports_to_import[i].symbol);
+        free(exports_to_import[i].alias);
+    }
+    
+    // 3. Exécuter le code d'initialisation (sauf exports et fonctions)
+    for (int i = 0; i < count; i++) {
+        if (nodes[i] && nodes[i]->type != NODE_FUNC && 
+            nodes[i]->type != NODE_EXPORT && nodes[i]->type != NODE_CONST_DECL) {
+            execute(nodes[i]);
         }
     }
     
@@ -614,7 +584,6 @@ static bool loadAndExecuteModule(const char* import_path, const char* from_modul
     
     return true;
 }
-
 static bool isSymbolExported(const char* symbol, const char* module_path) {
     for (int i = 0; i < export_count; i++) {
         if (strcmp(exports[i].symbol, symbol) == 0 &&
