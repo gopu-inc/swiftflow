@@ -624,7 +624,11 @@ static ASTNode* primary() {
     if (match(TK_INT)) return newIntNode(previous.value.int_val);
     if (match(TK_FLOAT)) return newFloatNode(previous.value.float_val);
     if (match(TK_STRING)) return newStringNode(previous.value.str_val);
-    
+    // Dans parser.c, fonction primary()
+    if (match(TK_NET_SOCKET)) return netSocketStatement();
+    if (match(TK_NET_LISTEN)) return netListenStatement();
+    if (match(TK_NET_ACCEPT)) return netAcceptStatement();
+    if (match(TK_NET_RECV)) return netRecvStatement();
     if (match(TK_IDENT)) {
         return newIdentNode(previous.value.str_val);
     }
@@ -2298,7 +2302,75 @@ static ASTNode* declaration() {
     
     return statement();
 }
+static ASTNode* netSocketStatement() {
+    ASTNode* node = newNode(NODE_NET_SOCKET);
+    consume(TK_LPAREN, "Expected '(' after net.socket");
+    consume(TK_RPAREN, "Expected ')' after net.socket arguments");
+    // Pas de point-virgule ici car c'est souvent utilisé dans une assignation : var s = net.socket();
+    // Si utilisé seul : net.socket(); alors le ; sera géré par l'expressionStatement ou variableDeclaration
+    return node;
+}
 
+static ASTNode* netConnectStatement() {
+    ASTNode* node = newNode(NODE_NET_CONNECT);
+    consume(TK_LPAREN, "Expected '(' after net.connect");
+    node->left = expression(); // fd
+    consume(TK_COMMA, "Expected ','");
+    node->right = expression(); // ip
+    consume(TK_COMMA, "Expected ','");
+    node->third = expression(); // port
+    consume(TK_RPAREN, "Expected ')'");
+    consume(TK_SEMICOLON, "Expected ';'");
+    return node;
+}
+
+static ASTNode* netListenStatement() {
+    ASTNode* node = newNode(NODE_NET_LISTEN);
+    consume(TK_LPAREN, "Expected '(' after net.listen");
+    node->left = expression(); // port
+    consume(TK_RPAREN, "Expected ')'");
+    // Utilisé comme expression souvent
+    return node;
+}
+
+static ASTNode* netAcceptStatement() {
+    ASTNode* node = newNode(NODE_NET_ACCEPT);
+    consume(TK_LPAREN, "Expected '(' after net.accept");
+    node->left = expression(); // server_fd
+    consume(TK_RPAREN, "Expected ')'");
+    return node;
+}
+
+static ASTNode* netSendStatement() {
+    ASTNode* node = newNode(NODE_NET_SEND);
+    consume(TK_LPAREN, "Expected '(' after net.send");
+    node->left = expression(); // fd
+    consume(TK_COMMA, "Expected ','");
+    node->right = expression(); // data
+    consume(TK_RPAREN, "Expected ')'");
+    consume(TK_SEMICOLON, "Expected ';'");
+    return node;
+}
+
+static ASTNode* netRecvStatement() {
+    ASTNode* node = newNode(NODE_NET_RECV);
+    consume(TK_LPAREN, "Expected '(' after net.recv");
+    node->left = expression(); // fd
+    if (match(TK_COMMA)) {
+        node->right = expression(); // size
+    }
+    consume(TK_RPAREN, "Expected ')'");
+    return node;
+}
+
+static ASTNode* netCloseStatement() {
+    ASTNode* node = newNode(NODE_NET_CLOSE);
+    consume(TK_LPAREN, "Expected '(' after net.close");
+    node->left = expression(); // fd
+    consume(TK_RPAREN, "Expected ')'");
+    consume(TK_SEMICOLON, "Expected ';'");
+    return node;
+}
 static ASTNode* statement() {
     if (match(TK_PRINT)) return printStatement();
     if (match(TK_PRINT_DB)) {
@@ -2310,6 +2382,9 @@ static ASTNode* statement() {
         consume(TK_SEMICOLON, "Expected ';' after importdb");
          return node;
     }
+    if (match(TK_NET_CONNECT)) return netConnectStatement();
+    if (match(TK_NET_SEND)) return netSendStatement();
+    if (match(TK_NET_CLOSE)) return netCloseStatement();
     if (match(TK_IO_OPEN)) return ioOpenStatement();
     if (match(TK_IO_CLOSE)) return ioCloseStatement();
     if (match(TK_IO_READ)) return ioReadStatement();
@@ -2368,6 +2443,7 @@ static ASTNode* statement() {
     if (match(TK_THROW)) return throwStatement();
     if (match(TK_TRY)) return tryStatement();
     if (match(TK_LBRACE)) return block();
+
     
     return expressionStatement();
 }
