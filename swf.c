@@ -268,40 +268,19 @@ static void registerFunction(const char* name, ASTNode* params, ASTNode* body, i
 }
 
 static Function* findFunction(const char* name) {
-    printf("%s[FIND FUNC]%s search: '%s'\n" COLOR_MAGENTA, COLOR_RESET, name);
-    // Chercher exact
+    printf("%s[FIND FUNC]%s search: '%s'\n", COLOR_MAGENTA, COLOR_RESET, name);
     
+    // Chercher exact
     for (int i = 0; i < func_count; i++) {
+        printf("%s[FIND FUNC]%s   available func %d: '%s'\n", 
+               COLOR_MAGENTA, COLOR_RESET, i, functions[i].name);
         if (strcmp(functions[i].name, name) == 0) {
+            printf("%s[FIND FUNC]%s   → FOUND!\n", COLOR_GREEN, COLOR_RESET);
             return &functions[i];
         }
     }
     
-    // Si nom contient un point (module.func), extraire module
-    const char* dot = strchr(name, '.');
-    if (dot) {
-        // Essayer de trouver une fonction correspondante sans namespace
-        const char* func_name = dot + 1;
-        for (int i = 0; i < func_count; i++) {
-            const char* func_dot = strchr(functions[i].name, '.');
-            if (func_dot && strcmp(func_dot + 1, func_name) == 0) {
-                return &functions[i];
-            }
-        }
-    }
-    
-    // Chercher dans les exports
-    for (int i = 0; i < export_count; i++) {
-        if (strcmp(exports[i].alias, name) == 0) {
-            // Trouver la fonction par son nom original
-            for (int j = 0; j < func_count; j++) {
-                if (strcmp(functions[j].name, exports[i].symbol) == 0) {
-                    return &functions[j];
-                }
-            }
-        }
-    }
-    printf("%s[FIND FUNCTION]%s Not found: '%s'\n", COLOR_RED, COLOR_RESET, name);
+    printf("%s[FIND FUNC]%s %s  =::=>→ NOT FOUND\n", COLOR_RED, COLOR_RESET, name);
     return NULL;
 }
 
@@ -1575,9 +1554,28 @@ case NODE_DIR_LIST:
     break;
 }
             
-        case NODE_FUNC:
-            // Function declarations are already registered during parsing
-            break;
+        case NODE_FUNC: {
+    // CORRECTION : Enregistrer la fonction ici !
+    if (node->data.name) {
+        printf("%s[EXECUTE FUNC]%s Registering function: %s\n", COLOR_MAGENTA, COLOR_RESET, node->data.name);
+        
+        // Compter les paramètres
+        int param_count = 0;
+        ASTNode* param = node->left;
+        while (param) {
+            param_count++;
+            param = param->right;
+        }
+        
+        printf("%s[EXECUT FUNC]%s   %d parameter(s)\n", COLOR_MAGENTA, COLOR_RESET, param_count);
+        
+        // Enregistrer la fonction
+        registerFunction(node->data.name, node->left, node->right, param_count);
+    } else {
+        printf("%s[EXECUTE FUNC ERROR]%s Function without name!\n", COLOR_RED, COLOR_RESET);
+    }
+    break;
+}
             
         case NODE_FUNC_CALL:
             evalFloat(node);
