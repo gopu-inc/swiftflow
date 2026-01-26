@@ -27,7 +27,7 @@
 // ======================================================
 static char current_working_dir[PATH_MAX];
 extern ASTNode** parse(const char* source, int* count);
-
+static char* generateLambdaName();
 // Fonctions IO
 void io_open(ASTNode* node);
 void io_close(ASTNode* node);
@@ -1868,9 +1868,9 @@ case NODE_DIR_LIST:
             execute(node->left); 
             
             // Optionnel : Retrouver la fonction et marquer comme async
+            // Optionnel : Retrouver la fonction et marquer comme async
             if (node->left->data.name) {
-                Function* f = findFunction(node->left->data.name);
-                // if (f) f->is_async = true; // Si tu ajoutes ce champ dans struct Function
+                // Function* f = findFunction(node->left->data.name); // Variable supprimée pour éviter le warning
                 printf("%s[ASYNC]%s Registered async function: %s\n", COLOR_CYAN, COLOR_RESET, node->left->data.name);
             }
         }
