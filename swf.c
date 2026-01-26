@@ -1623,17 +1623,6 @@ case NODE_DIR_LIST:
         case NODE_PASS:
             break;
             
-        case NODE_IF: {
-            bool condition = evalBool(node->left);
-            if (condition) {
-                execute(node->right);
-            } else if (node->third) {
-                execute(node->third);
-            }
-            break;
-        }
-            
-            
         case NODE_RETURN: {
     if (current_function) {
         current_function->has_returned = true;
