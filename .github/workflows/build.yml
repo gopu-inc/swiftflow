@@ -11,6 +11,9 @@ jobs:
   notify:
     runs-on: ubuntu-latest
     steps:
+      - name: Debug event
+        run: echo "${{ toJSON(github.event) }}"
+
       - name: Notify on Release
         if: github.event_name == 'release'
         run: |
@@ -24,5 +27,5 @@ jobs:
         run: |
           curl -H "Content-Type: application/json" \
           -X POST \
-          -d "{\"content\":\"📌 Nouveau commit poussé sur main: ${{ github.sha }} par ${{ github.actor }}\"}" \
+          -d "{\"content\":\"📌 Nouveau commit poussé sur main: ${{ github.actor }} - ${{ github.sha }}\"}" \
           https://discord.com/api/webhooks/1465454947968614526/-7OTF0_zc9q_EQ347Y5PhRRAOzyENISnvByDE_N1MzcUH7ILx8Ym19LJfh88pDq53iLT
