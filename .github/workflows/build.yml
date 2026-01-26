@@ -16,17 +16,7 @@ jobs:
         run: |
           curl -H "Content-Type: application/json" \
           -X POST \
-          -d '{
-            "embeds": [{
-              "title": "📂 Nouveau commit sur main",
-              "description": "Auteur: '${{ github.actor }}' | Message: '${{ github.event.head_commit.message }}'",
-              "color": 3066993,
-              "thumbnail": {
-                "url": "https://img.shields.io/badge/certifié-✅-brightgreen.svg"
-              },
-              "footer": { "text": "✅ Commit certifié" }
-            }]
-          }' \
+          -d '{"embeds":[{"title":"📂 Nouveau commit sur main","description":"Auteur: '${{ github.actor }}' | Message: '${{ github.event.head_commit.message }}'","color":3066993,"thumbnail":{"url":"https://img.shields.io/badge/certifié-✅-brightgreen.svg"},"footer":{"text":"✅ Commit certifié"}}]}' \
           https://discord.com/api/webhooks/1465454947968614526/-7OTF0_zc9q_EQ347Y5PhRRAOzyENISnvByDE_N1MzcUH7ILx8Ym19LJfh88pDq53iLT
 
       - name: Send Discord notification on release
