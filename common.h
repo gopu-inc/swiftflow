@@ -180,6 +180,11 @@ static const Keyword keywords[] = {
     {"std.split", TK_STD_SPLIT},
     {"std.to_int", TK_STD_TO_INT},
     {"std.to_str", TK_STD_TO_STR},
+    {"def", TK_DEF},          // Alias pour func
+    {"nonlocal", TK_NONLOCAL}, // Accès portée parente
+    {"lock", TK_LOCK},        // Thread safety / Variable lock
+    {"bdd", TK_BDD},          // Base de données intégrée
+    {"utf8", TK_TYPE_UTF8},
 
     // Variables
     {"var", TK_VAR}, {"let", TK_LET}, {"const", TK_CONST},
