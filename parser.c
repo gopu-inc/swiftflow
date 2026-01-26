@@ -744,6 +744,9 @@ static ASTNode* primary() {
         consume(TK_RPAREN, "Expected ')'");
         return node;
     }
+    if (match(TK_THIS)) {
+        return newNode(NODE_THIS);
+    }
     if (match(TK_HTTP_GET)) return httpGetStatement();
     if (match(TK_HTTP_POST)) return httpPostStatement();
     if (match(TK_HTTP_DOWNLOAD)) return httpDownloadStatement();
