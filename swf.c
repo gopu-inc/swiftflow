@@ -1647,10 +1647,7 @@ case NODE_DIR_LIST:
         case NODE_ASSIGN: {
         char* target_name = NULL;
         bool is_prop = false;
-        if (vars[idx].is_locked) {
-                printf("%s[SEC ERROR]%s Cannot assign to locked variable '%s'\n", COLOR_RED, COLOR_RESET, vars[idx].name);
-                return;
-            }
+        
         // 1. IDENTIFICATION DE LA CIBLE
         // Cas A : Assignation simple (x = 1)
         if (node->data.name) {
@@ -1724,7 +1721,10 @@ case NODE_DIR_LIST:
                         
                         // On évalue en string pour voir si c'est du texte ou une instance
                         char* val_str = evalString(node->right);
-                        
+                        if (vars[idx].is_locked) {
+                            printf("%s[SEC ERROR]%s Cannot assign to locked variable '%s'\n", COLOR_RED, COLOR_RESET, vars[idx].name);
+                             return;
+                        }
                         // Détection simple : Si ça ressemble à une instance "inst_" ou contient des lettres
                         // qui ne sont pas des notations scientifiques, c'est une string.
                         bool is_numeric = true;
