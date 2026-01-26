@@ -135,6 +135,35 @@ static int class_count = 0;
 // ======================================================
 // [SECTION] IMPORT SYSTEM (ADVANCED)
 // ======================================================
+// ======================================================
+// [SECTION] OOP RUNTIME
+// ======================================================
+
+typedef struct {
+    char id[64];      // ex: "inst_1"
+    char class_name[64]; // ex: "Zarch"
+} InstanceRegistry;
+
+static InstanceRegistry instances[200];
+static int instance_count = 0;
+static char* current_this = NULL; // Pour stocker "inst_X" lors d'un appel de méthode
+
+// Enregistre une instance
+static void registerInstance(const char* id, const char* class_name) {
+    if (instance_count < 200) {
+        strcpy(instances[instance_count].id, id);
+        strcpy(instances[instance_count].class_name, class_name);
+        instance_count++;
+    }
+}
+
+// Trouve la classe d'une instance
+static char* findClassOf(const char* id) {
+    for(int i=0; i<instance_count; i++) {
+        if(strcmp(instances[i].id, id) == 0) return instances[i].class_name;
+    }
+    return NULL;
+}
 
 typedef enum {
     MODULE_STATUS_NOT_LOADED,
@@ -855,27 +884,32 @@ static char* evalString(ASTNode* node) {
     if (!node) return str_copy("");
     
     switch (node->type) {
-    // DANS evalString(ASTNode* node)
+    
 
-    // --- INSTANCIATION (new Class()) ---
     case NODE_NEW: {
         static int instance_id = 0;
         char instance_name[64];
-        sprintf(instance_name, "inst_%d", ++instance_id); // ID unique
+        sprintf(instance_name, "inst_%d", ++instance_id);
         
-        // On cherche la classe
-        // Note: Dans une vraie implémentation, on copierait les membres par défaut ici
-        // Pour ce prototype, on retourne juste l'ID de l'instance.
-        // Les propriétés seront créées à la volée lors de l'assignation.
+        // [NOUVEAU] On lie l'instance à sa classe
+        registerInstance(instance_name, node->data.name);
         
         return str_copy(instance_name);
     }
 
-    // --- ACCÈS MEMBRE (objet.propriete) ---
     case NODE_MEMBER_ACCESS: {
-        // ex: zarch.version
-        char* obj_name = evalString(node->left); // Récupère "inst_1"
-        char* prop_name = node->right->data.name; // Récupère "version"
+        // Gestion de this.prop ou obj.prop
+        char* obj_name = NULL;
+        
+        // Si c'est 'this', on utilise le contexte actuel
+        if (node->left->type == NODE_THIS) {
+            if (current_this) obj_name = str_copy(current_this);
+            else return str_copy("");
+        } else {
+            obj_name = evalString(node->left);
+        }
+        
+        char* prop_name = node->right->data.name;
         
         if (!obj_name) return str_copy("");
 
@@ -883,7 +917,6 @@ static char* evalString(ASTNode* node) {
         snprintf(full_name, 256, "%s_%s", obj_name, prop_name);
         free(obj_name);
 
-        // On cherche la variable "inst_1_version"
         int idx = findVar(full_name);
         if (idx >= 0 && vars[idx].is_string) {
             return str_copy(vars[idx].value.str_val);
@@ -1107,28 +1140,143 @@ case NODE_WELD: {
         }
             
         case NODE_FUNC_CALL: {
-            Function* func = findFunction(node->data.name);
-            if (func) {
-                evalFloat(node);
+        char* func_name = node->data.name;
+        char* prev_this = current_this; // Sauvegarde du this précédent
+        
+        // --- [OOP] LOGIQUE APPEL METHODE (obj.method) ---
+        char* dot = strchr(func_name, '.');
+        char real_func_name[256];
+        bool is_method = false;
+
+        if (dot) {
+            // C'est un appel objet ! ex: "app.install"
+            int len = dot - func_name;
+            char var_name[128];
+            strncpy(var_name, func_name, len);
+            var_name[len] = '\0';
+            char* method = dot + 1;
+            
+            // 1. Trouver l'instance (ex: "inst_1" dans la variable "app")
+            int idx = findVar(var_name);
+            if (idx >= 0 && vars[idx].is_string) {
+                char* instance_id = vars[idx].value.str_val;
                 
-                if (func->return_string) {
-                    return str_copy(func->return_string);
-                } else {
-                    char* result = malloc(32);
-                    if (result) {
-                        sprintf(result, "%g", func->return_value);
-                    }
-                    return result ? result : str_copy("");
+                // 2. Trouver la classe (ex: "Zarch")
+                char* cls = findClassOf(instance_id);
+                if (cls) {
+                    // 3. Construire "Zarch_install"
+                    snprintf(real_func_name, 256, "%s_%s", cls, method);
+                    func_name = real_func_name;
+                    
+                    // 4. Définir le contexte 'this'
+                    current_this = instance_id;
+                    is_method = true;
                 }
-            } else {
-                return str_copy("undefined");
             }
         }
+
+        // --- RECHERCHE ET EXECUTION ---
+        Function* func = findFunction(func_name);
+        
+        if (func) {
+            Function* prev_func = current_function;
+            current_function = func;
             
-        default:
-            return str_copy("");
+            int old_scope = scope_level;
+            scope_level++;
+            
+            // --- BINDING DES ARGUMENTS ---
+            if (node->left && func->param_names) {
+                ASTNode* arg = node->left;
+                int param_idx = 0;
+                
+                while (arg && param_idx < func->param_count) {
+                    if (func->param_names[param_idx]) {
+                        if (var_count < 1000) {
+                            Variable* var = &vars[var_count];
+                            strncpy(var->name, func->param_names[param_idx], 99);
+                            var->name[99] = '\0';
+                            var->type = TK_VAR;
+                            var->size_bytes = 8;
+                            var->scope_level = scope_level;
+                            var->is_constant = false;
+                            var->is_initialized = true;
+                            
+                            // Détection basique du type de l'argument passé
+                            // Pour evalFloat, on convertit tout en nombre ou on gère les strings si nécessaire
+                            // (Idéalement evalValue générique, ici on adapte pour float)
+                            
+                            if (arg->type == NODE_STRING) {
+                                var->is_string = true;
+                                var->is_float = false;
+                                var->value.str_val = evalString(arg);
+                            } else if (arg->type == NODE_IDENT) {
+                                // Si c'est une variable, on regarde son type
+                                int arg_idx = findVar(arg->data.name);
+                                if (arg_idx >= 0 && vars[arg_idx].is_string) {
+                                    var->is_string = true;
+                                    var->is_float = false;
+                                    var->value.str_val = str_copy(vars[arg_idx].value.str_val);
+                                } else {
+                                    var->is_float = true;
+                                    var->is_string = false;
+                                    var->value.float_val = evalFloat(arg);
+                                }
+                            } else {
+                                // Par défaut numérique
+                                var->is_float = true;
+                                var->is_string = false;
+                                var->value.float_val = evalFloat(arg);
+                            }
+                            
+                            var_count++;
+                        }
+                    }
+                    arg = arg->right;
+                    param_idx++;
+                }
+            }
+            
+            // Reset de l'état de retour
+            func->has_returned = false;
+            func->return_value = 0;
+            if (func->return_string) {
+                free(func->return_string);
+                func->return_string = NULL;
+            }
+            
+            // --- EXECUTION DU CORPS ---
+            if (func->body) {
+                execute(func->body);
+            }
+            
+            // Restauration du scope
+            scope_level = old_scope;
+            current_function = prev_func;
+            
+            // --- RESTAURATION DE 'THIS' ---
+            if (is_method) {
+                current_this = prev_this;
+            }
+            
+            // Retour de la valeur
+            if (func->return_string) {
+                // Si la fonction retourne une string mais qu'on est dans evalFloat
+                char* endptr;
+                double val = strtod(func->return_string, &endptr);
+                if (*endptr != '\0') return 0.0; // Pas un nombre
+                return val;
+            }
+            return func->return_value;
+        }
+        
+        printf("%s[EXEC ERROR]%s Function not found: %s\n", COLOR_RED, COLOR_RESET, func_name);
+        
+        // Sécurité : toujours restaurer this même en cas d'erreur
+        if (is_method) current_this = prev_this;
+        
+        return 0.0;
     }
-}
 
 static bool evalBool(ASTNode* node) {
     if (!node) return false;
@@ -1912,12 +2060,29 @@ case NODE_DIR_LIST:
 
     // --- OOP (CLASS) ---
     case NODE_CLASS: {
-        // Enregistrement de la classe dans le registre global
-        if (node->data.class_def.name) {
+        char* cls_name = node->data.class_def.name;
+        if (cls_name) {
+            // 1. Enregistrement de la classe (existant)
             char* parent = node->data.class_def.parent ? node->data.class_def.parent->data.name : NULL;
-            registerClass(node->data.class_def.name, parent, node->data.class_def.members);
+            registerClass(cls_name, parent, node->data.class_def.members);
             
-            // On peut aussi exécuter les membres statiques ici si besoin
+            // 2. [NOUVEAU] Aplatissement des méthodes : Zarch.install -> Zarch_install
+            ASTNode* member = node->data.class_def.members;
+            while (member) {
+                if (member->type == NODE_FUNC) {
+                    char method_full_name[256];
+                    snprintf(method_full_name, 256, "%s_%s", cls_name, member->data.name);
+                    
+                    // Compter les params
+                    int p_count = 0;
+                    ASTNode* p = member->left;
+                    while(p) { p_count++; p = p->right; }
+                    
+                    registerFunction(method_full_name, member->left, member->right, p_count);
+                    // printf("[OOP] Registered method: %s\n", method_full_name);
+                }
+                member = member->right;
+            }
         }
         break;
     }
