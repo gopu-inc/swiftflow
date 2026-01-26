@@ -289,8 +289,8 @@ static bool isAlphaNumeric(char c) {
 }
 
 static Token identifier() {
-    while (isAlphaNumeric(peek()) || peek() == '.' || peek() == '$' || peek() == '@') {
-        advance();
+    while (isAlphaNumeric(peek()) || peek() == '$' || peek() == '@') {
+    advance();
     }
     
     int length = (int)(lexer.current - lexer.start);
