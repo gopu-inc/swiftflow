@@ -855,7 +855,41 @@ static char* evalString(ASTNode* node) {
     if (!node) return str_copy("");
     
     switch (node->type) {
-        // Dans swf.c, fonction evalString()
+    // DANS evalString(ASTNode* node)
+
+    // --- INSTANCIATION (new Class()) ---
+    case NODE_NEW: {
+        static int instance_id = 0;
+        char instance_name[64];
+        sprintf(instance_name, "inst_%d", ++instance_id); // ID unique
+        
+        // On cherche la classe
+        // Note: Dans une vraie implémentation, on copierait les membres par défaut ici
+        // Pour ce prototype, on retourne juste l'ID de l'instance.
+        // Les propriétés seront créées à la volée lors de l'assignation.
+        
+        return str_copy(instance_name);
+    }
+
+    // --- ACCÈS MEMBRE (objet.propriete) ---
+    case NODE_MEMBER_ACCESS: {
+        // ex: zarch.version
+        char* obj_name = evalString(node->left); // Récupère "inst_1"
+        char* prop_name = node->right->data.name; // Récupère "version"
+        
+        if (!obj_name) return str_copy("");
+
+        char full_name[256];
+        snprintf(full_name, 256, "%s_%s", obj_name, prop_name);
+        free(obj_name);
+
+        // On cherche la variable "inst_1_version"
+        int idx = findVar(full_name);
+        if (idx >= 0 && vars[idx].is_string) {
+            return str_copy(vars[idx].value.str_val);
+        }
+        return str_copy("");
+    }
     case NODE_FILE_READ: {
         char* path = evalString(node->left);
         char* content = io_read_string(path); // Fonction définie dans io.c
@@ -1543,49 +1577,118 @@ case NODE_DIR_CREATE:
 case NODE_DIR_LIST:
     io_listdir(node);
     break;    
+        
         case NODE_ASSIGN: {
-            if (node->data.name) {
-                int idx = findVar(node->data.name);
-                if (idx >= 0) {
-                    if (vars[idx].is_constant) {
-                        printf("%s[EXEC ERROR]%s Cannot assign to constant '%s'\n", 
-                               COLOR_RED, COLOR_RESET, node->data.name);
-                        return;
+        char* target_name = NULL;
+        bool is_prop = false;
+
+        // 1. IDENTIFICATION DE LA CIBLE
+        // Cas A : Assignation simple (x = 1)
+        if (node->data.name) {
+            target_name = strdup(node->data.name);
+        }
+        // Cas B : Assignation de propriété (obj.x = 1)
+        else if (node->left && node->left->type == NODE_MEMBER_ACCESS) {
+            is_prop = true;
+            // On évalue la partie gauche (ex: "zarch" ou "inst_1")
+            char* obj = evalString(node->left->left);
+            // On prend le nom de la propriété à droite
+            char* prop = node->left->right->data.name;
+            
+            if (obj && prop) {
+                target_name = malloc(strlen(obj) + strlen(prop) + 2);
+                snprintf(target_name, 256, "%s_%s", obj, prop);
+            }
+            if (obj) free(obj);
+        }
+
+        if (target_name) {
+            // 2. RECHERCHE OU CRÉATION
+            int idx = findVar(target_name);
+            
+            // Si la variable n'existe pas, on la crée (Auto-déclaration)
+            // C'est CRUCIAL pour les propriétés d'objets qui sont créées à la volée
+            if (idx == -1 && var_count < 1000) {
+                idx = var_count++;
+                strncpy(vars[idx].name, target_name, 99);
+                vars[idx].name[99] = '\0';
+                vars[idx].type = TK_VAR; 
+                // Les propriétés sont globales (attachées à l'instance), les vars locales respectent le scope
+                vars[idx].scope_level = (is_prop ? 0 : scope_level); 
+                vars[idx].is_constant = false;
+                vars[idx].is_initialized = false;
+                // printf("%s[EXEC]%s Auto-declared variable/prop '%s'\n", COLOR_CYAN, COLOR_RESET, target_name);
+            }
+
+            // 3. AFFECTATION DE LA VALEUR
+            if (idx >= 0) {
+                if (vars[idx].is_constant) {
+                    printf("%s[EXEC ERROR]%s Cannot assign to constant '%s'\n", COLOR_RED, COLOR_RESET, target_name);
+                } 
+                else if (node->right) {
+                    vars[idx].is_initialized = true;
+
+                    // Nettoyage de l'ancienne valeur si c'était une chaîne
+                    if (vars[idx].is_string && vars[idx].value.str_val) {
+                        free(vars[idx].value.str_val);
+                        vars[idx].value.str_val = NULL;
                     }
+
+                    // --- Gestion des Types ---
                     
-                    if (node->left) {
-                        vars[idx].is_initialized = true;
+                    // TYPE STRING
+                    if (node->right->type == NODE_STRING) {
+                        vars[idx].is_string = true;
+                        vars[idx].is_float = false;
+                        vars[idx].value.str_val = evalString(node->right);
+                    }
+                    // TYPE NOUVELLE INSTANCE (new Class)
+                    else if (node->right->type == NODE_NEW) {
+                        vars[idx].is_string = true;
+                        vars[idx].is_float = false;
+                        vars[idx].value.str_val = evalString(node->right); // Retourne "inst_X"
+                    }
+                    // TYPES DYNAMIQUES (Appel de fonction, variable, membre)
+                    else if (node->right->type == NODE_FUNC_CALL || 
+                             node->right->type == NODE_IDENT || 
+                             node->right->type == NODE_MEMBER_ACCESS) {
                         
-                        if (node->left->type == NODE_STRING) {
-                            if (vars[idx].value.str_val) free(vars[idx].value.str_val);
+                        // On évalue en string pour voir si c'est du texte ou une instance
+                        char* val_str = evalString(node->right);
+                        
+                        // Détection simple : Si ça ressemble à une instance "inst_" ou contient des lettres
+                        // qui ne sont pas des notations scientifiques, c'est une string.
+                        bool is_numeric = true;
+                        if (strstr(val_str, "inst_")) is_numeric = false;
+                        else {
+                            char* endptr;
+                            strtod(val_str, &endptr);
+                            if (*endptr != '\0') is_numeric = false;
+                        }
+
+                        if (!is_numeric) {
                             vars[idx].is_string = true;
                             vars[idx].is_float = false;
-                            vars[idx].value.str_val = str_copy(node->left->data.str_val);
-                        }
-                        else if (node->left->type == NODE_FLOAT) {
+                            vars[idx].value.str_val = val_str;
+                        } else {
+                            free(val_str);
+                            vars[idx].is_string = false;
                             vars[idx].is_float = true;
-                            vars[idx].is_string = false;
-                            vars[idx].value.float_val = evalFloat(node->left);
-                        }
-                        else if (node->left->type == NODE_BOOL) {
-                            vars[idx].is_float = false;
-                            vars[idx].is_string = false;
-                            vars[idx].value.int_val = node->left->data.bool_val ? 1 : 0;
-                        }
-                        else {
-                            vars[idx].is_float = false;
-                            vars[idx].is_string = false;
-                            vars[idx].value.int_val = (int64_t)evalFloat(node->left);
+                            vars[idx].value.float_val = evalFloat(node->right);
                         }
                     }
-                } else {
-                    printf("%s[EXEC ERROR]%s Variable '%s' not found\n", 
-                           COLOR_RED, COLOR_RESET, node->data.name);
+                    // TYPE NUMERIQUE / BOOL (Par défaut)
+                    else {
+                        vars[idx].is_string = false;
+                        vars[idx].is_float = true;
+                        vars[idx].value.float_val = evalFloat(node->right);
+                    }
                 }
             }
-            break;
+            free(target_name);
         }
-            
+        break;
+    }
         case NODE_PRINT: {
             if (node->left) {
                 ASTNode* current_arg = node->left;
