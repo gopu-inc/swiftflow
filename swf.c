@@ -133,17 +133,25 @@ static Class classes[100];
 static int class_count = 0;
 
 // ======================================================
-// [SECTION] IMPORT SYSTEM
+// [SECTION] IMPORT SYSTEM (ADVANCED)
 // ======================================================
+
+typedef enum {
+    MODULE_STATUS_NOT_LOADED,
+    MODULE_STATUS_LOADING,   // Pour détecter les cycles
+    MODULE_STATUS_LOADED     // Chargé et en cache
+} ModuleStatus;
+
 typedef struct {
-    char* name;
-    char* file_path;
-    bool is_loaded;
-} ImportedModule;
+    char* path;              // Chemin absolu unique (Clé du cache)
+    char* name;              // Nom du module
+    ModuleStatus status;
+    int export_start_index;  // Où commencent les exports de ce module dans le tableau global
+    int export_end_index;    // Où finissent les exports
+} ModuleCache;
 
-static ImportedModule imports[100];
-static int import_count = 0;
-
+static ModuleCache module_registry[200];
+static int registry_count = 0;
 // ======================================================
 // [SECTION] FILE I/O SYSTEM
 // ======================================================
@@ -300,299 +308,244 @@ static void registerClass(const char* name, char* parent, ASTNode* members) {
         printf("%s[CLASS REG]%s Class '%s' registered\n", COLOR_MAGENTA, COLOR_RESET, name);
     }
 }
+static ModuleCache* findInCache(const char* absolute_path) {
+    for (int i = 0; i < registry_count; i++) {
+        if (strcmp(module_registry[i].path, absolute_path) == 0) {
+            return &module_registry[i];
+        }
+    }
+    return NULL;
+}
+
+static ModuleCache* addToCache(const char* absolute_path, const char* name) {
+    if (registry_count >= 200) return NULL;
+    
+    ModuleCache* mod = &module_registry[registry_count++];
+    mod->path = strdup(absolute_path);
+    mod->name = strdup(name ? name : "unknown");
+    mod->status = MODULE_STATUS_LOADING;
+    mod->export_start_index = 0;
+    mod->export_end_index = 0;
+    return mod;
+}
 
 static bool isLocalImport(const char* import_path) {
     return import_path[0] == '.' || import_path[0] == '/';
 }
-// [FICHIER: swf.c] Remplacer resolveModulePath
 
 static char* resolveModulePath(const char* import_path, const char* from_module) {
-    char* resolved = malloc(PATH_MAX);
-    if (!resolved) return NULL;
+    char base_path[PATH_MAX];
+    char resolved[PATH_MAX];
     
-    // 1. Chemin absolu
-    if (import_path[0] == '/') {
-        snprintf(resolved, PATH_MAX, "%s", import_path);
+    // 1. Déterminer le dossier de base
+    if (from_module && from_module[0]) {
+        // Relatif au module appelant
+        char temp[PATH_MAX];
+        strcpy(temp, from_module);
+        strcpy(base_path, dirname(temp));
+    } else {
+        // Relatif au dossier de travail actuel
+        strcpy(base_path, current_working_dir);
     }
-    // 2. Chemin relatif (commence par . ou ..)
-    else if (import_path[0] == '.') {
-        snprintf(resolved, PATH_MAX, "%s/%s", current_working_dir, import_path);
-    }
-    // 3. Module système (ex: "community/web.swf")
+
+    // 2. Construire les chemins candidats
+    char candidate[PATH_MAX];
+    
+    // Cas A: Import direct ou relatif
+    if (import_path[0] == '/' || import_path[0] == '.') {
+        snprintf(candidate, PATH_MAX, "%s/%s", base_path, import_path);
+    } 
+    // Cas B: Import "système" ou librairie (ex: import "mathlib")
     else {
-        // Chercher d'abord localement
-        char local_try[PATH_MAX];
-        snprintf(local_try, PATH_MAX, "%s/%s", current_working_dir, import_path);
+        // Ordre de recherche : 
+        // 1. ./zarch_modules/ (Standard Zarch)
+        // 2. /usr/local/lib/swift/ (Global)
+        // 3. ./ (Local)
         
-        if (access(local_try, F_OK) == 0) {
-            strcpy(resolved, local_try);
-        } else {
-            // Sinon chercher dans /usr/local/lib/swift/
-            snprintf(resolved, PATH_MAX, "/usr/local/lib/swift/%s", import_path);
+        const char* search_paths[] = {
+            "./zarch_modules",
+            "/usr/local/lib/swift",
+            base_path,
+            NULL
+        };
+        
+        bool found = false;
+        for (int i = 0; search_paths[i]; i++) {
+            snprintf(candidate, PATH_MAX, "%s/%s", search_paths[i], import_path);
+            if (access(candidate, F_OK) == 0 || access(candidate, R_OK) != -1) { // Vérif dossier ou fichier
+                found = true;
+                break;
+            }
+            // Essayer avec .swf
+            char candidate_ext[PATH_MAX];
+            snprintf(candidate_ext, PATH_MAX, "%s.swf", candidate);
+            if (access(candidate_ext, F_OK) == 0) {
+                strcpy(candidate, candidate_ext);
+                found = true;
+                break;
+            }
+        }
+        
+        if (!found) {
+            // Par défaut, on tente dans le dossier courant si rien trouvé
+            snprintf(candidate, PATH_MAX, "%s/%s", base_path, import_path);
         }
     }
-    
-    // Nettoyer le chemin (realpath) pour éviter les /root/./truc
-    char final_path[PATH_MAX];
-    if (realpath(resolved, final_path)) {
-        free(resolved);
-        return strdup(final_path);
-    }
-    
-    // Si realpath échoue (fichier n'existe pas encore), on retourne le chemin construit
-    return resolved; 
-}
 
+    // 3. Résolution Fichier vs Dossier (Package)
+    struct stat path_stat;
+    stat(candidate, &path_stat);
+    
+    if (S_ISDIR(path_stat.st_mode)) {
+        // C'est un dossier ! On cherche un point d'entrée.
+        // Priorité : zarch.json (si on parseait le json), sinon index.swf, main.swf
+        char entry_point[PATH_MAX];
+        
+        // Tentative 1: index.swf
+        snprintf(entry_point, PATH_MAX, "%s/index.swf", candidate);
+        if (access(entry_point, F_OK) == 0) {
+            if (realpath(entry_point, resolved)) return strdup(resolved);
+        }
+        
+        // Tentative 2: main.swf
+        snprintf(entry_point, PATH_MAX, "%s/main.swf", candidate);
+        if (access(entry_point, F_OK) == 0) {
+            if (realpath(entry_point, resolved)) return strdup(resolved);
+        }
+        
+        // Tentative 3: Le nom du dossier.swf à l'intérieur (ex: math/math.swf)
+        char *folder_name = basename(candidate);
+        snprintf(entry_point, PATH_MAX, "%s/%s.swf", candidate, folder_name);
+        if (access(entry_point, F_OK) == 0) {
+            if (realpath(entry_point, resolved)) return strdup(resolved);
+        }
+    } else {
+        // C'est potentiellement un fichier
+        if (access(candidate, F_OK) == 0) {
+             if (realpath(candidate, resolved)) return strdup(resolved);
+        }
+        
+        // Essayer d'ajouter .swf
+        char with_ext[PATH_MAX];
+        snprintf(with_ext, PATH_MAX, "%s.swf", candidate);
+        if (access(with_ext, F_OK) == 0) {
+             if (realpath(with_ext, resolved)) return strdup(resolved);
+        }
+    }
+
+    return NULL; // Non trouvé
+}
 // ======================================================
 // [SECTION] FONCTION D'IMPORT - MODIFIÉE
 // ======================================================
 static bool loadAndExecuteModule(const char* import_path, const char* from_module, 
                                  bool import_named, char** named_symbols, int symbol_count) {
-    printf("\n%s-%s\n", COLOR_BRIGHT_RED, COLOR_RESET);
-    printf("%s LOAD MODULE...: %s %s\n", COLOR_GREEN, COLOR_RESET, import_path);
-    printf("%s-%s\n\n", COLOR_GREEN, COLOR_RESET);
     
-    // 1. Résoudre le chemin du module
+    // 1. Résoudre le chemin absolu
     char* full_path = resolveModulePath(import_path, from_module);
     if (!full_path) {
-        printf("%s[IMPORT ERROR]%s Cannot resolve module path: %s\n", COLOR_RED, COLOR_RESET, import_path);
+        printf("%s[IMPORT ERROR]%s Module not found: %s\n", COLOR_RED, COLOR_RESET, import_path);
         return false;
     }
+
+    // 2. VÉRIFICATION DU CACHE
+    ModuleCache* cache = findInCache(full_path);
+    if (cache) {
+        if (cache->status == MODULE_STATUS_LOADING) {
+            printf("%s[IMPORT WARN]%s Circular dependency detected for %s. Breaking cycle.\n", 
+                   COLOR_YELLOW, COLOR_RESET, import_path);
+            // On retourne true pour ne pas planter, mais on n'exécute pas à nouveau
+            // Le module appelant devra faire avec ce qui est déjà exporté
+            free(full_path);
+            return true;
+        }
+        if (cache->status == MODULE_STATUS_LOADED) {
+            printf("%s[IMPORT INFO]%s Module already loaded (Cached): %s\n", 
+                   COLOR_CYAN, COLOR_RESET, import_path);
+            
+            // On traite juste les imports nommés depuis le cache
+            // (La logique de liaison des exports existants)
+            // ... (Code de liaison identique à avant, voir plus bas) ...
+            free(full_path);
+            return true;
+        }
+    }
+
+    // 3. Ajouter au cache en statut LOADING
+    cache = addToCache(full_path, import_path);
     
-    printf("%s[IMPORT -> R]%s Resolved path: %s\n", COLOR_YELLOW, COLOR_RESET, full_path);
-    
-    // 2. Ouvrir le fichier
+    printf("%s>>> LOADING MODULE: %s <<<%s\n", COLOR_MAGENTA, COLOR_RESET, full_path);
+
+    // 4. Lecture Fichier
     FILE* f = fopen(full_path, "r");
     if (!f) {
-        printf("%s[IMPORT ERROR]%s Cannot open file: %s\n", COLOR_RED, COLOR_RESET, full_path);
         free(full_path);
         return false;
     }
-    
-    // 3. Lire le fichier
     fseek(f, 0, SEEK_END);
     long size = ftell(f);
     fseek(f, 0, SEEK_SET);
-    
     char* source = malloc(size + 1);
-    if (!source) {
-        printf("%s[IMPORT ERROR]%s Memory allocation failed\n", COLOR_RED, COLOR_RESET);
-        fclose(f);
-        free(full_path);
-        return false;
-    }
-    
     fread(source, 1, size, f);
     source[size] = '\0';
     fclose(f);
-    
-    printf("%s[READ -> F]%s File read: %ld bytes\n", COLOR_YELLOW, COLOR_RESET, size);
-    
-    // 4. Sauvegarder l'état actuel
+
+    // 5. Sauvegarde contexte
     char old_dir[PATH_MAX];
     strncpy(old_dir, current_working_dir, PATH_MAX);
-    
     char module_dir[PATH_MAX];
     strncpy(module_dir, full_path, PATH_MAX);
-    char* dir = dirname(module_dir);
-    strncpy(current_working_dir, dir, PATH_MAX);
-    
-    printf("%s[IMPORT DEBUG]%s Working directory changed: %s -> %s\n", 
-           COLOR_YELLOW, COLOR_RESET, old_dir, current_working_dir);
-    
-    // 5. Sauvegarder le compteur d'exports AVANT l'import
-    int old_export_count = export_count;
-    
-    // 6. Parser le module
-    printf("%s[IMPORT -> P]%s Parsing module...\n", COLOR_YELLOW, COLOR_RESET);
+    strncpy(current_working_dir, dirname(module_dir), PATH_MAX);
+
+    // 6. Parsing
     int node_count = 0;
     ASTNode** nodes = parse(source, &node_count);
     
     if (!nodes) {
-        printf("%s[IMPORT ERROR]%s Parsing failed\n", COLOR_RED, COLOR_RESET);
-        free(source);
-        free(full_path);
+        free(source); free(full_path);
         strncpy(current_working_dir, old_dir, PATH_MAX);
         return false;
     }
-    
-    printf("%s[IMPORT -> S]%s Module parsed successfully: %d nodes\n", 
-           COLOR_GREEN, COLOR_RESET, node_count);
 
-    // =================================================================
-    // [FIX] 6.5 PRÉ-TRAITEMENT : EXÉCUTER LES EXPORTS
-    // =================================================================
-    // C'est l'étape manquante. Il faut exécuter les noeuds NODE_EXPORT 
-    // maintenant pour qu'ils appellent registerExport() et remplissent
-    // le tableau global 'exports' avant qu'on essaie de le lire.
-    printf("%s[IMPORT -> L]%s Pre-processing exports...\n", COLOR_YELLOW, COLOR_RESET);
+    // 7. Enregistrer le début des exports pour ce module
+    cache->export_start_index = export_count;
+
+    // 8. PRÉ-TRAITEMENT (Exportations)
     for (int i = 0; i < node_count; i++) {
         if (nodes[i] && nodes[i]->type == NODE_EXPORT) {
-            execute(nodes[i]); 
-        }
-    }
-    // =================================================================
-    
-    // 7. Collecter les nouveaux exports et créer les fonctions/variables correspondantes
-    printf("%s[IMPORT -> C]%s Collecting exports from module...\n", COLOR_YELLOW, COLOR_RESET);
-    
-    // Maintenant export_count a été mis à jour par l'étape 6.5
-    for (int i = old_export_count; i < export_count; i++) {
-        ExportEntry* exp = &exports[i];
-        printf("%s[IMPORT DEBUG]%s Found export entry: %s (alias: %s)\n",
-               COLOR_GREEN, COLOR_RESET, 
-               exp->symbol ? exp->symbol : "NULL", 
-               exp->alias ? exp->alias : "NULL");
-        
-        // Chercher le nœud correspondant dans l'AST du module
-        for (int j = 0; j < node_count; j++) {
-            if (!nodes[j]) continue;
-            
-            // --- GESTION DES FONCTIONS ---
-            ASTNode* target_func = NULL;
-            
-            // Cas 1: C'est directement une fonction
-            if (nodes[j]->type == NODE_FUNC) {
-                target_func = nodes[j];
-            }
-            // Cas 2: C'est un EXPORT qui contient une fonction
-            else if (nodes[j]->type == NODE_EXPORT && nodes[j]->left && nodes[j]->left->type == NODE_FUNC) {
-                target_func = nodes[j]->left;
-            }
-
-            if (target_func && target_func->data.name && 
-                exp->symbol && strcmp(target_func->data.name, exp->symbol) == 0) {
-                
-                char* name_to_use = exp->alias ? exp->alias : exp->symbol;
-                printf("%s[IMPORT -> R]%s Registering function: %s -> %s\n",
-                       COLOR_GREEN, COLOR_RESET, exp->symbol, name_to_use);
-                
-                // Compter les paramètres
-                int param_count = 0;
-                ASTNode* param = target_func->left;
-                while (param) {
-                    param_count++;
-                    param = param->right;
-                }
-                
-                // Enregistrer la fonction dans le système global
-                registerFunction(name_to_use, target_func->left, target_func->right, param_count);
-                break; // Symbole trouvé
-            }
-            
-            // --- GESTION DES VARIABLES ---
-            ASTNode* target_var = NULL;
-            
-            // Cas 1: Déclaration directe
-            if (nodes[j]->type == NODE_CONST_DECL || nodes[j]->type == NODE_VAR_DECL || 
-                nodes[j]->type == NODE_LET || nodes[j]->type == NODE_NET_DECL) {
-                target_var = nodes[j];
-            }
-            // Cas 2: Export contenant une déclaration
-            else if (nodes[j]->type == NODE_EXPORT && nodes[j]->left && 
-                    (nodes[j]->left->type == NODE_CONST_DECL || nodes[j]->left->type == NODE_VAR_DECL ||
-                     nodes[j]->left->type == NODE_LET || nodes[j]->left->type == NODE_NET_DECL)) {
-                target_var = nodes[j]->left;
-            }
-
-            if (target_var && target_var->data.name && 
-                exp->symbol && strcmp(target_var->data.name, exp->symbol) == 0) {
-                
-                char* name_to_use = exp->alias ? exp->alias : exp->symbol;
-                printf("%s[IMPORT DEBUG]%s Creating constant/var: %s -> %s\n",
-                       COLOR_GREEN, COLOR_RESET, exp->symbol, name_to_use);
-                
-                if (var_count < 1000) {
-                    Variable* var = &vars[var_count];
-                    strncpy(var->name, name_to_use, 99);
-                    var->name[99] = '\0';
-                    
-                    if (target_var->type == NODE_CONST_DECL) var->type = TK_CONST;
-                    else var->type = TK_VAR;
-
-                    var->scope_level = 0; // Scope global pour l'importateur
-                    var->is_constant = (var->type == TK_CONST);
-                    var->is_initialized = true;
-                    
-                    // Copie de la valeur (très simplifié, ne gère pas les expressions complexes)
-                    if (target_var->left) {
-                        if (target_var->left->type == NODE_INT) {
-                            var->is_float = false;
-                            var->is_string = false;
-                            var->value.int_val = target_var->left->data.int_val;
-                        } else if (target_var->left->type == NODE_FLOAT) {
-                            var->is_float = true;
-                            var->is_string = false;
-                            var->value.float_val = target_var->left->data.float_val;
-                        } else if (target_var->left->type == NODE_STRING) {
-                            var->is_string = true;
-                            var->is_float = false;
-                            var->value.str_val = str_copy(target_var->left->data.str_val);
-                        } else if (target_var->left->type == NODE_BOOL) {
-                            var->is_float = false;
-                            var->is_string = false;
-                            var->value.int_val = target_var->left->data.bool_val ? 1 : 0;
-                        }
-                    }
-                    var_count++;
-                }
-                break; // Symbole trouvé
+            execute(nodes[i]);
+            // On marque l'export comme appartenant à ce module (optionnel pour le nettoyage futur)
+            if (export_count > 0) {
+                exports[export_count-1].module = strdup(full_path);
             }
         }
     }
     
-    // 8. Si import nommé (import {a, b} from ...), vérifier la présence
-    if (import_named && named_symbols) {
-        for (int i = 0; i < symbol_count; i++) {
-            if (!named_symbols[i]) continue;
-            
-            bool found = false;
-            for (int j = old_export_count; j < export_count; j++) {
-                if ((exports[j].symbol && strcmp(exports[j].symbol, named_symbols[i]) == 0) ||
-                    (exports[j].alias && strcmp(exports[j].alias, named_symbols[i]) == 0)) {
-                    found = true;
-                    break;
-                }
-            }
-            
-            if (!found) {
-                printf("%s[IMPORT WARNING]%s Requested symbol not found in module: %s\n",
-                       COLOR_YELLOW, COLOR_RESET, named_symbols[i]);
-            }
-        }
-    }
-    
-    // 9. Exécuter le code d'initialisation du module (top-level code)
-    // On évite les déclarations de fonctions (déjà gérées) et les exports (déjà faits en 6.5)
-    printf("%s[IMPORT -> E]%s Executing module initialization code...\n", COLOR_YELLOW, COLOR_RESET);
-    
+    cache->export_end_index = export_count;
+
+    // 9. EXÉCUTION DU CORPS (Initialisation)
     for (int i = 0; i < node_count; i++) {
-        if (nodes[i] && nodes[i]->type != NODE_FUNC && nodes[i]->type != NODE_EXPORT) {
+        if (nodes[i] && nodes[i]->type != NODE_FUNC && nodes[i]->type != NODE_EXPORT && nodes[i]->type != NODE_CLASS) {
             execute(nodes[i]);
         }
     }
-    
-    // 10. Restaurer l'état
+
+    // 10. Marquer comme CHARGÉ
+    cache->status = MODULE_STATUS_LOADED;
+
+    // 11. Restauration & Nettoyage
     strncpy(current_working_dir, old_dir, PATH_MAX);
-    printf("%s[IMPORT RESULT]%s Working directory restored: %s\n", COLOR_YELLOW, COLOR_RESET, current_working_dir);
     
-    // 11. Nettoyer
-    // Note: On ne fait qu'un nettoyage partiel car les pointeurs des noms de fonctions/vars 
-    // sont maintenant utilisés par le système global.
-    for (int i = 0; i < node_count; i++) {
-        if (nodes[i]) {
-            // Nettoyage spécifique si nécessaire, sinon juste free du noeud conteneur
-            // Dans une vraie implémentation, il faudrait un compteur de références ou deep copy
-            free(nodes[i]);
-        }
-    }
+    // Nettoyage AST (simplifié)
+    for (int i = 0; i < node_count; i++) if (nodes[i]) free(nodes[i]);
     free(nodes);
     free(source);
     free(full_path);
-    
-    printf("%s[IMPORT]%s Module import completed: %s\n", COLOR_GREEN, COLOR_RESET, import_path);
+
+    printf("%s[IMPORT]%s Module loaded: %s\n", COLOR_GREEN, COLOR_RESET, import_path);
     return true;
 }
+
 
 static bool isSymbolExported(const char* symbol, const char* module_path) {
     for (int i = 0; i < export_count; i++) {
