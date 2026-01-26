@@ -57,7 +57,7 @@ typedef enum {
     TK_ASSIGN, TK_EQ, TK_NEQ, TK_GT, TK_LT, TK_GTE, TK_LTE,
     TK_PLUS_ASSIGN, TK_MINUS_ASSIGN, TK_MULT_ASSIGN, 
     TK_DIV_ASSIGN, TK_MOD_ASSIGN, TK_POW_ASSIGN,
-    TK_CONCAT_ASSIGN,
+    TK_CONCAT_ASSIGN, TK_STD_LEN, TK_STD_SPLIT, TK_STD_TO_INT, TK_STD_TO_STR,
     
     // Logical operators
     TK_AND, TK_OR, TK_NOT,
@@ -174,7 +174,10 @@ static const Keyword keywords[] = {
     {"sys.argv", TK_SYS_ARGV},
     {"sys.exit", TK_SYS_EXIT},
     {"json.get", TK_JSON_GET},
-
+    {"std.len", TK_STD_LEN},
+    {"std.split", TK_STD_SPLIT},
+    {"std.to_int", TK_STD_TO_INT},
+    {"std.to_str", TK_STD_TO_STR},
 
     // Variables
     {"var", TK_VAR}, {"let", TK_LET}, {"const", TK_CONST},
@@ -275,6 +278,10 @@ typedef enum {
     NODE_SYS_ARGV,
     NODE_SYS_EXIT,
     NODE_JSON_GET,
+    NODE_STD_LEN,
+    NODE_STD_SPLIT,
+    NODE_STD_TO_INT, 
+    NODE_STD_TO_STR,
     // reseaux
     NODE_NET_SOCKET,
     NODE_NET_CONNECT,
