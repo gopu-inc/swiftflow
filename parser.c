@@ -22,48 +22,6 @@ static int warningCount = 0;
 static int scope_level = 0;
 
 // ======================================================
-// [SECTION] PROTOTYPES MODULES NATIFS
-// ======================================================
-// IO
-static ASTNode* ioOpenStatement();
-static ASTNode* ioCloseStatement();
-static ASTNode* ioReadStatement();
-static ASTNode* ioWriteStatement();
-static ASTNode* ioSeekStatement();
-static ASTNode* ioTellStatement();
-static ASTNode* ioFlushStatement();
-static ASTNode* ioExistsStatement();
-static ASTNode* ioIsfileStatement();
-static ASTNode* ioIsdirStatement();
-static ASTNode* ioMkdirStatement();
-static ASTNode* ioRmdirStatement();
-static ASTNode* ioListdirStatement();
-static ASTNode* ioRemoveStatement();
-static ASTNode* ioRenameStatement();
-static ASTNode* ioCopyStatement();
-
-// Net
-static ASTNode* netSocketStatement();
-static ASTNode* netConnectStatement();
-static ASTNode* netListenStatement();
-static ASTNode* netAcceptStatement();
-static ASTNode* netSendStatement();
-static ASTNode* netRecvStatement();
-static ASTNode* netCloseStatement();
-
-// Http
-static ASTNode* httpGetStatement();
-static ASTNode* httpPostStatement();
-static ASTNode* httpDownloadStatement();
-
-// Sys
-static ASTNode* sysExecStatement();
-static ASTNode* sysArgvStatement();
-static ASTNode* sysExitStatement();
-
-// Json
-static ASTNode* jsonGetStatement();
-// ======================================================
 // [SECTION] ERROR HANDLING
 // ======================================================
 static void errorAt(Token token, const char* message) {
@@ -763,114 +721,108 @@ static ASTNode* jsonGetStatement() {
 }
 // Primary expressions
 static ASTNode* primary() {
-    // ========================================================================
-    // [SECTION] Appels de Modules Natifs (io.open, http.get, etc.)
-    // ========================================================================
-    if (check(TK_IDENT)) {
-        // Ces variables sont déclarées au début pour être valides dans tout le bloc 'if'
-        const char* module_name = current.value.str_val;
-        Token start_token = current; 
-
-        // --- MODULE 'io' ---
-        if (strcmp(module_name, "io") == 0) {
-            advance(); // Consomme "io"
-            if (match(TK_PERIOD)) {
-                if (match(TK_IDENT)) {
-                    const char* cmd = previous.value.str_val;
-                    if (strcmp(cmd, "open") == 0) return ioOpenStatement();
-                    if (strcmp(cmd, "close") == 0) return ioCloseStatement();
-                    if (strcmp(cmd, "read") == 0) return ioReadStatement();
-                    if (strcmp(cmd, "write") == 0) return ioWriteStatement();
-                    if (strcmp(cmd, "exists") == 0) return ioExistsStatement();
-                    if (strcmp(cmd, "seek") == 0) return ioSeekStatement();
-                    // ... (Ajouter d'autres commandes io si nécessaire) ...
-                }
-            }
-            // Si ce n'est pas un appel natif valide (ex: var io = 1), on "rembobine" le parser
-            current = start_token;
-        }
-        // --- MODULE 'net' ---
-        else if (strcmp(module_name, "net") == 0) {
-            advance();
-            if (match(TK_PERIOD)) {
-                if (match(TK_IDENT)) {
-                    const char* cmd = previous.value.str_val;
-                    if (strcmp(cmd, "socket") == 0) return netSocketStatement();
-                    if (strcmp(cmd, "listen") == 0) return netListenStatement();
-                    if (strcmp(cmd, "accept") == 0) return netAcceptStatement();
-                    if (strcmp(cmd, "recv") == 0) return netRecvStatement();
-                    // ...
-                }
-            }
-            current = start_token;
-        }
-        // --- MODULE 'http' ---
-        else if (strcmp(module_name, "http") == 0) {
-            advance();
-            if (match(TK_PERIOD)) {
-                if (match(TK_IDENT)) {
-                    const char* cmd = previous.value.str_val;
-                    if (strcmp(cmd, "get") == 0) return httpGetStatement();
-                    if (strcmp(cmd, "post") == 0) return httpPostStatement();
-                    if (strcmp(cmd, "download") == 0) return httpDownloadStatement();
-                }
-            }
-            current = start_token;
-        }
-        // --- MODULE 'sys' ---
-        else if (strcmp(module_name, "sys") == 0) {
-            advance();
-            if (match(TK_PERIOD)) {
-                if (match(TK_IDENT)) {
-                    const char* cmd = previous.value.str_val;
-                    if (strcmp(cmd, "exec") == 0) return sysExecStatement();
-                    if (strcmp(cmd, "argv") == 0) return sysArgvStatement();
-                }
-            }
-            current = start_token;
-        }
-        // --- MODULE 'json' ---
-        else if (strcmp(module_name, "json") == 0) {
-            advance();
-            if (match(TK_PERIOD)) {
-                if (match(TK_IDENT)) {
-                    if (strcmp(previous.value.str_val, "get") == 0) return jsonGetStatement();
-                }
-            }
-            current = start_token;
-        }
-    }
-    // ========================================================================
-    // Si ce n'était pas un appel de module natif, on continue le parsing normal...
-
+    // Try lambda first
     ASTNode* lambda = lambdaExpression();
     if (lambda) return lambda;
     
-    // --- LITTÉRAUX ---
+    if (match(TK_WELD)) {
+       ASTNode* node = newNode(NODE_WELD);
+        consume(TK_LPAREN, "Expected '(' after weld");
+        if (!check(TK_RPAREN)) {
+            node->left = expression(); // le prompt
+        }
+    consume(TK_RPAREN, "Expected ')'");
+    return node;
+    } 
+    if (match(TK_STD_LEN)) {
+        ASTNode* node = newNode(NODE_STD_LEN);
+        consume(TK_LPAREN, "("); node->left = expression(); consume(TK_RPAREN, ")");
+        return node;
+    }
+    if (match(TK_STD_SPLIT)) {
+        ASTNode* node = newNode(NODE_STD_SPLIT);
+        consume(TK_LPAREN, "("); 
+        node->left = expression(); // string
+        consume(TK_COMMA, ",");
+        node->right = expression(); // delimiter
+        consume(TK_RPAREN, ")");
+        return node;
+    }
+    if (match(TK_STD_TO_INT)) {
+        ASTNode* node = newNode(NODE_STD_TO_INT);
+        consume(TK_LPAREN, "("); node->left = expression(); consume(TK_RPAREN, ")");
+        return node;
+    }
+    if (match(TK_STD_TO_STR)) {
+        ASTNode* node = newNode(NODE_STD_TO_STR);
+        consume(TK_LPAREN, "("); node->left = expression(); consume(TK_RPAREN, ")");
+        return node;
+    }
+    // Dans parser.c, à l'intérieur de la fonction primary()
+
+    if (match(TK_IO_EXISTS)) {
+        ASTNode* node = newNode(NODE_PATH_EXISTS);
+        consume(TK_LPAREN, "Expected '('");
+        node->left = expression(); // Le chemin
+        consume(TK_RPAREN, "Expected ')'");
+        return node; // On retourne le nœud comme une valeur !
+    }
+
+    if (match(TK_IO_READ)) {
+        ASTNode* node = newNode(NODE_FILE_READ);
+        consume(TK_LPAREN, "Expected '('");
+        node->left = expression(); // Le chemin
+        consume(TK_RPAREN, "Expected ')'");
+        return node;
+    }
+    if (match(TK_THIS)) {
+        return newNode(NODE_THIS);
+    }
+    if (match(TK_HTTP_GET)) return httpGetStatement();
+    if (match(TK_HTTP_POST)) return httpPostStatement();
+    if (match(TK_HTTP_DOWNLOAD)) return httpDownloadStatement();
+    if (match(TK_SYS_EXEC)) return sysExecStatement(); // Retourne le code de sortie
+    if (match(TK_SYS_ARGV)) return sysArgvStatement();
+    if (match(TK_JSON_GET)) return jsonGetStatement();
     if (match(TK_TRUE)) return newBoolNode(true);
     if (match(TK_FALSE)) return newBoolNode(false);
     if (match(TK_NULL)) return newNode(NODE_NULL);
     if (match(TK_UNDEFINED)) return newNode(NODE_UNDEFINED);
     if (match(TK_NAN)) return newNode(NODE_NAN);
     if (match(TK_INF)) return newNode(NODE_INF);
+    
     if (match(TK_INT)) return newIntNode(previous.value.int_val);
     if (match(TK_FLOAT)) return newFloatNode(previous.value.float_val);
     if (match(TK_STRING)) return newStringNode(previous.value.str_val);
-
-    // --- IDENTIFIANT & MOTS-CLÉS SPÉCIAUX ---
-    if (match(TK_THIS)) return newNode(NODE_THIS);
-    if (match(TK_IDENT)) return newIdentNode(previous.value.str_val);
+    // Dans parser.c, fonction primary()
+    if (match(TK_NET_SOCKET)) return netSocketStatement();
+    if (match(TK_NET_LISTEN)) return netListenStatement();
+    if (match(TK_NET_ACCEPT)) return netAcceptStatement();
+    if (match(TK_NET_RECV)) return netRecvStatement();
+    if (match(TK_IDENT)) {
+        return newIdentNode(previous.value.str_val);
+    }
     
-    // --- WELD (Entrée utilisateur) ---
-    if (match(TK_WELD)) {
-        ASTNode* node = newNode(NODE_WELD);
-        consume(TK_LPAREN, "Expected '(' after weld");
-        if (!check(TK_RPAREN)) node->left = expression();
-        consume(TK_RPAREN, "Expected ')'");
+    // Sizeof operator
+    if (match(TK_SIZEOF) || match(TK_SIZE) || match(TK_SIZ)) {
+        consume(TK_LPAREN, "Expected '(' after size");
+        
+        ASTNode* node = newNode(NODE_SIZEOF);
+        if (node) {
+            if (match(TK_IDENT)) {
+                node->data.size_info.var_name = str_copy(previous.value.str_val);
+            } else {
+                error("Expected identifier in size()");
+                free(node);
+                return NULL;
+            }
+            
+            consume(TK_RPAREN, "Expected ')' after size()");
+        }
         return node;
     }
     
-    // --- 'new' (Instanciation) ---
+    // New operator
     if (match(TK_NEW)) {
         ASTNode* node = newNode(NODE_NEW);
         if (!match(TK_IDENT)) {
@@ -878,38 +830,161 @@ static ASTNode* primary() {
             free(node);
             return NULL;
         }
+        
         node->data.name = str_copy(previous.value.str_val);
-        // Gérer les arguments du constructeur
+        
         if (match(TK_LPAREN)) {
+            // Parse constructor arguments
+            ASTNode* args = NULL;
+            ASTNode* current_arg = NULL;
+            
             if (!check(TK_RPAREN)) {
-                node->left = expression(); // Simplifié pour un arg, à étendre pour plusieurs
+                args = expression();
+                current_arg = args;
+                
+                while (match(TK_COMMA)) {
+                    ASTNode* next_arg = expression();
+                    if (current_arg) {
+                        current_arg->right = next_arg;
+                        current_arg = next_arg;
+                    }
+                }
             }
+            
             consume(TK_RPAREN, "Expected ')' after constructor arguments");
+            node->left = args;
+        }
+        
+        return node;
+    }
+    
+    // Delete operator
+    if (match(TK_DELETE)) {
+        ASTNode* node = newNode(NODE_DELETE);
+        node->left = unary();
+        return node;
+    }
+    
+    // Spread operator
+    if (match(TK_SPREAD)) {
+        ASTNode* node = newNode(NODE_UNARY);
+        node->op_type = TK_SPREAD;
+        node->left = primary();
+        return node;
+    }
+    
+    // Parenthesized expression
+    if (match(TK_LPAREN)) {
+        ASTNode* expr = expression();
+        consume(TK_RPAREN, "Expected ')' after expression");
+        return expr;
+    }
+    
+    // List/Array literal
+    if (match(TK_LBRACKET)) {
+        ASTNode* node = newNode(NODE_LIST);
+        ASTNode* current_elem = NULL;
+        
+        if (!check(TK_RBRACKET)) {
+            ASTNode* first = expression();
+            node->left = first;
+            current_elem = first;
+            
+            while (match(TK_COMMA)) {
+                if (check(TK_RBRACKET)) break;
+                ASTNode* next = expression();
+                if (current_elem) {
+                    current_elem->right = next;
+                    current_elem = next;
+                }
+            }
+        }
+        
+        consume(TK_RBRACKET, "Expected ']' after list");
+        return node;
+    }
+    
+    // Object/Map literal
+    if (match(TK_LBRACE)) {
+        ASTNode* node = newNode(NODE_MAP);
+        ASTNode* first_pair = NULL;
+        ASTNode* current_pair = NULL;
+        
+        if (!check(TK_RBRACE)) {
+            do {
+                char* key = NULL;
+                if (match(TK_STRING)) {
+                    key = str_copy(previous.value.str_val);
+                } else if (match(TK_IDENT)) {
+                    key = str_copy(previous.value.str_val);
+                } else {
+                    error("Expected string or identifier as object key");
+                    break;
+                }
+                
+                consume(TK_COLON, "Expected ':' after object key");
+                
+                ASTNode* value = expression();
+                
+                ASTNode* pair = newNode(NODE_ASSIGN);
+                if (pair) {
+                    pair->data.name = key;
+                    pair->left = value;
+                }
+                
+                if (!first_pair) {
+                    first_pair = pair;
+                    current_pair = pair;
+                } else {
+                    current_pair->right = pair;
+                    current_pair = pair;
+                }
+                
+            } while (match(TK_COMMA));
+        }
+        
+        consume(TK_RBRACE, "Expected '}' after object");
+        node->left = first_pair;
+        return node;
+    }
+    
+    // JSON literal
+    if (match(TK_JSON)) {
+        consume(TK_STRING, "Expected JSON string after 'json'");
+        
+        ASTNode* node = newNode(NODE_JSON);
+        if (node) {
+            node->data.data_literal.data = str_copy(previous.value.str_val);
+            node->data.data_literal.format = str_copy("json");
         }
         return node;
     }
     
-    // --- EXPRESSIONS PARENTHÉSÉES ---
-    if (match(TK_LPAREN)) {
-        ASTNode* expr = expression();
-        consume(TK_RPAREN, "Expected ')' after expression.");
-        return expr;
+    // XML literal
+    if (match(TK_XML)) {
+        consume(TK_STRING, "Expected XML string after 'xml'");
+        
+        ASTNode* node = newNode(NODE_XML);
+        if (node) {
+            node->data.data_literal.data = str_copy(previous.value.str_val);
+            node->data.data_literal.format = str_copy("xml");
+        }
+        return node;
     }
     
-    // --- LISTES & MAPS (Structures de base) ---
-    if (match(TK_LBRACKET)) {
-        // La logique de parsing de liste doit aller ici
-        consume(TK_RBRACKET, "Expected ']' after list elements.");
-        return newNode(NODE_LIST);
-    }
-    if (match(TK_LBRACE)) {
-        // La logique de parsing de map/objet doit aller ici
-        consume(TK_RBRACE, "Expected '}' after object properties.");
-        return newNode(NODE_MAP);
+    // YAML literal
+    if (match(TK_YAML)) {
+        consume(TK_STRING, "Expected YAML string after 'yaml'");
+        
+        ASTNode* node = newNode(NODE_YAML);
+        if (node) {
+            node->data.data_literal.data = str_copy(previous.value.str_val);
+            node->data.data_literal.format = str_copy("yaml");
+        }
+        return node;
     }
     
-    // Si rien ne correspond, c'est une erreur de syntaxe
-    errorAtCurrent("Expected expression.");
+    errorAtCurrent("Expected expression");
     return NULL;
 }
 
@@ -2439,10 +2514,6 @@ static ASTNode* netCloseStatement() {
     return node;
 }
 static ASTNode* statement() {
-    if (check(TK_IDENT)) {
-    const char* module_name = current.value.str_val;
-    Token start_token = current; // Sauvegarde pour revenir en arrière si ce n'est pas un appel natif
-
     if (match(TK_PRINT)) return printStatement();
     if (match(TK_PRINT_DB)) {
         warningAt(previous, "printdb not implemented, using print");
@@ -2453,7 +2524,7 @@ static ASTNode* statement() {
         consume(TK_SEMICOLON, "Expected ';' after importdb");
          return node;
     }
-    
+    // Dans statement()
     if (match(TK_LOCK)) {
         ASTNode* node = newNode(NODE_LOCK);
         consume(TK_LPAREN, "Expected '('");
