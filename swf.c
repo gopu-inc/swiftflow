@@ -2391,7 +2391,7 @@ static void repl() {
 static char* loadFile(const char* filename) {
     FILE* f = fopen(filename, "r");
     if (!f) {
-        runtime_error(node, "Cannot assign to constant '%s'", target_name);
+       printf("Cannot assign to constant '%s'", filename);
         return NULL;
     }
     
@@ -2439,7 +2439,7 @@ int main(int argc, char* argv[]) {
         // Check if first argument is a flag
         if (argv[1][0] == '-') {
             // It's a flag but not recognized, show error
-            runtime_error(node, "Cannot assign to constant '%s'", target_name);
+            printf("Cannot assign to constant '%s'", argv);
             printf("Use %s--help%s for usage information.\n", COLOR_CYAN, COLOR_RESET);
             return 1;
         }
