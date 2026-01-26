@@ -71,6 +71,7 @@ typedef enum {
     TK_SPACESHIP, TK_ELLIPSIS, TK_RANGE, TK_RANGE_INCL,
     TK_QUESTION, TK_SCOPE, TK_SAFE_NAV,
     
+    
     // Type operators
     TK_IN, TK_IS, TK_ISNOT, TK_AS_OP,
     
@@ -282,6 +283,7 @@ typedef enum {
     NODE_STD_SPLIT,
     NODE_STD_TO_INT, 
     NODE_STD_TO_STR,
+    NODE_THIS,
     // reseaux
     NODE_NET_SOCKET,
     NODE_NET_CONNECT,
