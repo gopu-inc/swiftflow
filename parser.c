@@ -2407,7 +2407,7 @@ static ASTNode* declaration() {
         is_async = true;
     }
     
-    if (match(TK_FUNC)) {
+    if (match(TK_FUNC) || match(TK_DEF)) {
         ASTNode* func = functionDeclaration(false);
         if (func && is_async) {
             ASTNode* async_node = newNode(NODE_ASYNC);
@@ -2506,7 +2506,15 @@ static ASTNode* statement() {
         consume(TK_SEMICOLON, "Expected ';' after importdb");
          return node;
     }
-    
+    // Dans statement()
+    if (match(TK_LOCK)) {
+        ASTNode* node = newNode(NODE_LOCK);
+        consume(TK_LPAREN, "Expected '('");
+        node->left = expression(); // Variable à verrouiller
+        consume(TK_RPAREN, "Expected ')'");
+        node->right = statement(); // Bloc à exécuter
+        return node;
+    }
     if (match(TK_SYS_EXIT)) return sysExitStatement();
     // sys.exec peut aussi être un statement
     if (match(TK_SYS_EXEC)) return sysExecStatement();
