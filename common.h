@@ -47,7 +47,7 @@ typedef enum {
 
    TK_HTTP_GET, TK_HTTP_POST, TK_HTTP_DOWNLOAD,
     TK_SYS_EXEC, TK_SYS_ARGV, TK_SYS_EXIT,
-    TK_JSON_GET, TK_DEF, TK_NONLOCAL, TK_LOCK, TK_BDD,
+    TK_JSON_GET,
     TK_TYPE_UTF8,
 
 
@@ -301,7 +301,6 @@ typedef enum {
     // expression
     NODE_INT,
     NODE_NONLOCAL,
-    NODE_LOCK,
     NODE_BDD,
     NODE_FLOAT,
     NODE_STRING,
