@@ -1458,7 +1458,78 @@ static void execute(ASTNode* node) {
     if (!node) return;
     
     switch (node->type) {
-        // Dans execute, ajoute :
+    case NODE_METHOD_CALL: {
+        char* method_name = node->data.name;
+        
+        // 1. Évaluer l'objet pour trouver son ID d'instance (ex: "inst_1")
+        char* inst_id = evalString(node->left);
+        if (!inst_id) {
+            runtime_error(node, "Cannot call method on a null object");
+            break;
+        }
+        
+        // 2. Trouver la classe de l'instance (ex: "Zarch")
+        char* cls = findClassOf(inst_id);
+        if (!cls) {
+            runtime_error(node, "Object instance has no class");
+            free(inst_id);
+            break;
+        }
+
+        // 3. Construire le nom interne de la fonction (ex: "Zarch_install")
+        char real_func_name[256];
+        snprintf(real_func_name, 256, "%s_%s", cls, method_name);
+
+        Function* func = findFunction(real_func_name);
+        if (!func) {
+            runtime_error(node, "Method '%s' not found in class '%s'", method_name, cls);
+            free(inst_id);
+            break;
+        }
+
+        // --- EXÉCUTION (similaire à NODE_FUNC_CALL) ---
+        char* prev_this = current_this;
+        current_this = inst_id; // Injecter 'this'
+
+        Function* prev_func = current_function;
+        current_function = func;
+        int old_scope = scope_level;
+        scope_level++;
+
+        // Passage des arguments (le code que tu as déjà)
+        if (node->right && func->param_names) {
+            ASTNode* arg = node->right;
+            int param_idx = 0;
+            while (arg && param_idx < func->param_count) {
+                // ... (Logique de binding des arguments) ...
+                if (var_count < 1000) {
+                    Variable* var = &vars[var_count++];
+                    strncpy(var->name, func->param_names[param_idx], 99);
+                    var->scope_level = scope_level;
+                    var->is_initialized = true;
+                    if(arg->type == NODE_STRING) {
+                        var->is_string = true;
+                        var->value.str_val = evalString(arg);
+                    } else {
+                        var->is_float = true;
+                        var->value.float_val = evalFloat(arg);
+                    }
+                }
+                arg = arg->right;
+                param_idx++;
+            }
+        }
+        
+        func->has_returned = false;
+        if (func->body) execute(func->body);
+        
+        // Restauration
+        scope_level = old_scope;
+        current_function = prev_func;
+        current_this = prev_this; // Restaurer 'this'
+        free(inst_id);
+        break;
+    }
         case NODE_SYS_EXIT: {
             int code = 0;
             if (node->left) code = (int)evalFloat(node->left);
