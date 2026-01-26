@@ -962,8 +962,7 @@ void io_copy(ASTNode* node) {
 // [SECTION] FONCTION D'INITIALISATION
 // ======================================================
 void init_io_module() {
-    printf("%s[IO MODULE]%s Initializing...\n", COLOR_CYAN, COLOR_RESET);
-    
+        
     // Initialiser stdin, stdout, stderr
     file_descriptors[0].id = 0;
     file_descriptors[0].name = str_copy("stdin");
@@ -994,10 +993,7 @@ void init_io_module() {
     
     fd_count = 3;
     
-    printf("%s[IO MODULE]%s Initialized with %d file descriptors\n", 
-           COLOR_GREEN, COLOR_RESET, fd_count);
 }
-// Ajoute ceci à la fin de io.c
 
 // Vérifie si un fichier existe et retourne true/false
 bool io_exists_bool(const char* path) {
