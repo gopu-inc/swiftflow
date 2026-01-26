@@ -1,5 +1,6 @@
 name: Notify Discord on Release
 on:
+  breanches: main
   release:
     types: [published, released]
 
