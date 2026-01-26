@@ -1440,7 +1440,7 @@ static void registerGlobalConstant(const char* name, int value) {
         var->is_string = false;
         var->value.int_val = value;
         var_count++;
-        printf("%s[ENUM]%s Registered %s = %d\n", COLOR_MAGENTA, COLOR_RESET, name, value);
+        
     }
 }
 
