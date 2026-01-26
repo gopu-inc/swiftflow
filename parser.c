@@ -727,6 +727,23 @@ static ASTNode* primary() {
         consume(TK_LPAREN, "("); node->left = expression(); consume(TK_RPAREN, ")");
         return node;
     }
+    // Dans parser.c, à l'intérieur de la fonction primary()
+
+    if (match(TK_IO_EXISTS)) {
+        ASTNode* node = newNode(NODE_PATH_EXISTS);
+        consume(TK_LPAREN, "Expected '('");
+        node->left = expression(); // Le chemin
+        consume(TK_RPAREN, "Expected ')'");
+        return node; // On retourne le nœud comme une valeur !
+    }
+
+    if (match(TK_IO_READ)) {
+        ASTNode* node = newNode(NODE_FILE_READ);
+        consume(TK_LPAREN, "Expected '('");
+        node->left = expression(); // Le chemin
+        consume(TK_RPAREN, "Expected ')'");
+        return node;
+    }
     if (match(TK_HTTP_GET)) return httpGetStatement();
     if (match(TK_HTTP_POST)) return httpPostStatement();
     if (match(TK_HTTP_DOWNLOAD)) return httpDownloadStatement();
@@ -2495,12 +2512,10 @@ static ASTNode* statement() {
     if (match(TK_NET_CLOSE)) return netCloseStatement();
     if (match(TK_IO_OPEN)) return ioOpenStatement();
     if (match(TK_IO_CLOSE)) return ioCloseStatement();
-    if (match(TK_IO_READ)) return ioReadStatement();
     if (match(TK_IO_WRITE)) return ioWriteStatement();
     if (match(TK_IO_SEEK)) return ioSeekStatement();
     if (match(TK_IO_TELL)) return ioTellStatement();
     if (match(TK_IO_FLUSH)) return ioFlushStatement();
-    if (match(TK_IO_EXISTS)) return ioExistsStatement();
     if (match(TK_IO_ISFILE)) return ioIsfileStatement();
     if (match(TK_IO_ISDIR)) return ioIsdirStatement();
     if (match(TK_IO_MKDIR)) return ioMkdirStatement();
