@@ -1139,9 +1139,10 @@ case NODE_WELD: {
             }
         }
             
-        case NODE_FUNC_CALL: {
+        // DANS evalString (ATTENTION : C'est la version qui retourne du TEXTE)
+    case NODE_FUNC_CALL: {
         char* func_name = node->data.name;
-        char* prev_this = current_this; // Sauvegarde du this précédent
+        char* prev_this = current_this; 
         
         // --- [OOP] LOGIQUE APPEL METHODE (obj.method) ---
         char* dot = strchr(func_name, '.');
@@ -1149,86 +1150,54 @@ case NODE_WELD: {
         bool is_method = false;
 
         if (dot) {
-            // C'est un appel objet ! ex: "app.install"
             int len = dot - func_name;
             char var_name[128];
             strncpy(var_name, func_name, len);
             var_name[len] = '\0';
             char* method = dot + 1;
             
-            // 1. Trouver l'instance (ex: "inst_1" dans la variable "app")
             int idx = findVar(var_name);
             if (idx >= 0 && vars[idx].is_string) {
                 char* instance_id = vars[idx].value.str_val;
-                
-                // 2. Trouver la classe (ex: "Zarch")
                 char* cls = findClassOf(instance_id);
                 if (cls) {
-                    // 3. Construire "Zarch_install"
                     snprintf(real_func_name, 256, "%s_%s", cls, method);
                     func_name = real_func_name;
-                    
-                    // 4. Définir le contexte 'this'
                     current_this = instance_id;
                     is_method = true;
                 }
             }
         }
 
-        // --- RECHERCHE ET EXECUTION ---
         Function* func = findFunction(func_name);
         
         if (func) {
             Function* prev_func = current_function;
             current_function = func;
-            
             int old_scope = scope_level;
             scope_level++;
             
-            // --- BINDING DES ARGUMENTS ---
+            // Passage des arguments (Simplifié pour evalString)
             if (node->left && func->param_names) {
                 ASTNode* arg = node->left;
                 int param_idx = 0;
-                
                 while (arg && param_idx < func->param_count) {
                     if (func->param_names[param_idx]) {
                         if (var_count < 1000) {
                             Variable* var = &vars[var_count];
                             strncpy(var->name, func->param_names[param_idx], 99);
-                            var->name[99] = '\0';
                             var->type = TK_VAR;
-                            var->size_bytes = 8;
                             var->scope_level = scope_level;
-                            var->is_constant = false;
                             var->is_initialized = true;
                             
-                            // Détection basique du type de l'argument passé
-                            // Pour evalFloat, on convertit tout en nombre ou on gère les strings si nécessaire
-                            // (Idéalement evalValue générique, ici on adapte pour float)
-                            
+                            // On évalue l'argument
                             if (arg->type == NODE_STRING) {
                                 var->is_string = true;
-                                var->is_float = false;
                                 var->value.str_val = evalString(arg);
-                            } else if (arg->type == NODE_IDENT) {
-                                // Si c'est une variable, on regarde son type
-                                int arg_idx = findVar(arg->data.name);
-                                if (arg_idx >= 0 && vars[arg_idx].is_string) {
-                                    var->is_string = true;
-                                    var->is_float = false;
-                                    var->value.str_val = str_copy(vars[arg_idx].value.str_val);
-                                } else {
-                                    var->is_float = true;
-                                    var->is_string = false;
-                                    var->value.float_val = evalFloat(arg);
-                                }
                             } else {
-                                // Par défaut numérique
                                 var->is_float = true;
-                                var->is_string = false;
                                 var->value.float_val = evalFloat(arg);
                             }
-                            
                             var_count++;
                         }
                     }
@@ -1237,47 +1206,27 @@ case NODE_WELD: {
                 }
             }
             
-            // Reset de l'état de retour
             func->has_returned = false;
-            func->return_value = 0;
-            if (func->return_string) {
-                free(func->return_string);
-                func->return_string = NULL;
-            }
+            if (func->body) execute(func->body);
             
-            // --- EXECUTION DU CORPS ---
-            if (func->body) {
-                execute(func->body);
-            }
-            
-            // Restauration du scope
             scope_level = old_scope;
             current_function = prev_func;
+            if (is_method) current_this = prev_this;
             
-            // --- RESTAURATION DE 'THIS' ---
-            if (is_method) {
-                current_this = prev_this;
-            }
-            
-            // Retour de la valeur
+            // RETOUR (Version String)
             if (func->return_string) {
-                // Si la fonction retourne une string mais qu'on est dans evalFloat
-                char* endptr;
-                double val = strtod(func->return_string, &endptr);
-                if (*endptr != '\0') return 0.0; // Pas un nombre
-                return val;
+                return str_copy(func->return_string);
+            } else {
+                char buf[64];
+                sprintf(buf, "%g", func->return_value);
+                return str_copy(buf);
             }
-            return func->return_value;
         }
         
-        printf("%s[EXEC ERROR]%s Function not found: %s\n", COLOR_RED, COLOR_RESET, func_name);
-        
-        // Sécurité : toujours restaurer this même en cas d'erreur
         if (is_method) current_this = prev_this;
-        
-        return 0.0;
+        return str_copy("");
     }
-
+    }
 static bool evalBool(ASTNode* node) {
     if (!node) return false;
     
