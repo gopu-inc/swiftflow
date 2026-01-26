@@ -61,7 +61,7 @@ int progress_callback(void *clientp, double dltotal, double dlnow, double ultota
 
 void init_http_module(void) {
     curl_global_init(CURL_GLOBAL_ALL);
-    printf("%s[HTTP MODULE]%s Initialized libcurl\n", COLOR_CYAN, COLOR_RESET);
+   
 }
 
 char* http_get(const char* url) {
