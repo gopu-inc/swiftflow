@@ -829,7 +829,17 @@ static double evalFloat(ASTNode* node) {
                 return evalFloat(node->third);
             }
         }
-            
+        
+    case NODE_STR_FUNC: {
+        if (node->op_type == TK_STR_CONTAINS) {
+            char* h = evalString(node->left);
+            char* n = evalString(node->right);
+            int res = std_str_contains(h, n);
+            free(h); free(n);
+            return (double)res;
+        }
+        return 0.0;
+    }
         case NODE_FUNC_CALL: {
             Function* func = findFunction(node->data.name);
             if (func) {
@@ -900,6 +910,7 @@ static double evalFloat(ASTNode* node) {
             return 0.0;
     }
 }
+// DANS evalFloat
 
 static char* evalString(ASTNode* node) {
     if (!node) return str_copy("");
@@ -907,6 +918,37 @@ static char* evalString(ASTNode* node) {
     switch (node->type) {
     
     // --- INSTANCIATION ---
+    // DANS evalString
+
+    case NODE_ENV_FUNC: {
+        if (node->op_type == TK_ENV_GET) {
+            char* key = evalString(node->left);
+            char* val = std_env_get(key);
+            free(key);
+            return val ? val : str_copy(""); // Retourne chaîne vide si pas trouvé
+        }
+        if (node->op_type == TK_ENV_OS) {
+            return std_env_os();
+        }
+        return str_copy("");
+    }
+
+    case NODE_PATH_FUNC: {
+        char* p1 = evalString(node->left);
+        char* res = NULL;
+        
+        if (node->op_type == TK_PATH_BASENAME) res = std_path_basename(p1);
+        else if (node->op_type == TK_PATH_DIRNAME) res = std_path_dirname(p1);
+        else if (node->op_type == TK_PATH_ABS) res = std_path_abs(p1);
+        else if (node->op_type == TK_PATH_JOIN) {
+            char* p2 = evalString(node->right);
+            res = std_path_join(p1, p2);
+            free(p2);
+        }
+        
+        free(p1);
+        return res ? res : str_copy("");
+    }
     case NODE_NEW: {
         static int instance_id = 0;
         char instance_name[64];
@@ -1487,10 +1529,18 @@ static void execute(ASTNode* node) {
     if (!node) return;
     
     switch (node->type) {
+    case NODE_ENV_FUNC: {
+        if (node->op_type == TK_ENV_SET) {
+            char* key = evalString(node->left);
+            char* val = evalString(node->right);
+            std_env_set(key, val);
+            free(key); free(val);
+        }
+        break;
+    }
     case NODE_METHOD_CALL: {
         char* method_name = node->data.name;
         
-        // 1. Évaluer l'objet pour trouver son ID d'instance (ex: "inst_1")
         char* inst_id = evalString(node->left);
         if (!inst_id) {
             runtime_error(node, "Cannot call method on a null object");
