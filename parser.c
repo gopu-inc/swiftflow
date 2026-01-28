@@ -761,10 +761,9 @@ static ASTNode* jsonGetStatement() {
     consume(TK_RPAREN, "Expected ')'");
     return node;
 }
-
 static ASTNode* primary() {
     // ========================================================================
-    // [SECTION] Appels de Modules Natifs
+    // [SECTION] Appels de Modules Natifs (io.open, math.sin, etc.)
     // ========================================================================
     if (check(TK_IDENT)) {
         const char* module_name = current.value.str_val;
@@ -779,10 +778,10 @@ static ASTNode* primary() {
                 if (strcmp(cmd, "close") == 0) return ioCloseStatement();
                 if (strcmp(cmd, "read") == 0) return ioReadStatement();
                 if (strcmp(cmd, "write") == 0) return ioWriteStatement();
-                if (strcmp(cmd, "exists") == 0) return ioExistsStatement();
                 if (strcmp(cmd, "seek") == 0) return ioSeekStatement();
                 if (strcmp(cmd, "tell") == 0) return ioTellStatement();
                 if (strcmp(cmd, "flush") == 0) return ioFlushStatement();
+                if (strcmp(cmd, "exists") == 0) return ioExistsStatement();
                 if (strcmp(cmd, "isfile") == 0) return ioIsfileStatement();
                 if (strcmp(cmd, "isdir") == 0) return ioIsdirStatement();
                 if (strcmp(cmd, "mkdir") == 0) return ioMkdirStatement();
@@ -792,33 +791,8 @@ static ASTNode* primary() {
                 if (strcmp(cmd, "rename") == 0) return ioRenameStatement();
                 if (strcmp(cmd, "copy") == 0) return ioCopyStatement();
             }
-            current = start_token;
+            current = start_token; // Reset si pas trouvé
         }
-
-
-
-
-         // --- MODULE 'crypto' ---
-        else if (strcmp(module_name, "crypto") == 0) {
-            advance();
-            if (match(TK_PERIOD) && match(TK_IDENT)) {
-                const char* cmd = previous.value.str_val;
-                ASTNode* node = newNode(NODE_CRYPTO_FUNC);
-                
-                if (strcmp(cmd, "sha256") == 0) node->op_type = TK_CRYPTO_SHA256;
-                else if (strcmp(cmd, "b64encode") == 0) node->op_type = TK_CRYPTO_B64ENC;
-                else {
-                    free(node); current = start_token; goto end_native_check;
-                }
-                
-                consume(TK_LPAREN, "(");
-                node->left = expression(); // data
-                consume(TK_RPAREN, ")");
-                return node;
-            }
-            current = start_token;
-        }
-
         // --- MODULE 'net' ---
         else if (strcmp(module_name, "net") == 0) {
             advance();
@@ -860,7 +834,8 @@ static ASTNode* primary() {
         else if (strcmp(module_name, "json") == 0) {
             advance();
             if (match(TK_PERIOD) && match(TK_IDENT)) {
-                if (strcmp(previous.value.str_val, "get") == 0) return jsonGetStatement();
+                const char* cmd = previous.value.str_val;
+                if (strcmp(cmd, "get") == 0) return jsonGetStatement();
             }
             current = start_token;
         }
@@ -901,6 +876,11 @@ static ASTNode* primary() {
                 const char* cmd = previous.value.str_val;
                 ASTNode* node = newNode(NODE_MATH_FUNC);
                 
+                // Constantes
+                if (strcmp(cmd, "PI") == 0) { node->op_type = TK_MATH_PI; return node; }
+                if (strcmp(cmd, "E") == 0) { node->op_type = TK_MATH_E; return node; }
+
+                // Fonctions
                 if (strcmp(cmd, "sin") == 0) node->op_type = TK_MATH_SIN;
                 else if (strcmp(cmd, "cos") == 0) node->op_type = TK_MATH_COS;
                 else if (strcmp(cmd, "tan") == 0) node->op_type = TK_MATH_TAN;
@@ -916,21 +896,7 @@ static ASTNode* primary() {
                     current = start_token;
                     goto end_native_check; 
                 }
-                        
-        // --- MISE A JOUR MODULE 'math' (Constantes) ---
-        else if (strcmp(module_name, "math") == 0) {
-            advance();
-            if (match(TK_PERIOD) && match(TK_IDENT)) {
-                const char* cmd = previous.value.str_val;
                 
-                // Constantes (PI, E) - Sans parenthèses
-                if (strcmp(cmd, "PI") == 0) {
-                    ASTNode* node = newNode(NODE_MATH_FUNC);
-                    node->op_type = TK_MATH_PI;
-                    return node;
-                }
-            }
-        }
                 consume(TK_LPAREN, "(");
                 if (node->op_type != TK_MATH_RANDOM) {
                     node->left = expression();
@@ -998,7 +964,7 @@ static ASTNode* primary() {
             }
             current = start_token;
         }
-        // --- MODULE 'env' (NOUVEAU) ---
+        // --- MODULE 'env' ---
         else if (strcmp(module_name, "env") == 0) {
             advance();
             if (match(TK_PERIOD) && match(TK_IDENT)) {
@@ -1022,7 +988,7 @@ static ASTNode* primary() {
             }
             current = start_token;
         }
-        // --- MODULE 'path' (NOUVEAU) ---
+        // --- MODULE 'path' ---
         else if (strcmp(module_name, "path") == 0) {
             advance();
             if (match(TK_PERIOD) && match(TK_IDENT)) {
@@ -1040,6 +1006,26 @@ static ASTNode* primary() {
                 if (node->op_type == TK_PATH_JOIN) {
                     consume(TK_COMMA, ","); node->right = expression();
                 }
+                consume(TK_RPAREN, ")");
+                return node;
+            }
+            current = start_token;
+        }
+        // --- MODULE 'crypto' ---
+        else if (strcmp(module_name, "crypto") == 0) {
+            advance();
+            if (match(TK_PERIOD) && match(TK_IDENT)) {
+                const char* cmd = previous.value.str_val;
+                ASTNode* node = newNode(NODE_CRYPTO_FUNC);
+                
+                if (strcmp(cmd, "sha256") == 0) node->op_type = TK_CRYPTO_SHA256;
+                else if (strcmp(cmd, "b64encode") == 0) node->op_type = TK_CRYPTO_B64ENC;
+                else if (strcmp(cmd, "b64decode") == 0) node->op_type = TK_CRYPTO_B64DEC;
+                else if (strcmp(cmd, "md5") == 0) node->op_type = TK_CRYPTO_MD5;
+                else { free(node); current = start_token; goto end_native_check; }
+                
+                consume(TK_LPAREN, "(");
+                node->left = expression();
                 consume(TK_RPAREN, ")");
                 return node;
             }
@@ -1092,11 +1078,13 @@ static ASTNode* primary() {
     }
     
     if (match(TK_LBRACKET)) {
+        // TODO: Implémenter parsing liste
         consume(TK_RBRACKET, "]");
         return newNode(NODE_LIST);
     }
     if (match(TK_LBRACE)) {
-        consume(TK_RBRACE, "}");
+        // TODO: Implémenter parsing map
+        consume(TK_RBRBRACE, "}"); // Correction: TK_RBRACE
         return newNode(NODE_MAP);
     }
 
