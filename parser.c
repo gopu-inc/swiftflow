@@ -584,7 +584,7 @@ static ASTNode* lambdaExpression() {
 }
 
 // Function calls
-// DANS parser.c
+
 
 static ASTNode* call() {
     ASTNode* expr = memberAccess();
@@ -770,7 +770,54 @@ static ASTNode* primary() {
         // Variables déclarées ICI, valables pour tout le bloc
         const char* module_name = current.value.str_val;
         Token start_token = current; 
-
+        // --- MODULE 'env' ---
+        else if (strcmp(module_name, "env") == 0) {
+            advance();
+            if (match(TK_PERIOD) && match(TK_IDENT)) {
+                const char* cmd = previous.value.str_val;
+                ASTNode* node = newNode(NODE_ENV_FUNC);
+                
+                if (strcmp(cmd, "get") == 0) node->op_type = TK_ENV_GET;
+                else if (strcmp(cmd, "set") == 0) node->op_type = TK_ENV_SET;
+                else if (strcmp(cmd, "os") == 0) node->op_type = TK_ENV_OS;
+                
+                consume(TK_LPAREN, "(");
+                if (node->op_type != TK_ENV_OS) {
+                    node->left = expression(); // key
+                    if (node->op_type == TK_ENV_SET) {
+                        consume(TK_COMMA, ",");
+                        node->right = expression(); // value
+                    }
+                }
+                consume(TK_RPAREN, ")");
+                return node;
+            }
+            current = start_token;
+        }
+        
+        // --- MODULE 'path' ---
+        else if (strcmp(module_name, "path") == 0) {
+            advance();
+            if (match(TK_PERIOD) && match(TK_IDENT)) {
+                const char* cmd = previous.value.str_val;
+                ASTNode* node = newNode(NODE_PATH_FUNC);
+                
+                if (strcmp(cmd, "basename") == 0) node->op_type = TK_PATH_BASENAME;
+                else if (strcmp(cmd, "dirname") == 0) node->op_type = TK_PATH_DIRNAME;
+                else if (strcmp(cmd, "join") == 0) node->op_type = TK_PATH_JOIN;
+                else if (strcmp(cmd, "abs") == 0) node->op_type = TK_PATH_ABS;
+                
+                consume(TK_LPAREN, "(");
+                node->left = expression();
+                if (node->op_type == TK_PATH_JOIN) {
+                    consume(TK_COMMA, ",");
+                    node->right = expression();
+                }
+                consume(TK_RPAREN, ")");
+                return node;
+            }
+            current = start_token;
+        }
         // --- MODULE 'io' ---
         if (strcmp(module_name, "io") == 0) {
             advance(); // Consomme "io"
@@ -924,6 +971,8 @@ static ASTNode* primary() {
                 ASTNode* node = newNode(NODE_STR_FUNC);
                 
                 if (strcmp(cmd, "upper") == 0) node->op_type = TK_STR_UPPER;
+                else if (strcmp(cmd, "trim") == 0) node->op_type = TK_STR_TRIM;
+                else if (strcmp(cmd, "contains") == 0) node->op_type = TK_STR_CONTAINS;
                 else if (strcmp(cmd, "lower") == 0) node->op_type = TK_STR_LOWER;
                 else if (strcmp(cmd, "sub") == 0) node->op_type = TK_STR_SUB;
                 else if (strcmp(cmd, "replace") == 0) node->op_type = TK_STR_REPLACE;
