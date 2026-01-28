@@ -47,7 +47,20 @@ typedef enum {
 
    TK_HTTP_GET, TK_HTTP_POST, TK_HTTP_DOWNLOAD,
     TK_SYS_EXEC, TK_SYS_ARGV, TK_SYS_EXIT,
-    TK_JSON_GET,
+    TK_JSON_GET,     TK_MATH_SIN, TK_MATH_COS, TK_MATH_TAN, TK_MATH_SQRT, 
+    TK_MATH_POW, TK_MATH_ABS, TK_MATH_FLOOR, TK_MATH_CEIL, 
+    TK_MATH_ROUND, TK_MATH_RANDOM,
+    
+    // STRING
+    TK_STR_LEN, TK_STR_UPPER, TK_STR_LOWER, TK_STR_SUB, 
+    TK_STR_REPLACE, TK_STR_FIND,
+    
+    // TIME
+    TK_TIME_NOW, TK_TIME_SLEEP, TK_TIME_FMT,
+    
+    // ENC (Encoding)
+    TK_ENC_B64ENC, TK_ENC_B64DEC,
+
     TK_TYPE_UTF8,
 
 
@@ -277,7 +290,12 @@ static const Keyword keywords[] = {
 // ======================================================
 // Dans common.h - Section NodeType
 typedef enum {
-    // http et systeme
+    // http et system
+    NODE_MATH_FUNC, // Un seul type générique pour les maths
+    NODE_STR_FUNC,  // Un seul type générique pour les strings
+    NODE_TIME_NOW,
+    NODE_TIME_SLEEP,
+    NODE_ENC_FUNC,
     NODE_HTTP_GET,
     NODE_HTTP_POST,
     NODE_HTTP_DOWNLOAD,
