@@ -2013,38 +2013,39 @@ case NODE_DIR_LIST:
 
     // --- LOOPS (WHILE) ---
     case NODE_WHILE: {
-        // Support basique des boucles
-        int safety_count = 0;
+        // Boucle tant que la condition (node->left) est vraie
         while (evalBool(node->left)) {
+            // Exécute le corps de la boucle (node->right)
             execute(node->right);
-            
-            // Vérification de retour de fonction (pour sortir si 'return' est appelé dans la boucle)
-            if (current_function && current_function->has_returned) break;
-            
-            // Sécurité boucle infinie (optionnel, mis à 1M itérations)
-            safety_count++;
-            if (safety_count > 1000000) {
-                runtime_error(node, "Cannot while func '%s'", current_function);
+
+            // Important: si un 'return' est appelé dans la boucle, on doit s'arrêter
+            if (current_function && current_function->has_returned) {
                 break;
             }
         }
         break;
     }
-
     // --- LOOPS (FOR) ---
     case NODE_FOR: {
-        // Initialisation (ex: var i = 0)
-        if (node->data.loop.init) execute(node->data.loop.init);
-        
-        // Condition & Boucle
+        // 1. Clause d'initialisation (ex: var i = 0)
+        if (node->data.loop.init) {
+            execute(node->data.loop.init);
+        }
+
+        // 2. Boucle avec condition
         while (evalBool(node->data.loop.condition)) {
-            // Corps de la boucle
+            // 3. Exécution du corps
             execute(node->data.loop.body);
-            
-            if (current_function && current_function->has_returned) break;
-            
-            // Mise à jour (ex: i = i + 1)
-            if (node->data.loop.update) execute(node->data.loop.update);
+
+            // Sortir si 'return'
+            if (current_function && current_function->has_returned) {
+                break;
+            }
+
+            // 4. Clause de mise à jour (ex: i = i + 1)
+            if (node->data.loop.update) {
+                execute(node->data.loop.update);
+            }
         }
         break;
     }
