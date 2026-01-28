@@ -199,7 +199,6 @@ int std_str_contains(const char* haystack, const char* needle) {
 // --- SECTION CRYPTO / ENCODING ---
 
 // Table Base64
-static const char b64_table[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 char* std_crypto_b64enc(const char* data) {
     if (!data) return NULL;
