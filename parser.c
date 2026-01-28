@@ -794,6 +794,31 @@ static ASTNode* primary() {
             }
             current = start_token;
         }
+
+
+
+
+         // --- MODULE 'crypto' ---
+        else if (strcmp(module_name, "crypto") == 0) {
+            advance();
+            if (match(TK_PERIOD) && match(TK_IDENT)) {
+                const char* cmd = previous.value.str_val;
+                ASTNode* node = newNode(NODE_CRYPTO_FUNC);
+                
+                if (strcmp(cmd, "sha256") == 0) node->op_type = TK_CRYPTO_SHA256;
+                else if (strcmp(cmd, "b64encode") == 0) node->op_type = TK_CRYPTO_B64ENC;
+                else {
+                    free(node); current = start_token; goto end_native_check;
+                }
+                
+                consume(TK_LPAREN, "(");
+                node->left = expression(); // data
+                consume(TK_RPAREN, ")");
+                return node;
+            }
+            current = start_token;
+        }
+
         // --- MODULE 'net' ---
         else if (strcmp(module_name, "net") == 0) {
             advance();
@@ -891,7 +916,21 @@ static ASTNode* primary() {
                     current = start_token;
                     goto end_native_check; 
                 }
+                        
+        // --- MISE A JOUR MODULE 'math' (Constantes) ---
+        else if (strcmp(module_name, "math") == 0) {
+            advance();
+            if (match(TK_PERIOD) && match(TK_IDENT)) {
+                const char* cmd = previous.value.str_val;
                 
+                // Constantes (PI, E) - Sans parenthèses
+                if (strcmp(cmd, "PI") == 0) {
+                    ASTNode* node = newNode(NODE_MATH_FUNC);
+                    node->op_type = TK_MATH_PI;
+                    return node;
+                }
+            }
+        }
                 consume(TK_LPAREN, "(");
                 if (node->op_type != TK_MATH_RANDOM) {
                     node->left = expression();
