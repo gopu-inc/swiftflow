@@ -4,7 +4,49 @@
 #include <stdarg.h>
 #include <unistd.h>
 #include "common.h"
+// ======================================================
+// [SECTION] PROTOTYPES (FORWARD DECLARATIONS)
+// ======================================================
 
+// IO
+static ASTNode* ioOpenStatement();
+static ASTNode* ioCloseStatement();
+static ASTNode* ioReadStatement();
+static ASTNode* ioWriteStatement();
+static ASTNode* ioSeekStatement();
+static ASTNode* ioTellStatement();
+static ASTNode* ioFlushStatement();
+static ASTNode* ioExistsStatement();
+static ASTNode* ioIsfileStatement();
+static ASTNode* ioIsdirStatement();
+static ASTNode* ioMkdirStatement();
+static ASTNode* ioRmdirStatement();
+static ASTNode* ioListdirStatement();
+static ASTNode* ioRemoveStatement();
+static ASTNode* ioRenameStatement();
+static ASTNode* ioCopyStatement();
+
+// Net
+static ASTNode* netSocketStatement();
+static ASTNode* netConnectStatement();
+static ASTNode* netListenStatement();
+static ASTNode* netAcceptStatement();
+static ASTNode* netSendStatement();
+static ASTNode* netRecvStatement();
+static ASTNode* netCloseStatement();
+
+// Http
+static ASTNode* httpGetStatement();
+static ASTNode* httpPostStatement();
+static ASTNode* httpDownloadStatement();
+
+// Sys
+static ASTNode* sysExecStatement();
+static ASTNode* sysArgvStatement();
+static ASTNode* sysExitStatement();
+
+// Json
+static ASTNode* jsonGetStatement();
 extern void execute(ASTNode* node);
 extern Token scanToken();
 extern void initLexer(const char* source);
