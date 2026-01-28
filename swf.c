@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 #define _XOPEN_SOURCE 700
 #include <stdio.h>
+#include "stdlib.h"
 #include "http.h"
 #include "sys.h"
 #include "json.h" // on déclare le prototype ici
@@ -658,9 +659,17 @@ static double evalFloat(ASTNode* node) {
     
     switch (node->type) {
 
-        // DANS evalFloat(ASTNode* node)
-
-     // Dans swf.c, fonction evalFloat()
+    case NODE_MATH_FUNC: {
+        double v1 = node->left ? evalFloat(node->left) : 0;
+        double v2 = node->right ? evalFloat(node->right) : 0;
+        return std_math_calc(node->op_type, v1, v2);
+    }
+    case NODE_TIME_NOW:
+        return std_time_now();
+    case NODE_TIME_SLEEP:
+        std_time_sleep(evalFloat(node->left));
+        return 0.0;
+        
     case NODE_PATH_EXISTS: {
         char* path = evalString(node->left);
         // Utilise la fonction booléenne de io.c
@@ -908,7 +917,27 @@ static char* evalString(ASTNode* node) {
         
         return str_copy(instance_name);
     }
-
+    case NODE_STR_FUNC: {
+        char* s = evalString(node->left);
+        char* res = NULL;
+        
+        if (node->op_type == TK_STR_UPPER) res = std_str_upper(s);
+        else if (node->op_type == TK_STR_LOWER) res = std_str_lower(s);
+        else if (node->op_type == TK_STR_SUB) {
+            int start = (int)evalFloat(node->right);
+            int len = (int)evalFloat(node->third);
+            res = std_str_sub(s, start, len);
+        }
+        else if (node->op_type == TK_STR_REPLACE) {
+            char* search = evalString(node->right);
+            char* replace = evalString(node->third);
+            res = std_str_replace(s, search, replace);
+            free(search); free(replace);
+        }
+        
+        if (s) free(s);
+        return res ? res : str_copy("");
+    }
     // --- ACCÈS MEMBRE ---
     case NODE_MEMBER_ACCESS: {
         char* obj_name = NULL;
@@ -1536,6 +1565,9 @@ static void execute(ASTNode* node) {
             exit(code);
             break;
         }
+        case NODE_TIME_SLEEP:
+        std_time_sleep(evalFloat(node->left));
+        break;
         case NODE_SYS_EXEC: {
              // Si utilisé comme instruction simple sans récupération de variable
              char* cmd = evalString(node->left);
