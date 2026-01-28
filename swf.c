@@ -2398,39 +2398,163 @@ static void run(const char* source, const char* filename) {
     }
     class_count = 0;
 }
+// ======================================================
+// [SECTION] SYNTAX HIGHLIGHTER
+// ======================================================
 
+// Vérifie si un mot est un mot-clé du langage
+static bool is_keyword(const char* word) {
+    // On utilise le tableau keywords défini dans common.h
+    for (int i = 0; keywords[i].keyword != NULL; i++) {
+        if (strcmp(word, keywords[i].keyword) == 0) return true;
+    }
+    return false;
+}
+
+// Affiche du code avec coloration syntaxique
+static void print_highlighted(const char* code) {
+    const char* p = code;
+    
+    while (*p) {
+        // 1. COMMENTAIRES (# ...) -> GRIS
+        if (*p == '#') {
+            printf("%s", COLOR_BRIGHT_BLACK); // Gris
+            while (*p && *p != '\n') {
+                putchar(*p++);
+            }
+            printf("%s", COLOR_RESET);
+        }
+        // 2. CHAINES DE CARACTERES ("...") -> VERT
+        else if (*p == '"' || *p == '\'') {
+            char quote = *p;
+            printf("%s", COLOR_GREEN);
+            putchar(*p++);
+            while (*p && *p != quote) {
+                if (*p == '\\' && *(p+1)) { putchar(*p++); } // Escape
+                putchar(*p++);
+            }
+            if (*p) putchar(*p++);
+            printf("%s", COLOR_RESET);
+        }
+        // 3. NOMBRES -> JAUNE
+        else if (isdigit(*p)) {
+            printf("%s", COLOR_YELLOW);
+            while (isdigit(*p) || *p == '.') {
+                putchar(*p++);
+            }
+            printf("%s", COLOR_RESET);
+        }
+        // 4. IDENTIFIANTS & MOTS-CLÉS
+        else if (isalpha(*p) || *p == '_') {
+            // Capturer le mot entier
+            char buffer[256];
+            int i = 0;
+            while ((isalnum(*p) || *p == '_') && i < 255) {
+                buffer[i++] = *p++;
+            }
+            buffer[i] = '\0';
+            
+            // Vérifier le type
+            if (is_keyword(buffer)) {
+                // Mots-clés (var, func, if...) en MAGENTA
+                if (strcmp(buffer, "func") == 0 || strcmp(buffer, "var") == 0 || 
+                    strcmp(buffer, "let") == 0 || strcmp(buffer, "const") == 0) {
+                    printf("%s%s%s", COLOR_MAGENTA, buffer, COLOR_RESET);
+                }
+                // Contrôle (if, else, return...) en CYAN
+                else if (strcmp(buffer, "if") == 0 || strcmp(buffer, "else") == 0 || 
+                         strcmp(buffer, "return") == 0 || strcmp(buffer, "while") == 0) {
+                    printf("%s%s%s", COLOR_CYAN, buffer, COLOR_RESET);
+                }
+                // Imports en BLEU
+                else if (strcmp(buffer, "import") == 0 || strcmp(buffer, "from") == 0) {
+                    printf("%s%s%s", COLOR_BLUE, buffer, COLOR_RESET);
+                }
+                // Autres mots-clés
+                else {
+                    printf("%s%s%s", COLOR_BRIGHT_MAGENTA, buffer, COLOR_RESET);
+                }
+            } 
+            // Booléens et Null en ROUGE CLAIR
+            else if (strcmp(buffer, "true") == 0 || strcmp(buffer, "false") == 0 || 
+                     strcmp(buffer, "null") == 0) {
+                printf("%s%s%s", COLOR_BRIGHT_RED, buffer, COLOR_RESET);
+            }
+            // Fonctions natives ou objets (io, net...)
+            else if (strcmp(buffer, "io") == 0 || strcmp(buffer, "net") == 0 || 
+                     strcmp(buffer, "http") == 0 || strcmp(buffer, "sys") == 0) {
+                printf("%s%s%s", COLOR_BRIGHT_YELLOW, buffer, COLOR_RESET);
+            }
+            // Identifiants normaux
+            else {
+                printf("%s", buffer);
+            }
+        }
+        // 5. SYMBOLES (Parentheses, etc) -> BLANC
+        else {
+            putchar(*p++);
+        }
+    }
+    // Assurer le reset à la fin
+    printf("%s", COLOR_RESET);
+}
 // ======================================================
 // [SECTION] REPL
 // ======================================================
 static void repl() {
     printf("\n");
-    printf("%s╔════════════════════════════════════════════════════════════════╗%s\n", COLOR_CYAN, COLOR_RESET);
-    printf("%s║              SWIFT FLOW INTERACTIVE REPL                      ║%s\n", COLOR_CYAN, COLOR_RESET);
-    printf("%s╠════════════════════════════════════════════════════════════════╣%s\n", COLOR_CYAN, COLOR_RESET);
-    printf("%s║  Type 'exit' to quit, 'clear' to clear screen, 'dbvar' for    ║%s\n", COLOR_CYAN, COLOR_RESET);
-    printf("%s║  variable information, or any SwiftFlow code to execute.      ║%s\n", COLOR_CYAN, COLOR_RESET);
-    printf("%s╚════════════════════════════════════════════════════════════════╝%s\n", COLOR_CYAN, COLOR_RESET);
+    printf("%s╔═════════════════════════════════════════════════╗%s\n", COLOR_CYAN, COLOR_RESET);
+    printf("%s║         SWIFT FLOW INTERACTIVE REPL v1.5        ║%s\n", COLOR_CYAN, COLOR_RESET);
+    printf("%s╠═════════════════════════════════════════════════╣%s\n", COLOR_CYAN, COLOR_RESET);
+    printf("%s║  Commands: exit, clear, dbvar, cat <file>       ║%s\n", COLOR_CYAN, COLOR_RESET);
+    printf("%s╚═════════════════════════════════════════════════╝%s\n", COLOR_CYAN, COLOR_RESET);
     printf("\n");
     
     char line[4096];
+    
+    // Récupérer le nom de l'utilisateur pour le prompt (optionnel, sinon juste "user")
+    char* user = getenv("USER");
+    if (!user) user = "swift";
+
     while (1) {
-        printf("%sswift>>%s ", COLOR_BRIGHT_GREEN, COLOR_RESET);
+        // Prompt style Shell : user@swift ~/dir >>
+        printf("%s%s@swift%s %s%s%s >> ", 
+               COLOR_BRIGHT_GREEN, user, COLOR_RESET, 
+               COLOR_BLUE, current_working_dir, COLOR_RESET);
+        
         fflush(stdout);
         
         if (!fgets(line, sizeof(line), stdin)) break;
         
+        // Supprimer le saut de ligne
         line[strcspn(line, "\n")] = 0;
         
-        if (strcmp(line, "exit") == 0) break;
-        if (strcmp(line, "quit") == 0) break;
-        if (strcmp(line, "clear") == 0) {
-            system("clear");
+        if (strlen(line) == 0) continue;
+        
+        // --- COMMANDES REPL ---
+        
+        if (strcmp(line, "exit") == 0 || strcmp(line, "quit") == 0) break;
+        
+        if (strcmp(line, "clear") == 0 || strcmp(line, "cls") == 0) {
+            printf("\033[H\033[J"); // Code ANSI pour clear screen
             continue;
         }
-        if (strcmp(line, "cls") == 0) {
-            system("clear");
+        
+        // Commande 'cat' pour voir un fichier avec coloration
+        if (strncmp(line, "cat ", 4) == 0) {
+            char* filename = line + 4;
+            char* content = io_read_string(filename);
+            if (content) {
+                printf("\n%s--- %s ---%s\n", COLOR_BRIGHT_BLACK, filename, COLOR_RESET);
+                print_highlighted(content);
+                printf("\n%s----------------%s\n", COLOR_BRIGHT_BLACK, COLOR_RESET);
+                free(content);
+            } else {
+                printf("%sError: Cannot read file '%s'%s\n", COLOR_RED, filename, COLOR_RESET);
+            }
             continue;
         }
+
         if (strcmp(line, "dbvar") == 0) {
             ASTNode node;
             memset(&node, 0, sizeof(node));
@@ -2438,20 +2562,15 @@ static void repl() {
             execute(&node);
             continue;
         }
-        if (strcmp(line, "version") == 0) {
-            showVersion();
-            continue;
-        }
-        if (strcmp(line, "help") == 0) {
-            showHelp();
-            continue;
-        }
-        if (strlen(line) == 0) continue;
+        
+        // --- EXECUTION ---
+        // On peut afficher une prévisualisation colorée si on veut frimer
+        // print_highlighted(line); printf("\n");
         
         run(line, "REPL");
     }
     
-    printf("\n%s[REPL]%s Goodbye! Thanks for using SwiftFlow.\n", COLOR_BLUE, COLOR_RESET);
+    printf("\n%s[REPL]%s Goodbye!\n", COLOR_BLUE, COLOR_RESET);
 }
 
 // ======================================================
