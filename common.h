@@ -133,7 +133,7 @@ typedef enum {
     TK_TYPE_FUNC, TK_DECREMENT, TK_INCREMENT, TK_TYPEOF,
     
     // Memory & Size
-    TK_SIZEOF, TK_SIZE, TK_SIZ,
+    TK_SIZEOF, TK_SIZE, TK_SIZ, TK_RBRBRACE,
     TK_NEW, TK_DELETE, TK_FREE,
     
     // Debug & DB
