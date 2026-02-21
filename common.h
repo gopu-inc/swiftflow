@@ -42,6 +42,10 @@ typedef enum {
     
     // Identifiers
     TK_IDENT, TK_AS, TK_OF, TK_IMPORTDB,
+    // PYTX tokens
+    TK_PYTX,           // pytx keyword
+    TK_SWI,            // swi keyword (fin de bloc pytx)
+    TK_PYTX_ACCESS,    // px. access
     
     // Operators
 
@@ -220,6 +224,10 @@ static const Keyword keywords[] = {
     {"net.send", TK_NET_SEND},
     {"net.recv", TK_NET_RECV},
     {"net.close", TK_NET_CLOSE},
+    // PYTX keywords
+    {"pytx", TK_PYTX},
+    {"swi", TK_SWI},
+    {"px", TK_PYTX_ACCESS},  // Ou tu peux gérer px. comme un cas spécial
     // Control flow
     {"if", TK_IF}, {"else", TK_ELSE}, {"elif", TK_ELIF},
     {"while", TK_WHILE}, {"for", TK_FOR}, {"do", TK_DO},
