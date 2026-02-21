@@ -53,7 +53,24 @@ PyTxModule* pytx_import(const char* module_name) {
     Py_DECREF(py_module);
     return NULL;
 }
-
+char* pytx_execute(const char* python_code) {
+    if (!python_code) return NULL;
+    
+    // Obtenir le module principal et son dictionnaire
+    PyObject* main_module = PyImport_AddModule("__main__");
+    PyObject* main_dict = PyModule_GetDict(main_module);
+    
+    // Exécuter le code Python
+    PyObject* result = PyRun_String(python_code, Py_file_input, main_dict, main_dict);
+    
+    if (!result) {
+        PyErr_Print();
+        return strdup("");  // Retourne chaîne vide en cas d'erreur
+    }
+    
+    Py_DECREF(result);
+    return strdup("[Python code executed successfully]");
+}
 void pytx_cleanup(void) {
     for (int i = 0; i < py_module_count; i++) {
         if (py_modules[i].py_module) {
