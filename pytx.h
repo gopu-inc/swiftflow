@@ -2,7 +2,7 @@
 #ifndef PYTX_H
 #define PYTX_H
 
-#include <Python.h>
+#include <python3.9/Python.h>
 #include "common.h"
 
 typedef struct {
