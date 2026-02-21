@@ -2793,77 +2793,149 @@ static ASTNode* pytx_statement() {
 }
 
 static ASTNode* pytx_command() {
+    printf("DEBUG: pytx_command starting, current kind: %d, value: '%s'\n", 
+           current.kind, current.value.str_val ? current.value.str_val : "NULL");
+    
     // var net = px.httpd;
     if (match(TK_VAR)) {
+        printf("DEBUG: Found TK_VAR in pytx_command\n");
+        
         if (!match(TK_IDENT)) {
             errorAtCurrent("Expected variable name");
             return NULL;
         }
         char* var_name = str_copy(previous.value.str_val);
+        printf("DEBUG: Variable name: '%s'\n", var_name);
         
-        consume(TK_ASSIGN, "Expected '='");
+        if (!match(TK_ASSIGN)) {
+            errorAtCurrent("Expected '=' after variable name");
+            free(var_name);
+            return NULL;
+        }
+        printf("DEBUG: Found '=' after variable\n");
         
-        // px.httpd
-        if (match(TK_PYTX_ACCESS)) {
-            ASTNode* node = newNode(NODE_PYTX_VAR);
-            node->data.name = var_name;
+        // Vérifier si c'est un accès px.xxx
+        if (check(TK_PYTX_ACCESS) || (current.kind == TK_IDENT && strcmp(current.value.str_val, "px") == 0)) {
+            printf("DEBUG: Found px access\n");
             
-            if (!match(TK_IDENT)) {
-                errorAtCurrent("Expected module name after px.");
-                free(var_name);
-                return NULL;
-            }
-            node->left = newStringNode(previous.value.str_val); // module name
-            
-            if (match(TK_PERIOD)) {
+            if (match(TK_PYTX_ACCESS) || (match(TK_IDENT) && strcmp(previous.value.str_val, "px") == 0)) {
+                ASTNode* node = newNode(NODE_PYTX_VAR);
+                node->data.name = var_name;
+                
+                printf("DEBUG: After px, current kind: %d\n", current.kind);
+                
                 if (!match(TK_IDENT)) {
-                    errorAtCurrent("Expected function name");
+                    errorAtCurrent("Expected module name after px.");
                     free(var_name);
+                    free(node);
                     return NULL;
                 }
-                node->right = newStringNode(previous.value.str_val); // function name
+                char* module_name = str_copy(previous.value.str_val);
+                printf("DEBUG: Module name: '%s'\n", module_name);
+                node->left = newStringNode(module_name);
+                free(module_name);
+                
+                if (match(TK_PERIOD)) {
+                    printf("DEBUG: Found '.' after module name\n");
+                    if (!match(TK_IDENT)) {
+                        errorAtCurrent("Expected function name");
+                        free(var_name);
+                        free(node);
+                        return NULL;
+                    }
+                    char* func_name = str_copy(previous.value.str_val);
+                    printf("DEBUG: Function name: '%s'\n", func_name);
+                    node->right = newStringNode(func_name);
+                    free(func_name);
+                }
+                
+                // Consommer le ';' si présent
+                if (check(TK_SEMICOLON)) {
+                    printf("DEBUG: Found ';' at end of line\n");
+                    advance();
+                }
+                
+                return node;
             }
-            
-            return node;
+        } else {
+            printf("DEBUG: Not a px access, current kind: %d\n", current.kind);
+            free(var_name);
         }
     }
     
     // net.get("https://...")
     if (check(TK_IDENT)) {
         char* obj_name = str_copy(previous.value.str_val);
+        printf("DEBUG: Found object name: '%s'\n", obj_name);
         advance();
         
         if (match(TK_PERIOD)) {
+            printf("DEBUG: Found '.' after object\n");
+            
             if (!match(TK_IDENT)) {
                 errorAtCurrent("Expected method name");
                 free(obj_name);
                 return NULL;
             }
             char* method = str_copy(previous.value.str_val);
+            printf("DEBUG: Method name: '%s'\n", method);
             
-            consume(TK_LPAREN, "Expected '('");
+            if (!match(TK_LPAREN)) {
+                errorAtCurrent("Expected '(' after method name");
+                free(obj_name);
+                free(method);
+                return NULL;
+            }
+            printf("DEBUG: Found '(' after method\n");
             
             ASTNode* args = NULL;
             if (!check(TK_RPAREN)) {
                 args = expression();
+                ASTNode* current_arg = args;
                 while (match(TK_COMMA)) {
-                    // Chaîner les arguments
+                    printf("DEBUG: Found ',' in arguments\n");
+                    ASTNode* next_arg = expression();
+                    if (current_arg) {
+                        current_arg->right = next_arg;
+                        current_arg = next_arg;
+                    }
                 }
             }
             
-            consume(TK_RPAREN, "Expected ')'");
+            if (!match(TK_RPAREN)) {
+                errorAtCurrent("Expected ')' after arguments");
+                free(obj_name);
+                free(method);
+                return NULL;
+            }
+            printf("DEBUG: Found ')' after arguments\n");
             
             ASTNode* node = newNode(NODE_PYTX_CALL);
             node->data.name = obj_name;
             node->left = newStringNode(method);
             node->right = args;
+            free(method);
+            
+            // Consommer le ';' si présent
+            if (check(TK_SEMICOLON)) {
+                printf("DEBUG: Found ';' at end of line\n");
+                advance();
+            }
             
             return node;
         }
         free(obj_name);
     }
     
-    return expressionStatement();
+    // Si ce n'est pas reconnu, on essaie de parser comme une expression normale
+    printf("DEBUG: Falling back to expressionStatement\n");
+    ASTNode* expr = expressionStatement();
+    if (expr) {
+        printf("DEBUG: Successfully parsed as expression\n");
+    } else {
+        printf("DEBUG: Failed to parse as expression\n");
+    }
+    return expr;
 }
 // ======================================================
 // [SECTION] MAIN PARSER FUNCTION
