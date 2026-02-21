@@ -6,7 +6,7 @@ CFLAGS = -std=c99 -g -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Wno-format-truncat
 LIBS = -lm -lsqlite3 -lcurl
 
 # Liste des fichiers objets
-OBJS = swf.o lexer.o parser.o io.o net.o sys.o http.o json.o stdlib.o
+OBJS = swf.o lexer.o parser.o io.o net.o sys.o http.o json.o stdlib.o pytx.o
 
 # Cible par défaut
 all: swift
