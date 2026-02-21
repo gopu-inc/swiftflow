@@ -322,6 +322,11 @@ typedef enum {
     NODE_STD_TO_INT, 
     NODE_STD_TO_STR,
     NODE_THIS,
+    // PYTX nodes
+    NODE_PYTX_BLOCK,
+    NODE_PYTX_VAR,
+    NODE_PYTX_CALL,
+    NODE_PYTX_IMPORT,
     // reseaux
     NODE_NET_SOCKET,
     NODE_NET_CONNECT,
