@@ -2710,85 +2710,85 @@ static ASTNode* pytx_statement() {
     printf("DEBUG: Entering pytx_statement, current token kind: %d\n", current.kind);
     
     if (check(TK_PYTX)) {
-        printf("DEBUG: Found TK_PYTX token\n");
         advance(); // consomme 'pytx'
-        printf("DEBUG: After advance, token kind: %d\n", current.kind);
         
-        ASTNode* node = newNode(NODE_PYTX_BLOCK);
-        
-        // Récupérer l'alias - accepte soit TK_IDENT soit TK_PYTX_ACCESS
-        if (check(TK_IDENT) || check(TK_PYTX_ACCESS)) {
-            printf("DEBUG: Found alias token kind: %d\n", current.kind);
-            node->data.name = str_copy(current.value.str_val);
-            advance(); // consomme l'alias
-        } else {
-            printf("DEBUG: Expected alias but got kind: %d\n", current.kind);
+        // Récupérer l'alias (px)
+        if (!match(TK_IDENT)) {
             errorAtCurrent("Expected alias after pytx");
             return NULL;
         }
-        
-        printf("DEBUG: Alias: %s\n", node->data.name);
+        char* alias = str_copy(previous.value.str_val);
         
         consume(TK_COLON, "Expected ':' after pytx alias");
-        printf("DEBUG: Found ':'\n");
         
-        // Parser le bloc
-        ASTNode* first_cmd = NULL;
-        ASTNode* current_cmd = NULL;
+        // Capturer tout le contenu jusqu'à "swi.cmd"
+        char* python_code = malloc(1);
+        python_code[0] = '\0';
+        int capacity = 1;
+        int length = 0;
         
         while (!check(TK_SWI) && !check(TK_EOF)) {
-            printf("DEBUG: Parsing command...\n");
-            ASTNode* cmd = pytx_command();
-            if (cmd) {
-                if (!first_cmd) {
-                    first_cmd = cmd;
-                    current_cmd = cmd;
-                } else {
-                    current_cmd->right = cmd;
-                    current_cmd = cmd;
+            // Ajouter le token courant à la chaîne Python
+            if (current.start) {
+                int token_len = current.length;
+                
+                // Agrandir le buffer si nécessaire
+                if (length + token_len + 2 > capacity) {
+                    capacity = length + token_len + 1024;
+                    python_code = realloc(python_code, capacity);
                 }
-            } else {
-                // En cas d'erreur, on avance pour éviter boucle infinie
-                if (!check(TK_SWI) && !check(TK_EOF)) {
-                    advance();
+                
+                // Copier le token
+                strncpy(python_code + length, current.start, token_len);
+                length += token_len;
+                python_code[length] = '\0';
+                
+                // Ajouter un espace entre les tokens
+                if (length + 1 < capacity) {
+                    python_code[length++] = ' ';
+                    python_code[length] = '\0';
                 }
             }
-        }
-        
-        // Consommer 'swi'
-        if (!match(TK_SWI)) {
-            errorAtCurrent("Expected 'swi' to end pytx block");
-            return NULL;
-        }
-        printf("DEBUG: Found 'swi'\n");
-        
-        // Consommer le '.' après swi
-        if (!match(TK_PERIOD)) {
-            errorAtCurrent("Expected '.' after 'swi'");
-            return NULL;
-        }
-        printf("DEBUG: Found '.' after swi\n");
-        
-        // Consommer 'cmd'
-        if (!match(TK_IDENT) || strcmp(previous.value.str_val, "cmd") != 0) {
-            errorAtCurrent("Expected 'cmd' after 'swi.'");
-            return NULL;
-        }
-        printf("DEBUG: Found 'cmd'\n");
-        
-        // Consommer le ';' optionnel
-        if (check(TK_SEMICOLON)) {
-            printf("DEBUG: Found ';' at end\n");
             advance();
         }
         
-        node->left = first_cmd;
-        printf("DEBUG: pytx block parsed successfully\n");
+        // Vérifier et consommer "swi.cmd"
+        if (!match(TK_SWI)) {
+            errorAtCurrent("Expected 'swi' to end pytx block");
+            free(python_code);
+            free(alias);
+            return NULL;
+        }
+        if (!match(TK_PERIOD)) {
+            errorAtCurrent("Expected '.' after 'swi'");
+            free(python_code);
+            free(alias);
+            return NULL;
+        }
+        if (!match(TK_IDENT) || strcmp(previous.value.str_val, "cmd") != 0) {
+            errorAtCurrent("Expected 'cmd' after 'swi.'");
+            free(python_code);
+            free(alias);
+            return NULL;
+        }
+        
+        // Consommer le ';' optionnel
+        if (check(TK_SEMICOLON)) {
+            advance();
+        }
+        
+        // Créer un nœud qui contient le code Python brut
+        ASTNode* node = newNode(NODE_PYTX_BLOCK);
+        node->data.name = alias;
+        node->left = newStringNode(python_code); // Stocker le code Python
+        
+        free(python_code);
         return node;
     }
     
     return NULL;
 }
+
 static ASTNode* pytx_command() {
     printf("DEBUG: pytx_command starting, current kind: %d, value: '%s'\n", 
            current.kind, current.value.str_val ? current.value.str_val : "NULL");
