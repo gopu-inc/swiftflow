@@ -7,7 +7,9 @@
 // ======================================================
 // [SECTION] PROTOTYPES (FORWARD DECLARATIONS)
 // ======================================================
-
+// PYTX
+static ASTNode* pytx_statement();
+static ASTNode* pytx_command();
 // IO
 static ASTNode* ioOpenStatement();
 static ASTNode* ioCloseStatement();
@@ -2544,7 +2546,9 @@ static ASTNode* declaration() {
         match(TK_GLOBAL)) {
         return variableDeclaration();
     }
-    
+    // PYTX statement
+    ASTNode* pytx_node = pytx_statement();
+    if (pytx_node) return pytx_node;
     return statement();
 }
 static ASTNode* netSocketStatement() {
