@@ -1476,7 +1476,32 @@ static void registerGlobalConstant(const char* name, int value) {
         
     }
 }
-
+static void execute_pytx(ASTNode* node) {
+    if (node->type == NODE_PYTX_BLOCK) {
+        char* alias = node->data.name;
+        char* python_code = node->left->data.str_val; // Le code Python brut
+        
+        printf("DEBUG: Executing Python code:\n%s\n", python_code);
+        
+        // Exécuter le code Python
+        PyObject* main_module = PyImport_AddModule("__main__");
+        PyObject* main_dict = PyModule_GetDict(main_module);
+        
+        // Ajouter l'alias dans l'espace de noms Python si nécessaire
+        // Par exemple, on pourrait créer un objet spécial 'px'
+        
+        // Exécuter le code
+        PyObject* result = PyRun_String(python_code, Py_file_input, main_dict, main_dict);
+        
+        if (!result) {
+            PyErr_Print();
+            printf("%s[PYTX ERROR]%s Python execution failed\n", COLOR_RED, COLOR_RESET);
+        } else {
+            Py_DECREF(result);
+            printf("%s[PYTX]%s Python code executed successfully\n", COLOR_GREEN, COLOR_RESET);
+        }
+    }
+}
 // Helper pour générer un nom unique pour les lambdas
 static char* generateLambdaName() {
     static int lambda_id = 0;
