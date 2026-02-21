@@ -1,0 +1,12 @@
+# test_pytx.swf
+pytx as px:
+    var math = px.math;
+    var random = math.sqrt(16);
+    print("sqrt(16) =", random);
+    
+    var datetime = px.datetime;
+    var now = datetime.datetime.now();
+    print("Current time:", now);
+swi.cmd;
+
+print("✅ Python integration works!");

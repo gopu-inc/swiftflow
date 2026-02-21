@@ -1,0 +1,3 @@
+pytx as px:
+    var test = px.sys;
+swi.cmd;

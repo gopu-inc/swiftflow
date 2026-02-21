@@ -3,6 +3,7 @@
 #define PYTX_H
 
 #include <python3.9/Python.h>
+#include <stdbool.h>
 
 // Structure pour stocker un module Python importé
 typedef struct {
