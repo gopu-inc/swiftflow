@@ -2796,28 +2796,39 @@ static ASTNode* pytx_command() {
         if (check(TK_PYTX_ACCESS) || (current.kind == TK_IDENT && strcmp(current.value.str_val, "px") == 0)) {
             printf("DEBUG: Found px access\n");
             
-            if (match(TK_PYTX_ACCESS) || (match(TK_IDENT) && strcmp(previous.value.str_val, "px") == 0)) {
-                ASTNode* node = newNode(NODE_PYTX_VAR);
-                node->data.name = var_name;
-                
+            // Consommer px (si c'est un TK_IDENT ou TK_PYTX_ACCESS)
+            if (check(TK_PYTX_ACCESS) || (check(TK_IDENT) && strcmp(current.value.str_val, "px") == 0)) {
+                advance(); // consomme 'px'
                 printf("DEBUG: After px, current kind: %d\n", current.kind);
+                
+                // Maintenant on doit avoir un point suivi d'un identifiant
+                if (!match(TK_PERIOD)) {
+                    errorAtCurrent("Expected '.' after px");
+                    free(var_name);
+                    return NULL;
+                }
+                printf("DEBUG: Found '.' after px\n");
                 
                 if (!match(TK_IDENT)) {
                     errorAtCurrent("Expected module name after px.");
                     free(var_name);
-                    free(node);
                     return NULL;
                 }
                 char* module_name = str_copy(previous.value.str_val);
                 printf("DEBUG: Module name: '%s'\n", module_name);
+                
+                ASTNode* node = newNode(NODE_PYTX_VAR);
+                node->data.name = var_name;
                 node->left = newStringNode(module_name);
                 free(module_name);
                 
-                if (match(TK_PERIOD)) {
-                    printf("DEBUG: Found '.' after module name\n");
+                // Optionnellement, on peut avoir un deuxième point pour une fonction
+                if (check(TK_PERIOD)) {
+                    printf("DEBUG: Found second '.' for function\n");
+                    advance(); // consomme le deuxième point
+                    
                     if (!match(TK_IDENT)) {
                         errorAtCurrent("Expected function name");
-                        free(var_name);
                         free(node);
                         return NULL;
                     }
