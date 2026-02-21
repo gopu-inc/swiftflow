@@ -2711,6 +2711,7 @@ static ASTNode* pytx_statement() {
     
     if (check(TK_PYTX)) {
         advance(); // consomme 'pytx'
+        printf("DEBUG: After pytx, token kind: %d\n", current.kind);
         
         // Récupérer l'alias (px)
         if (!match(TK_IDENT)) {
@@ -2718,10 +2719,12 @@ static ASTNode* pytx_statement() {
             return NULL;
         }
         char* alias = str_copy(previous.value.str_val);
+        printf("DEBUG: Alias: %s\n", alias);
         
         consume(TK_COLON, "Expected ':' after pytx alias");
+        printf("DEBUG: Found ':'\n");
         
-        // Capturer tout le contenu jusqu'à "swi.cmd"
+        // Capturer tout le code Python jusqu'à "swi.cmd"
         char* python_code = malloc(1);
         python_code[0] = '\0';
         int capacity = 1;
@@ -2743,14 +2746,16 @@ static ASTNode* pytx_statement() {
                 length += token_len;
                 python_code[length] = '\0';
                 
-                // Ajouter un espace entre les tokens
-                if (length + 1 < capacity) {
+                // Ajouter un espace entre les tokens (sauf si c'est une nouvelle ligne)
+                if (length + 1 < capacity && python_code[length-1] != '\n') {
                     python_code[length++] = ' ';
                     python_code[length] = '\0';
                 }
             }
             advance();
         }
+        
+        printf("DEBUG: Captured Python code:\n%s\n", python_code);
         
         // Vérifier et consommer "swi.cmd"
         if (!match(TK_SWI)) {
@@ -2783,12 +2788,12 @@ static ASTNode* pytx_statement() {
         node->left = newStringNode(python_code); // Stocker le code Python
         
         free(python_code);
+        printf("DEBUG: pytx block parsed successfully\n");
         return node;
     }
     
     return NULL;
 }
-
 static ASTNode* pytx_command() {
     printf("DEBUG: pytx_command starting, current kind: %d, value: '%s'\n", 
            current.kind, current.value.str_val ? current.value.str_val : "NULL");
