@@ -313,6 +313,7 @@ typedef enum {
     NODE_MATH_FUNC, // Un seul type générique pour les maths
     NODE_STR_FUNC,  // Un seul type générique pour les strings
     NODE_TIME_NOW,
+    NODE_PYTX_RAW_BLOCK,
     NODE_TIME_SLEEP,
     NODE_ENV_FUNC,
     NODE_PATH_FUNC,
