@@ -2706,29 +2706,52 @@ static ASTNode* statement() {
     
     return expressionStatement();
 }
-// Dans parser.c - ajouter la détection de la syntaxe pytx
+// ajouter la détection de la syntaxe pytx
 static ASTNode* pytx_statement() {
+    printf("DEBUG: Entering pytx_statement, current token kind: %d\n", current.kind);
+    printf("DEBUG: Current token value: '%s'\n", current.value.str_val ? current.value.str_val : "NULL");
+    
     if (check(TK_PYTX)) {
+        printf("DEBUG: Found TK_PYTX token\n");
         advance(); // consomme 'pytx'
+        printf("DEBUG: After advance, token kind: %d, value: '%s'\n", current.kind, 
+               current.value.str_val ? current.value.str_val : "NULL");
         
         ASTNode* node = newNode(NODE_PYTX_BLOCK);
         
         // Récupérer l'alias (px)
         if (!match(TK_IDENT)) {
+            printf("DEBUG: match(TK_IDENT) failed, current kind: %d\n", current.kind);
+            printf("DEBUG: Current token is: '%s' (kind: %d)\n", 
+                   current.value.str_val ? current.value.str_val : "NULL", current.kind);
             errorAtCurrent("Expected alias after pytx");
             return NULL;
         }
+        printf("DEBUG: Found alias: '%s' (kind: %d)\n", previous.value.str_val, previous.kind);
         node->data.name = str_copy(previous.value.str_val);
         
+        // Vérifier et consommer le ':'
+        if (!check(TK_COLON)) {
+            printf("DEBUG: Expected ':' but got kind: %d, value: '%s'\n", 
+                   current.kind, current.value.str_val ? current.value.str_val : "NULL");
+        }
         consume(TK_COLON, "Expected ':' after pytx alias");
+        printf("DEBUG: Found ':' after alias\n");
         
         // Parser le bloc
         ASTNode* first_cmd = NULL;
         ASTNode* current_cmd = NULL;
+        int cmd_count = 0;
+        
+        printf("DEBUG: Starting to parse commands until TK_SWI\n");
         
         while (!check(TK_SWI) && !check(TK_EOF)) {
+            printf("DEBUG: Parsing command #%d, current token kind: %d, value: '%s'\n", 
+                   cmd_count+1, current.kind, current.value.str_val ? current.value.str_val : "NULL");
+            
             ASTNode* cmd = pytx_command();
             if (cmd) {
+                printf("DEBUG: Successfully parsed command #%d\n", cmd_count+1);
                 if (!first_cmd) {
                     first_cmd = cmd;
                     current_cmd = cmd;
@@ -2736,13 +2759,36 @@ static ASTNode* pytx_statement() {
                     current_cmd->right = cmd;
                     current_cmd = cmd;
                 }
+                cmd_count++;
+            } else {
+                printf("DEBUG: Failed to parse command #%d\n", cmd_count+1);
+                // En cas d'erreur, on avance pour éviter une boucle infinie
+                if (!check(TK_SWI) && !check(TK_EOF)) {
+                    advance();
+                }
             }
         }
         
+        printf("DEBUG: Found %d commands, now checking for TK_SWI\n", cmd_count);
+        
+        if (!check(TK_SWI)) {
+            printf("DEBUG: Expected TK_SWI but got kind: %d\n", current.kind);
+        }
         consume(TK_SWI, "Expected 'swi' to end pytx block");
+        printf("DEBUG: Found TK_SWI, ending pytx block\n");
+        
+        // Optionnellement consommer le ';' après swi
+        if (check(TK_SEMICOLON)) {
+            printf("DEBUG: Found ';' after swi\n");
+            advance();
+        }
+        
         node->left = first_cmd;
+        printf("DEBUG: pytx_statement returning node with %d commands\n", cmd_count);
         return node;
     }
+    
+    printf("DEBUG: Not a pytx statement (current kind: %d)\n", current.kind);
     return NULL;
 }
 
