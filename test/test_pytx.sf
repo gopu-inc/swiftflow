@@ -1,0 +1,13 @@
+// main.swf
+pytx as px:
+    var net = px.httpd
+    var json = px.json
+    
+    net.get("https://api.github.com/repos/swiftflow")
+    var data = json.loads(response)
+    
+    print("Stars:", data["stargazers_count"])
+swi.cmd
+
+// Import d'un module Swift qui utilise pytx
+import "mon_app_web"  // Ce module utilise déjà pytx en interne
