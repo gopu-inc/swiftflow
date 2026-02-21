@@ -2708,62 +2708,87 @@ static ASTNode* statement() {
 }
 static ASTNode* pytx_statement() {
     printf("DEBUG: Entering pytx_statement, current token kind: %d\n", current.kind);
+    printf("DEBUG: Current token value: '%s'\n", current.value.str_val ? current.value.str_val : "NULL");
     
     if (check(TK_PYTX)) {
         advance(); // consomme 'pytx'
         printf("DEBUG: After pytx, token kind: %d\n", current.kind);
+        printf("DEBUG: Token value: '%s'\n", current.value.str_val ? current.value.str_val : "NULL");
         
-        // Récupérer l'alias (px) - c'est le seul token qu'on parse
-        if (!match(TK_IDENT) && !check(TK_PYTX_ACCESS)) {
+        // Vérifier que le prochain token est un identifiant ou px
+        if (!check(TK_IDENT) && !check(TK_PYTX_ACCESS)) {
             errorAtCurrent("Expected alias after pytx");
             return NULL;
         }
         
-        // Si c'est TK_PYTX_ACCESS, on le traite comme un identifiant
-        char* alias;
-        if (previous.kind == TK_PYTX_ACCESS) {
-            alias = str_copy("px");  // Ou la valeur réelle
+        // Récupérer l'alias en toute sécurité
+        char* alias = NULL;
+        if (current.value.str_val) {
+            alias = str_copy(current.value.str_val);
         } else {
-            alias = str_copy(previous.value.str_val);
+            alias = str_copy("px"); // fallback
         }
-        printf("DEBUG: Alias: %s\n", alias);
         
-        consume(TK_COLON, "Expected ':' after pytx alias");
+        printf("DEBUG: Alias found: %s\n", alias);
+        advance(); // consomme l'alias
+        
+        // Vérifier et consommer le ':'
+        if (!check(TK_COLON)) {
+            errorAtCurrent("Expected ':' after pytx alias");
+            free(alias);
+            return NULL;
+        }
         printf("DEBUG: Found ':'\n");
+        advance(); // consomme ':'
         
         // IGNORER TOUS LES TOKENS jusqu'à "swi.cmd"
-        int depth = 0;
-        bool found_swi = false;
-        
         printf("DEBUG: Skipping all tokens until swi.cmd...\n");
         
+        int found_swi = 0;
+        int found_dot = 0;
+        int found_cmd = 0;
+        
         while (!check(TK_EOF)) {
-            // Vérifier si on a trouvé "swi"
+            printf("DEBUG: Skipping token kind: %d", current.kind);
+            if (current.value.str_val) {
+                printf(", value: %s", current.value.str_val);
+            }
+            printf("\n");
+            
+            // Chercher la séquence swi . cmd
             if (check(TK_SWI)) {
-                printf("DEBUG: Found TK_SWI at kind: %d\n", current.kind);
+                printf("DEBUG: Found TK_SWI\n");
                 advance(); // consomme 'swi'
+                found_swi = 1;
                 
-                // Vérifier si le suivant est '.'
+                // Vérifier le point
                 if (check(TK_PERIOD)) {
+                    printf("DEBUG: Found '.' after swi\n");
                     advance(); // consomme '.'
+                    found_dot = 1;
                     
-                    // Vérifier si le suivant est "cmd"
-                    if (check(TK_IDENT) && strcmp(current.value.str_val, "cmd") == 0) {
+                    // Vérifier "cmd"
+                    if (check(TK_IDENT) && current.value.str_val && 
+                        strcmp(current.value.str_val, "cmd") == 0) {
+                        printf("DEBUG: Found 'cmd' after '.'\n");
                         advance(); // consomme 'cmd'
-                        found_swi = true;
-                        printf("DEBUG: Found swi.cmd, ending pytx block\n");
+                        found_cmd = 1;
                         break;
+                    } else {
+                        // Pas "cmd", on continue
+                        found_swi = 0;
+                        found_dot = 0;
                     }
+                } else {
+                    // Pas de point après swi, on continue
+                    found_swi = 0;
                 }
             } else {
-                // Ignorer tous les autres tokens
-                printf("DEBUG: Skipping token kind: %d, value: %s\n", 
-                       current.kind, current.value.str_val ? current.value.str_val : "NULL");
-                advance();
+                advance(); // ignorer le token
             }
         }
         
-        if (!found_swi) {
+        if (!found_swi || !found_dot || !found_cmd) {
             errorAtCurrent("Expected 'swi.cmd' to end pytx block");
             free(alias);
             return NULL;
@@ -2775,13 +2800,11 @@ static ASTNode* pytx_statement() {
             advance();
         }
         
-        // Créer un nœud simple - on ne stocke même pas le code Python
-        // car on veut juste ignorer le contenu
-        ASTNode* node = newNode(NODE_PYTX_BLOCK);
-        node->data.name = alias;
-        node->left = NULL;  // Pas de code à stocker pour l'instant
+        // Créer un nœud vide - le contenu Python est ignoré
+        ASTNode* node = newNode(NODE_EMPTY);
+        node->data.name = alias;  // On stocke l'alias au cas où
         
-        printf("DEBUG: pytx block parsed successfully (content ignored)\n");
+        printf("DEBUG: pytx block ignored completely, %d tokens skipped\n", found_swi);
         return node;
     }
     
