@@ -22,6 +22,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>  
 #include "common.h"
+#include "pytx.h"
 
 // ======================================================
 // [SECTION] GLOBAL STATE
