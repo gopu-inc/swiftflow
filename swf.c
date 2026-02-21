@@ -1516,6 +1516,21 @@ static void execute(ASTNode* node) {
     if (!node) return;
     
     switch (node->type) {
+        case NODE_PYTX_BLOCK: {
+    char* alias = node->data.name;
+    char* python_code = node->left->data.str_val;
+    
+    printf("%s[PYTX]%s Executing Python code...\n", COLOR_CYAN, COLOR_RESET);
+    
+    // Exécuter le code Python
+    char* result = pytx_execute(python_code);
+    
+    if (result && strlen(result) > 0) {
+        printf("%s[PYTX]%s %s\n", COLOR_GREEN, COLOR_RESET, result);
+        free(result);
+    }
+    break;
+}
     case NODE_ENV_FUNC: {
         if (node->op_type == TK_ENV_SET) {
             char* key = evalString(node->left);
