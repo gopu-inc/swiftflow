@@ -261,7 +261,84 @@ static int calculateVariableSize(TokenKind type) {
         default: return 8;
     }
 }
-
+// Dans swf.c - exécution des commandes pytx
+static void execute_pytx(ASTNode* node) {
+    static PyTxModule* current_module = NULL;
+    
+    switch (node->type) {
+        case NODE_PYTX_BLOCK: {
+            // Sauvegarder l'alias
+            char* alias = node->data.name;
+            
+            // Exécuter chaque commande
+            ASTNode* cmd = node->left;
+            while (cmd) {
+                execute_pytx(cmd);
+                cmd = cmd->right;
+            }
+            break;
+        }
+        
+        case NODE_PYTX_VAR: {
+            // var net = px.httpd
+            char* var_name = node->data.name;
+            char* module_name = node->left->data.str_val;
+            char* func_name = node->right ? node->right->data.str_val : NULL;
+            
+            // Importer le module Python
+            PyTxModule* mod = pytx_import(module_name);
+            
+            if (mod) {
+                // Stocker dans une variable SwiftFlow
+                int idx = var_count;
+                strncpy(vars[idx].name, var_name, 99);
+                vars[idx].type = TK_VAR;
+                vars[idx].is_initialized = true;
+                vars[idx].is_pytx_module = true;
+                vars[idx].pytx_module = mod;
+                vars[idx].pytx_function = func_name ? str_copy(func_name) : NULL;
+                var_count++;
+            }
+            break;
+        }
+        
+        case NODE_PYTX_CALL: {
+            // net.get("url")
+            char* obj_name = node->data.name;
+            char* method = node->left->data.str_val;
+            
+            // Récupérer l'objet Python
+            int idx = findVar(obj_name);
+            if (idx >= 0 && vars[idx].is_pytx_module) {
+                PyTxModule* mod = vars[idx].pytx_module;
+                
+                // Obtenir la fonction Python
+                PyObject* py_func = PyDict_GetItemString(mod->py_dict, method);
+                if (py_func && PyCallable_Check(py_func)) {
+                    
+                    // Préparer les arguments
+                    PyObject* py_args = PyTuple_New(0); // À améliorer pour parser args
+                    
+                    // Appeler la fonction
+                    PyObject* py_result = PyObject_CallObject(py_func, py_args);
+                    Py_DECREF(py_args);
+                    
+                    if (py_result) {
+                        // Convertir le résultat en valeur SwiftFlow
+                        if (PyUnicode_Check(py_result)) {
+                            const char* str = PyUnicode_AsUTF8(py_result);
+                            printf("%s\n", str); // Ou stocker dans variable
+                        }
+                        Py_DECREF(py_result);
+                    } else {
+                        PyErr_Print();
+                    }
+                }
+            }
+            break;
+        }
+    }
+}
 static const char* getTypeName(TokenKind type) {
     switch (type) {
         case TK_VAR: return "var";
