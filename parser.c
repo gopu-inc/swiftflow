@@ -2755,16 +2755,35 @@ static ASTNode* pytx_statement() {
             }
         }
         
-        consume(TK_SWI, "Expected 'swi' to end pytx block");
+        // Consommer 'swi'
+        if (!match(TK_SWI)) {
+            errorAtCurrent("Expected 'swi' to end pytx block");
+            return NULL;
+        }
         printf("DEBUG: Found 'swi'\n");
         
-        // Optionnellement consommer ';'
+        // Consommer le '.' après swi
+        if (!match(TK_PERIOD)) {
+            errorAtCurrent("Expected '.' after 'swi'");
+            return NULL;
+        }
+        printf("DEBUG: Found '.' after swi\n");
+        
+        // Consommer 'cmd'
+        if (!match(TK_IDENT) || strcmp(previous.value.str_val, "cmd") != 0) {
+            errorAtCurrent("Expected 'cmd' after 'swi.'");
+            return NULL;
+        }
+        printf("DEBUG: Found 'cmd'\n");
+        
+        // Consommer le ';' optionnel
         if (check(TK_SEMICOLON)) {
-            printf("DEBUG: Found ';'\n");
+            printf("DEBUG: Found ';' at end\n");
             advance();
         }
         
         node->left = first_cmd;
+        printf("DEBUG: pytx block parsed successfully\n");
         return node;
     }
     
