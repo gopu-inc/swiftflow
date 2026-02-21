@@ -86,6 +86,9 @@ typedef struct {
     char* module;
     bool is_exported;
     bool is_locked;
+    bool is_pytx_module;
+    PyTxModule* pytx_module;
+    char* pytx_function;
 } Variable;
 
 static Variable vars[1000];
