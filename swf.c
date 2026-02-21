@@ -2649,6 +2649,7 @@ static char* loadFile(const char* filename) {
 // ======================================================
 int main(int argc, char* argv[]) {
     srand(time(NULL));
+    init_pytx();  
     init_io_module();
     init_sys_module(argc, argv);
     init_http_module();
