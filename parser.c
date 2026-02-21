@@ -2702,7 +2702,119 @@ static ASTNode* statement() {
     
     return expressionStatement();
 }
+// Dans parser.c - ajouter la détection de la syntaxe pytx
+static ASTNode* pytx_statement() {
+    if (check(TK_PYTX)) {
+        advance(); // consomme 'pytx'
+        
+        ASTNode* node = newNode(NODE_PYTX_BLOCK);
+        
+        // Récupérer l'alias (px)
+        if (!match(TK_IDENT)) {
+            errorAtCurrent("Expected alias after pytx");
+            return NULL;
+        }
+        node->data.name = str_copy(previous.value.str_val);
+        
+        consume(TK_COLON, "Expected ':' after pytx alias");
+        
+        // Parser le bloc
+        ASTNode* first_cmd = NULL;
+        ASTNode* current_cmd = NULL;
+        
+        while (!check(TK_SWI) && !check(TK_EOF)) {
+            ASTNode* cmd = pytx_command();
+            if (cmd) {
+                if (!first_cmd) {
+                    first_cmd = cmd;
+                    current_cmd = cmd;
+                } else {
+                    current_cmd->right = cmd;
+                    current_cmd = cmd;
+                }
+            }
+        }
+        
+        consume(TK_SWI, "Expected 'swi' to end pytx block");
+        node->left = first_cmd;
+        return node;
+    }
+    return NULL;
+}
 
+static ASTNode* pytx_command() {
+    // var net = px.httpd;
+    if (match(TK_VAR)) {
+        if (!match(TK_IDENT)) {
+            errorAtCurrent("Expected variable name");
+            return NULL;
+        }
+        char* var_name = str_copy(previous.value.str_val);
+        
+        consume(TK_ASSIGN, "Expected '='");
+        
+        // px.httpd
+        if (match(TK_PYTX_ACCESS)) {
+            ASTNode* node = newNode(NODE_PYTX_VAR);
+            node->data.name = var_name;
+            
+            if (!match(TK_IDENT)) {
+                errorAtCurrent("Expected module name after px.");
+                free(var_name);
+                return NULL;
+            }
+            node->left = newStringNode(previous.value.str_val); // module name
+            
+            if (match(TK_PERIOD)) {
+                if (!match(TK_IDENT)) {
+                    errorAtCurrent("Expected function name");
+                    free(var_name);
+                    return NULL;
+                }
+                node->right = newStringNode(previous.value.str_val); // function name
+            }
+            
+            return node;
+        }
+    }
+    
+    // net.get("https://...")
+    if (check(TK_IDENT)) {
+        char* obj_name = str_copy(previous.value.str_val);
+        advance();
+        
+        if (match(TK_PERIOD)) {
+            if (!match(TK_IDENT)) {
+                errorAtCurrent("Expected method name");
+                free(obj_name);
+                return NULL;
+            }
+            char* method = str_copy(previous.value.str_val);
+            
+            consume(TK_LPAREN, "Expected '('");
+            
+            ASTNode* args = NULL;
+            if (!check(TK_RPAREN)) {
+                args = expression();
+                while (match(TK_COMMA)) {
+                    // Chaîner les arguments
+                }
+            }
+            
+            consume(TK_RPAREN, "Expected ')'");
+            
+            ASTNode* node = newNode(NODE_PYTX_CALL);
+            node->data.name = obj_name;
+            node->left = newStringNode(method);
+            node->right = args;
+            
+            return node;
+        }
+        free(obj_name);
+    }
+    
+    return expressionStatement();
+}
 // ======================================================
 // [SECTION] MAIN PARSER FUNCTION
 // ======================================================
