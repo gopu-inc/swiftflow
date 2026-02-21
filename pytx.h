@@ -1,8 +1,8 @@
-// pytx.h
+
 #ifndef PYTX_H
 #define PYTX_H
 
-#include <python3.9/Python.h>
+#include <Python.h>
 #include <stdbool.h>
 
 // Structure pour stocker un module Python importé
@@ -17,5 +17,6 @@ typedef struct {
 void init_pytx(void);
 PyTxModule* pytx_import(const char* module_name);
 void pytx_cleanup(void);
+char* pytx_execute(const char* python_code);  // Nouvelle fonction
 
 #endif
