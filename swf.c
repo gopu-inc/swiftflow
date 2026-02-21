@@ -2686,6 +2686,6 @@ int main(int argc, char* argv[]) {
         run(source, argv[1]);
         free(source);
     }
-    
+    pytx_cleanup();
     return 0;
 }
