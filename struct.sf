@@ -1,0 +1,397 @@
+// ====================================================
+// TEST DES CLASSES ET STRUCTURES EN SWIFT FLOW
+// ====================================================
+
+print("╔══════════════════════════════════════════════╗");
+print("║     TEST DES CLASSES ET STRUCTURES          ║");
+print("╚══════════════════════════════════════════════╝");
+print("");
+
+// ====================================================
+// 1. DÉFINITION DE CLASSE SIMPLE
+// ====================================================
+print("--- 1. CLASSE SIMPLE ---");
+
+class Personne {
+    var nom;
+    var age;
+    
+    func afficher() {
+        print("Nom:", this.nom, "Age:", this.age);
+    }
+    
+    func anniversaire() {
+        this.age = this.age + 1;
+        print("Joyeux anniversaire", this.nom, "! Maintenant", this.age, "ans");
+    }
+}
+
+// Création d'instance
+var p1 = new Personne();
+p1.nom = "Alice";
+p1.age = 25;
+p1.afficher();
+p1.anniversaire();
+p1.afficher();
+
+print("");
+
+// ====================================================
+// 2. CLASSE AVEC CONSTRUCTEUR (via méthode init)
+// ====================================================
+print("--- 2. CLASSE AVEC CONSTRUCTEUR ---");
+
+class Livre {
+    var titre;
+    var auteur;
+    var annee;
+    
+    func init(t, a, an) {
+        this.titre = t;
+        this.auteur = a;
+        this.annee = an;
+    }
+    
+    func decrire() {
+        print("Livre:", this.titre, "par", this.auteur, "(", this.annee, ")");
+    }
+}
+
+var livre1 = new Livre();
+livre1.init("1984", "George Orwell", 1949);
+livre1.decrire();
+
+var livre2 = new Livre();
+livre2.init("Dune", "Frank Herbert", 1965);
+livre2.decrire();
+
+print("");
+
+// ====================================================
+// 3. HÉRITAGE
+// ====================================================
+print("--- 3. HÉRITAGE ---");
+
+class Animal {
+    var nom;
+    var age;
+    
+    func init(n, a) {
+        this.nom = n;
+        this.age = a;
+    }
+    
+    func parler() {
+        print(this.nom, "fait un bruit");
+    }
+    
+    func vieillir() {
+        this.age = this.age + 1;
+    }
+}
+
+class Chien : Animal {
+    var race;
+    
+    func init(n, a, r) {
+        super.init(n, a);
+        this.race = r;
+    }
+    
+    func parler() {
+        print(this.nom, "dit: Ouaf ouaf ! (Race:", this.race, ")");
+    }
+    
+    func afficherRace() {
+        print(this.nom, "est un", this.race);
+    }
+}
+
+var animal = new Animal();
+animal.init("Générique", 5);
+animal.parler();
+
+var chien = new Chien();
+chien.init("Rex", 3, "Berger Allemand");
+chien.parler();
+chien.afficherRace();
+chien.vieillir();
+print(chien.nom, "a maintenant", chien.age, "ans");
+
+print("");
+
+// ====================================================
+// 4. STRUCTURE (si implémentée comme classe légère)
+// ====================================================
+print("--- 4. STRUCTURE ---");
+
+struct Point {
+    var x;
+    var y;
+    
+    func init(x, y) {
+        this.x = x;
+        this.y = y;
+    }
+    
+    func distance(p) {
+        var dx = this.x - p.x;
+        var dy = this.y - p.y;
+        return sqrt(dx*dx + dy*dy);
+    }
+    
+    func afficher() {
+        print("Point(", this.x, ",", this.y, ")");
+    }
+}
+
+var p1 = new Point();
+p1.init(0, 0);
+var p2 = new Point();
+p2.init(3, 4);
+
+p1.afficher();
+p2.afficher();
+print("Distance entre les points:", p1.distance(p2));
+
+print("");
+
+// ====================================================
+// 5. PROPRIÉTÉS STATIQUES (variables de classe)
+// ====================================================
+print("--- 5. VARIABLES STATIQUES ---");
+
+class Compteur {
+    static var total = 0;
+    var id;
+    
+    func init() {
+        Compteur.total = Compteur.total + 1;
+        this.id = Compteur.total;
+    }
+    
+    func afficher() {
+        print("Instance ID:", this.id, "Total instances:", Compteur.total);
+    }
+}
+
+var c1 = new Compteur();
+c1.afficher();
+var c2 = new Compteur();
+c2.afficher();
+var c3 = new Compteur();
+c3.afficher();
+
+print("");
+
+// ====================================================
+// 6. MÉTHODES STATIQUES
+// ====================================================
+print("--- 6. MÉTHODES STATIQUES ---");
+
+class MathUtils {
+    static func carre(x) {
+        return x * x;
+    }
+    
+    static func cube(x) {
+        return x * x * x;
+    }
+    
+    static func estPair(x) {
+        return (x % 2 == 0);
+    }
+}
+
+print("MathUtils.carre(5) =", MathUtils.carre(5));
+print("MathUtils.cube(3) =", MathUtils.cube(3));
+print("MathUtils.estPair(4) =", MathUtils.estPair(4) ? "pair" : "impair");
+print("MathUtils.estPair(7) =", MathUtils.estPair(7) ? "pair" : "impair");
+
+print("");
+
+// ====================================================
+// 7. TABLEAU D'OBJETS
+// ====================================================
+print("--- 7. TABLEAU D'OBJETS ---");
+
+class Etudiant {
+    var nom;
+    var notes;
+    
+    func init(nom) {
+        this.nom = nom;
+        this.notes = [];
+    }
+    
+    func ajouterNote(note) {
+        // Simulé car les tableaux ne sont pas encore supportés
+        print("Ajout de note", note, "pour", this.nom);
+    }
+    
+    func moyenne() {
+        return 0; // À implémenter avec les tableaux
+    }
+}
+
+var etudiants = [];  // Tableau vide
+// Note: La création de tableau n'est pas encore supportée
+
+print("Création d'étudiants (simulé)");
+
+print("");
+
+// ====================================================
+// 8. POLYMORPHISME
+// ====================================================
+print("--- 8. POLYMORPHISME ---");
+
+class Forme {
+    func aire() {
+        return 0;
+    }
+    
+    func afficher() {
+        print("Forme générique");
+    }
+}
+
+class Rectangle : Forme {
+    var largeur;
+    var hauteur;
+    
+    func init(l, h) {
+        this.largeur = l;
+        this.hauteur = h;
+    }
+    
+    func aire() {
+        return this.largeur * this.hauteur;
+    }
+    
+    func afficher() {
+        print("Rectangle", this.largeur, "x", this.hauteur, "aire =", this.aire());
+    }
+}
+
+class Cercle : Forme {
+    var rayon;
+    
+    func init(r) {
+        this.rayon = r;
+    }
+    
+    func aire() {
+        return math.PI * this.rayon * this.rayon;
+    }
+    
+    func afficher() {
+        print("Cercle rayon", this.rayon, "aire =", this.aire());
+    }
+}
+
+var formes = [];
+// formes[0] = new Rectangle(5, 3);
+// formes[1] = new Cercle(4);
+
+// Simulation
+var rect = new Rectangle();
+rect.init(5, 3);
+rect.afficher();
+
+var cercle = new Cercle();
+cercle.init(4);
+cercle.afficher();
+
+print("");
+
+// ====================================================
+// 9. ENCAPSULATION (avec getters/setters simulés)
+// ====================================================
+print("--- 9. ENCAPSULATION ---");
+
+class CompteBancaire {
+    var titulaire;
+    private var solde = 0;
+    
+    func init(titulaire) {
+        this.titulaire = titulaire;
+    }
+    
+    func deposer(montant) {
+        if (montant > 0) {
+            this.solde = this.solde + montant;
+            print("Dépôt de", montant, "€ pour", this.titulaire);
+        }
+    }
+    
+    func retirer(montant) {
+        if (montant > 0 && montant <= this.solde) {
+            this.solde = this.solde - montant;
+            print("Retrait de", montant, "€ pour", this.titulaire);
+        } else {
+            print("Solde insuffisant pour", this.titulaire);
+        }
+    }
+    
+    func consulterSolde() {
+        print("Solde de", this.titulaire, ":", this.solde, "€");
+    }
+}
+
+var compte = new CompteBancaire();
+compte.init("Bob");
+compte.consulterSolde();
+compte.deposer(1000);
+compte.consulterSolde();
+compte.retirer(300);
+compte.consulterSolde();
+compte.retirer(800);  // Devrait échouer
+
+print("");
+
+// ====================================================
+// 10. MÉTHODE STATIQUE POUR CRÉATION D'INSTANCES
+// ====================================================
+print("--- 10. FABRIQUE STATIQUE ---");
+
+class Utilisateur {
+    var nom;
+    var email;
+    
+    static func creerAdmin(nom) {
+        var user = new Utilisateur();
+        user.nom = nom;
+        user.email = nom + "@admin.com";
+        return user;
+    }
+    
+    func afficher() {
+        print("Utilisateur:", this.nom, "Email:", this.email);
+    }
+}
+
+var admin = Utilisateur.creerAdmin("admin");
+admin.afficher();
+
+print("");
+
+// ====================================================
+// RÉSUMÉ
+// ====================================================
+print("╔══════════════════════════════════════════════╗");
+print("║     RÉSUMÉ CLASSES & STRUCTURES              ║");
+print("╠══════════════════════════════════════════════╣");
+print("║ 1. Classe simple             ✓               ║");
+print("║ 2. Constructeur (init)       ✓               ║");
+print("║ 3. Héritage                  ✓               ║");
+print("║ 4. Structures                ?               ║");
+print("║ 5. Variables statiques       ?               ║");
+print("║ 6. Méthodes statiques        ?               ║");
+print("║ 7. Tableaux d'objets         ?               ║");
+print("║ 8. Polymorphisme             ?               ║");
+print("║ 9. Encapsulation (private)   ?               ║");
+print("║ 10. Fabrique statique        ?               ║");
+print("╚══════════════════════════════════════════════╝");
+
+dbvar;
