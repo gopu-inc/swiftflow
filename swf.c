@@ -2168,28 +2168,43 @@ case NODE_DIR_LIST:
     }
     // --- LOOPS (FOR) ---
     case NODE_FOR: {
-        // 1. Clause d'initialisation (ex: var i = 0)
-        if (node->data.loop.init) {
-            execute(node->data.loop.init);
-        }
-
-        // 2. Boucle avec condition
-        while (evalBool(node->data.loop.condition)) {
-            // 3. Exécution du corps
-            execute(node->data.loop.body);
-
-            // Sortir si 'return'
-            if (current_function && current_function->has_returned) {
-                break;
-            }
-
-            // 4. Clause de mise à jour (ex: i = i + 1)
-            if (node->data.loop.update) {
-                execute(node->data.loop.update);
-            }
-        }
-        break;
+    // 1. Sauvegarder le scope actuel
+    int old_scope = scope_level;
+    scope_level++;
+    
+    // 2. Initialisation
+    if (node->data.loop.init) {
+        execute(node->data.loop.init);
     }
+    
+    // 3. Boucle
+    while (1) {
+        // Vérifier la condition
+        if (node->data.loop.condition) {
+            double cond = evalFloat(node->data.loop.condition);
+            if (cond == 0.0) break;  // Condition fausse, sortir
+        }
+        
+        // Exécuter le corps
+        if (node->data.loop.body) {
+            execute(node->data.loop.body);
+        }
+        
+        // Vérifier si return a été appelé
+        if (current_function && current_function->has_returned) {
+            break;
+        }
+        
+        // Incrémentation
+        if (node->data.loop.update) {
+            execute(node->data.loop.update);
+        }
+    }
+    
+    // 4. Restaurer le scope
+    scope_level = old_scope;
+    break;
+}
 
     // --- OOP (CLASS) ---
     case NODE_CLASS: {
