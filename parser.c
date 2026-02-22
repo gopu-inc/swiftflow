@@ -1079,11 +1079,31 @@ static ASTNode* primary() {
         return expr;
     }
     
-    if (match(TK_LBRACKET)) {
-        // TODO: Implémenter parsing liste
-        consume(TK_RBRACKET, "]");
-        return newNode(NODE_LIST);
+    // Dans la fonction primary(), remplacez le cas TK_LBRACKET :
+if (match(TK_LBRACKET)) {
+    ASTNode* node = newNode(NODE_LIST);
+    ASTNode* first_elem = NULL;
+    ASTNode* current_elem = NULL;
+    
+    if (!check(TK_RBRACKET)) {
+        // Premier élément
+        first_elem = expression();
+        current_elem = first_elem;
+        
+        // Éléments suivants
+        while (match(TK_COMMA)) {
+            ASTNode* next_elem = expression();
+            if (current_elem) {
+                current_elem->right = next_elem;
+                current_elem = next_elem;
+            }
+        }
     }
+    
+    consume(TK_RBRACKET, "Expected ']' after list");
+    node->left = first_elem;
+    return node;
+}
     if (match(TK_LBRACE)) {
         // TODO: Implémenter parsing map
         consume(TK_RBRBRACE, "}"); // Correction: TK_RBRACE
