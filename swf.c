@@ -1640,6 +1640,18 @@ static void execute(ASTNode* node) {
     if (!node) return;
     
     switch (node->type) {
+        case NODE_NEW: {
+    char* class_name = node->data.name; // "Personne"
+    char inst_id[64];
+    sprintf(inst_id, "%d", instance_count); // Génère l'ID "0", "1", etc.
+    
+    // CRUCIAL : Enregistrer le lien Instance <-> Classe
+    registerInstance(inst_id, class_name); 
+    
+    // Retourner l'ID pour que la variable (p1) le stocke
+    return strdup(inst_id); 
+}
+
         case NODE_PYTX_BLOCK: {
     char* alias = node->data.name;
     char* python_code = node->left->data.str_val;
