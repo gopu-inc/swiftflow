@@ -489,6 +489,7 @@ static bool loadAndExecuteModule(const char* import_path, const char* from_modul
         strcmp(import_path, "net") == 0 || strcmp(import_path, "std") == 0) {
         return true; 
     }
+    
     // 1. Résoudre le chemin absolu
     char* full_path = resolveModulePath(import_path, from_module);
     if (!full_path) {
@@ -502,17 +503,11 @@ static bool loadAndExecuteModule(const char* import_path, const char* from_modul
         if (cache->status == MODULE_STATUS_LOADING) {
             printf("%s[IMPORT WARN]%s Circular dependency detected for %s. Breaking cycle.\n", 
                    COLOR_YELLOW, COLOR_RESET, import_path);
-            // On retourne true pour ne pas planter, mais on n'exécute pas à nouveau
-            // Le module appelant devra faire avec ce qui est déjà exporté
             free(full_path);
             return true;
         }
         if (cache->status == MODULE_STATUS_LOADED) {
-            
-            
-            // On traite juste les imports nommés depuis le cache
-            // (La logique de liaison des exports existants)
-            // ... (Code de liaison identique à avant, voir plus bas) ...
+            // Déjà chargé, on peut accéder aux fonctions
             free(full_path);
             return true;
         }
@@ -521,8 +516,6 @@ static bool loadAndExecuteModule(const char* import_path, const char* from_modul
     // 3. Ajouter au cache en statut LOADING
     cache = addToCache(full_path, import_path);
     
-    
-
     // 4. Lecture Fichier
     FILE* f = fopen(full_path, "r");
     if (!f) {
@@ -549,7 +542,8 @@ static bool loadAndExecuteModule(const char* import_path, const char* from_modul
     ASTNode** nodes = parse(source, &node_count);
     
     if (!nodes) {
-        free(source); free(full_path);
+        free(source); 
+        free(full_path);
         strncpy(current_working_dir, old_dir, PATH_MAX);
         return false;
     }
@@ -557,11 +551,34 @@ static bool loadAndExecuteModule(const char* import_path, const char* from_modul
     // 7. Enregistrer le début des exports pour ce module
     cache->export_start_index = export_count;
 
-    // 8. PRÉ-TRAITEMENT (Exportations)
+    // ========== CORRECTION IMPORTANTE ==========
+    // 8. PRÉ-ENREGISTREMENT DES FONCTIONS DU MODULE
+    //    (AVANT d'exécuter le corps)
+    int old_func_count = func_count; // Pour déboguer
+    
+    for (int i = 0; i < node_count; i++) {
+        if (nodes[i] && nodes[i]->type == NODE_FUNC) {
+            // Compter les paramètres
+            int param_count = 0;
+            ASTNode* param = nodes[i]->left;
+            while (param) {
+                param_count++;
+                param = param->right;
+            }
+            
+            // Enregistrer la fonction
+            
+            
+            registerFunction(nodes[i]->data.name, nodes[i]->left, nodes[i]->right, param_count);
+        }
+    }
+    
+        // ===========================================
+
+    // 9. PRÉ-TRAITEMENT (Exportations)
     for (int i = 0; i < node_count; i++) {
         if (nodes[i] && nodes[i]->type == NODE_EXPORT) {
             execute(nodes[i]);
-            // On marque l'export comme appartenant à ce module (optionnel pour le nettoyage futur)
             if (export_count > 0) {
                 exports[export_count-1].module = strdup(full_path);
             }
@@ -570,28 +587,37 @@ static bool loadAndExecuteModule(const char* import_path, const char* from_modul
     
     cache->export_end_index = export_count;
 
-    // 9. EXÉCUTION DU CORPS (Initialisation)
+    // 10. EXÉCUTION DU CORPS (Initialisation)
     for (int i = 0; i < node_count; i++) {
         if (nodes[i] && nodes[i]->type != NODE_FUNC && nodes[i]->type != NODE_EXPORT && nodes[i]->type != NODE_CLASS) {
             execute(nodes[i]);
         }
     }
 
-    // 10. Marquer comme CHARGÉ
+    // 11. Marquer comme CHARGÉ
     cache->status = MODULE_STATUS_LOADED;
 
-    // 11. Restauration & Nettoyage
+    // 12. Restauration & Nettoyage
     strncpy(current_working_dir, old_dir, PATH_MAX);
     
-    // Nettoyage AST (simplifié)
-    for (int i = 0; i < node_count; i++) if (nodes[i]) free(nodes[i]);
+    // Nettoyage AST
+    for (int i = 0; i < node_count; i++) {
+        if (nodes[i]) {
+            if (nodes[i]->type == NODE_STRING && nodes[i]->data.str_val) {
+                free(nodes[i]->data.str_val);
+            }
+            if (nodes[i]->type == NODE_IDENT && nodes[i]->data.name) {
+                free(nodes[i]->data.name);
+            }
+            free(nodes[i]);
+        }
+    }
     free(nodes);
     free(source);
     free(full_path);
 
-        return true;
+    return true;
 }
-
 
 static bool isSymbolExported(const char* symbol, const char* module_path) {
     for (int i = 0; i < export_count; i++) {
