@@ -43,7 +43,7 @@ typedef enum {
     // Identifiers
     TK_IDENT, TK_AS, TK_OF, TK_IMPORTDB,
     // PYTX tokens
-    TK_PYTX,           // pytx keyword
+    TK_PYTX, TK_SUPER,          // pytx keyword
     TK_SWI,            // swi keyword (fin de bloc pytx)
     TK_PYTX_ACCESS,    // px. access
     
@@ -198,6 +198,7 @@ typedef struct {
 static const Keyword keywords[] = {
     //systeme et HTTP
     {"http.get", TK_HTTP_GET},
+    {"super", TK_SUPER},
     {"http.post", TK_HTTP_POST},
     {"http.download", TK_HTTP_DOWNLOAD},
     {"sys.exec", TK_SYS_EXEC},
