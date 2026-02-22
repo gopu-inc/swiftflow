@@ -962,6 +962,28 @@ static char* evalString(ASTNode* node) {
         if (data) free(data);
         return res ? res : str_copy("");
     }
+    
+case NODE_LIST: {
+    // Convertir la liste en string pour l'affichage
+    char* result = malloc(1024);
+    strcpy(result, "[");
+    
+    ASTNode* elem = node->left;
+    int first = 1;
+    
+    while (elem) {
+        if (!first) strcat(result, ", ");
+        char* elem_str = evalString(elem);
+        strcat(result, elem_str);
+        free(elem_str);
+        first = 0;
+        elem = elem->right;
+    }
+    
+    strcat(result, "]");
+    return result;
+}
+
 
     // --- MODULE PATH (Le correctif est ici) ---
     case NODE_PATH_FUNC: {
@@ -1270,7 +1292,16 @@ static bool evalBool(ASTNode* node) {
     switch (node->type) {
         case NODE_BOOL:
             return node->data.bool_val;
-            
+            case NODE_LIST: {
+    // Par défaut, retourne la longueur de la liste
+    int len = 0;
+    ASTNode* elem = node->left;
+    while (elem) {
+        len++;
+        elem = elem->right;
+    }
+    return (double)len;
+}
         case NODE_INT:
             return node->data.int_val != 0;
             
