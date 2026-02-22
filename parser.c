@@ -1043,7 +1043,7 @@ static ASTNode* primary() {
 
     ASTNode* lambda = lambdaExpression();
     if (lambda) return lambda;
-    
+     if (match(TK_SUPER)) return newNode(NODE_SUPER);  
     if (match(TK_TRUE)) return newBoolNode(true);
     if (match(TK_FALSE)) return newBoolNode(false);
     if (match(TK_NULL)) return newNode(NODE_NULL);
