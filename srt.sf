@@ -1,0 +1,25 @@
+
+var name = "srt";
+var version = "v1.0.0";
+
+
+import "./vars2.sf";
+
+var sns = sqrt(2.6);
+
+func srt(bools, floats) {
+    if (floats == sns) {
+        return floats;
+    } 
+    if (bools == sns) {
+            return bools;
+        }
+    if (bools == floats) {
+            return bools / floats;
+        }
+    return 0;
+}
+
+var srt = srt(2, 400);
+
+print("le srt du module c'est", srt);

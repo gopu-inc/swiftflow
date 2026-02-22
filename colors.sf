@@ -1,0 +1,14 @@
+var name = "colors";
+var version = "1.0.0";
+var hautor = "gopu.inc";
+var maintener = "Mauricio";
+
+
+// variable couleur 
+
+var COLORS_RESET = "\033[0m";
+var COLORS_BLACK = "\033[30m";
+var COLORS_RED = "\03[31m";
+
+print(COLORS_RED, "HELLO GOPU !", COLORS_RESET);
+

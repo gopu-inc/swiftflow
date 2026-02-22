@@ -50,13 +50,4 @@ func max(a, b) {
     return b;
 }
 
-var maxs = max(2, 51);
-var sqt = sqrt(16);
-var mins = min(2, 3);
-print("le maximale es", maxs);
-print("le minimale es", mins);
-print("le exposent de 8, pow(8, 2)");
-print("le resultat simple", sqt, sqrt(5));
 
-
-dbvar;
