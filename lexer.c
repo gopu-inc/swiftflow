@@ -352,7 +352,14 @@ static Token operatorLexer() {
             }
             if (match('>')) return makeToken(TK_DARROW); // =>
             return makeToken(TK_ASSIGN); // =
-            
+            // Dans la fonction operatorLexer(), ajoutez :
+            case '[':
+                advance();
+                return makeToken(TK_LBRACKET); // [
+    
+        case ']':
+            advance();
+            return makeToken(TK_RBRACKET); // ]
         case '!':
             advance();
             if (match('=')) {
