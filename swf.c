@@ -1598,15 +1598,93 @@ static void execute(ASTNode* node) {
         break;
     }
     case NODE_METHOD_CALL: {
-        char* method_name = node->data.name;
+    char* method_name = node->data.name;
+    char* inst_id = NULL;
+    char* prev_this = current_this;
+    bool is_super_call = false;
+    
+    // Gestion de super
+    if (node->left && node->left->type == NODE_SUPER) {
+        is_super_call = true;
         
-        char* inst_id = evalString(node->left);
+        // super appelle la méthode de la classe parente
+        if (current_this) {
+            inst_id = str_copy(current_this);
+            char* cls = findClassOf(inst_id);
+            
+            if (cls) {
+                // Chercher la classe parente
+                for (int i = 0; i < class_count; i++) {
+                    if (strcmp(classes[i].name, cls) == 0 && classes[i].parent) {
+                        // Construire le nom de la méthode parente
+                        char super_method[256];
+                        snprintf(super_method, 256, "%s_%s", classes[i].parent, method_name);
+                        
+                        // Chercher la méthode parente
+                        Function* super_func = findFunction(super_method);
+                        if (super_func) {
+                            // Exécuter avec le même contexte this
+                            current_this = inst_id;
+                            
+                            Function* prev_func = current_function;
+                            current_function = super_func;
+                            int old_scope = scope_level;
+                            scope_level++;
+                            
+                            // Passage des arguments
+                            if (node->right && super_func->param_names) {
+                                ASTNode* arg = node->right;
+                                int param_idx = 0;
+                                
+                                while (arg && param_idx < super_func->param_count) {
+                                    if (super_func->param_names[param_idx]) {
+                                        if (var_count < 1000) {
+                                            Variable* var = &vars[var_count];
+                                            strncpy(var->name, super_func->param_names[param_idx], 99);
+                                            var->name[99] = '\0';
+                                            var->type = TK_VAR;
+                                            var->scope_level = scope_level;
+                                            var->is_constant = false;
+                                            var->is_initialized = true;
+                                            
+                                            // Évaluation de l'argument
+                                            char* arg_str = evalString(arg);
+                                            var->is_string = true;
+                                            var->is_float = false;
+                                            var->value.str_val = arg_str;
+                                            
+                                            var_count++;
+                                        }
+                                    }
+                                    arg = arg->right;
+                                    param_idx++;
+                                }
+                            }
+                            
+                            // Exécution du corps de la méthode parente
+                            super_func->has_returned = false;
+                            if (super_func->body) {
+                                execute(super_func->body);
+                            }
+                            
+                            // Restauration
+                            scope_level = old_scope;
+                            current_function = prev_func;
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+    } else {
+        // Appel de méthode normal
+        inst_id = evalString(node->left);
         if (!inst_id) {
-            runtime_error(node, "Cannot call method on a null object");
+            runtime_error(node, "Cannot call method on null object");
             break;
         }
         
-        // 2. Trouver la classe de l'instance (ex: "Zarch")
+        // 2. Trouver la classe de l'instance
         char* cls = findClassOf(inst_id);
         if (!cls) {
             runtime_error(node, "Object instance has no class");
@@ -1614,7 +1692,7 @@ static void execute(ASTNode* node) {
             break;
         }
 
-        // 3. Construire le nom interne de la fonction (ex: "Zarch_install")
+        // 3. Construire le nom interne de la fonction (ex: "Personne_afficher")
         char real_func_name[256];
         snprintf(real_func_name, 256, "%s_%s", cls, method_name);
 
@@ -1625,8 +1703,7 @@ static void execute(ASTNode* node) {
             break;
         }
 
-        // --- EXÉCUTION (similaire à NODE_FUNC_CALL) ---
-        char* prev_this = current_this;
+        // 4. Exécution de la méthode
         current_this = inst_id; // Injecter 'this'
 
         Function* prev_func = current_function;
@@ -1634,23 +1711,34 @@ static void execute(ASTNode* node) {
         int old_scope = scope_level;
         scope_level++;
 
-        // Passage des arguments (le code que tu as déjà)
+        // Passage des arguments
         if (node->right && func->param_names) {
             ASTNode* arg = node->right;
             int param_idx = 0;
+            
             while (arg && param_idx < func->param_count) {
-                // ... (Logique de binding des arguments) ...
-                if (var_count < 1000) {
-                    Variable* var = &vars[var_count++];
-                    strncpy(var->name, func->param_names[param_idx], 99);
-                    var->scope_level = scope_level;
-                    var->is_initialized = true;
-                    if(arg->type == NODE_STRING) {
-                        var->is_string = true;
-                        var->value.str_val = evalString(arg);
-                    } else {
-                        var->is_float = true;
-                        var->value.float_val = evalFloat(arg);
+                if (func->param_names[param_idx]) {
+                    if (var_count < 1000) {
+                        Variable* var = &vars[var_count];
+                        strncpy(var->name, func->param_names[param_idx], 99);
+                        var->name[99] = '\0';
+                        var->type = TK_VAR;
+                        var->scope_level = scope_level;
+                        var->is_constant = false;
+                        var->is_initialized = true;
+                        
+                        // Évaluation de l'argument (supporte string ou float)
+                        if (arg->type == NODE_STRING) {
+                            var->is_string = true;
+                            var->is_float = false;
+                            var->value.str_val = evalString(arg);
+                        } else {
+                            var->is_string = false;
+                            var->is_float = true;
+                            var->value.float_val = evalFloat(arg);
+                        }
+                        
+                        var_count++;
                     }
                 }
                 arg = arg->right;
@@ -1658,16 +1746,23 @@ static void execute(ASTNode* node) {
             }
         }
         
+        // Exécution du corps de la méthode
         func->has_returned = false;
-        if (func->body) execute(func->body);
+        if (func->body) {
+            execute(func->body);
+        }
         
         // Restauration
         scope_level = old_scope;
         current_function = prev_func;
-        current_this = prev_this; // Restaurer 'this'
-        free(inst_id);
-        break;
     }
+    
+    // Restaurer le contexte 'this' précédent
+    current_this = prev_this;
+    if (inst_id) free(inst_id);
+    
+    break;
+}
         case NODE_SYS_EXIT: {
             int code = 0;
             if (node->left) code = (int)evalFloat(node->left);
