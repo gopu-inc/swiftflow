@@ -2168,49 +2168,44 @@ case NODE_DIR_LIST:
     }
     // --- LOOPS (FOR) ---
     case NODE_FOR: {
-    printf("DEBUG: Starting FOR loop\n");
+   
     
     // Initialisation
     if (node->data.loop.init) {
-        printf("DEBUG: Executing init\n");
+        
         execute(node->data.loop.init);
     }
     
     int iteration = 0;
     while (1) {
         iteration++;
-        printf("DEBUG: Iteration %d\n", iteration);
         
         // Condition
         if (node->data.loop.condition) {
             double cond = evalFloat(node->data.loop.condition);
-            printf("DEBUG: Condition = %f\n", cond);
+    
             if (cond == 0.0) {
-                printf("DEBUG: Condition false, breaking\n");
+                
                 break;
             }
         }
         
         // Corps
         if (node->data.loop.body) {
-            printf("DEBUG: Executing body\n");
             execute(node->data.loop.body);
         }
         
         // Incrémentation
         if (node->data.loop.update) {
-            printf("DEBUG: Executing update\n");
-            execute(node->data.loop.update);
+           execute(node->data.loop.update);
         }
         
         // Safety - éviter les boucles infinies
         if (iteration > 100) {
-            printf("DEBUG: Too many iterations, breaking\n");
             break;
         }
     }
     
-    printf("DEBUG: FOR loop ended\n");
     break;
 }
 
