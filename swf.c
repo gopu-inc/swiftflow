@@ -1079,52 +1079,48 @@ case NODE_LIST: {
 
     // --- INSTANCIATION ---
     case NODE_NEW: {
-    static int instance_id = 0;
-    char instance_name[64];
-    sprintf(instance_name, "inst_%d", ++instance_id);
-    
-    // Enregistrer l'instance avec sa classe
-    registerInstance(instance_name, node->data.name);
-    
-    printf("DEBUG: Created instance %s of class %s\n", instance_name, node->data.name);
-    
-    // Retourner l'identifiant de l'instance
-    char* result = malloc(64);
-    strcpy(result, instance_name);
-    
-    // Initialiser les propriétés de l'instance
-    // On crée des variables pour chaque propriété de la classe
-    for (int i = 0; i < class_count; i++) {
-        if (strcmp(classes[i].name, node->data.name) == 0) {
-            ASTNode* member = classes[i].members;
-            while (member) {
-                if (member->type == NODE_VAR_DECL && member->data.name) {
-                    // Créer la propriété de l'instance
-                    char prop_name[256];
-                    snprintf(prop_name, 256, "%s_%s", instance_name, member->data.name);
-                    
-                    if (var_count < 1000) {
-                        Variable* var = &vars[var_count];
-                        strncpy(var->name, prop_name, 99);
-                        var->type = TK_VAR;
-                        var->scope_level = 0;  // Les propriétés sont globales
-                        var->is_initialized = true;
-                        var->is_float = true;
-                        var->value.float_val = 0.0;
-                        var_count++;
+        static int instance_id = 0;
+        char instance_name[64];
+        sprintf(instance_name, "inst_%d", ++instance_id);
+        
+        // Enregistrer l'instance avec sa classe
+        registerInstance(instance_name, node->data.name);
+        
+        printf("DEBUG: Created instance %s of class %s\n", instance_name, node->data.name);
+        
+        // Créer les propriétés de l'instance
+        for (int i = 0; i < class_count; i++) {
+            if (strcmp(classes[i].name, node->data.name) == 0) {
+                ASTNode* member = classes[i].members;
+                while (member) {
+                    if (member->type == NODE_VAR_DECL && member->data.name) {
+                        char prop_name[256];
+                        snprintf(prop_name, 256, "%s_%s", instance_name, member->data.name);
                         
-                        printf("DEBUG: Created property %s\n", prop_name);
+                        if (var_count < 1000) {
+                            Variable* var = &vars[var_count];
+                            strncpy(var->name, prop_name, 99);
+                            var->type = TK_VAR;
+                            var->scope_level = 0;
+                            var->is_initialized = true;
+                            var->is_float = true;
+                            var->value.float_val = 0.0;
+                            var_count++;
+                            
+                            printf("DEBUG: Created property %s\n", prop_name);
+                        }
                     }
+                    member = member->right;
                 }
-                member = member->right;
+                break;
             }
-            break;
         }
+        
+        // Retourner l'identifiant de l'instance
+        char* result = malloc(64);
+        strcpy(result, instance_name);
+        return result;
     }
-    
-    return result;
-}
-
     // --- ACCÈS MEMBRE ---
     case NODE_MEMBER_ACCESS: {
         char* obj_name = NULL;
