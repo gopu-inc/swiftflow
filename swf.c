@@ -2168,41 +2168,49 @@ case NODE_DIR_LIST:
     }
     // --- LOOPS (FOR) ---
     case NODE_FOR: {
-    // 1. Sauvegarder le scope actuel
-    int old_scope = scope_level;
-    scope_level++;
+    printf("DEBUG: Starting FOR loop\n");
     
-    // 2. Initialisation
+    // Initialisation
     if (node->data.loop.init) {
+        printf("DEBUG: Executing init\n");
         execute(node->data.loop.init);
     }
     
-    // 3. Boucle
+    int iteration = 0;
     while (1) {
-        // Vérifier la condition
+        iteration++;
+        printf("DEBUG: Iteration %d\n", iteration);
+        
+        // Condition
         if (node->data.loop.condition) {
             double cond = evalFloat(node->data.loop.condition);
-            if (cond == 0.0) break;  // Condition fausse, sortir
+            printf("DEBUG: Condition = %f\n", cond);
+            if (cond == 0.0) {
+                printf("DEBUG: Condition false, breaking\n");
+                break;
+            }
         }
         
-        // Exécuter le corps
+        // Corps
         if (node->data.loop.body) {
+            printf("DEBUG: Executing body\n");
             execute(node->data.loop.body);
-        }
-        
-        // Vérifier si return a été appelé
-        if (current_function && current_function->has_returned) {
-            break;
         }
         
         // Incrémentation
         if (node->data.loop.update) {
+            printf("DEBUG: Executing update\n");
             execute(node->data.loop.update);
+        }
+        
+        // Safety - éviter les boucles infinies
+        if (iteration > 100) {
+            printf("DEBUG: Too many iterations, breaking\n");
+            break;
         }
     }
     
-    // 4. Restaurer le scope
-    scope_level = old_scope;
+    printf("DEBUG: FOR loop ended\n");
     break;
 }
 
