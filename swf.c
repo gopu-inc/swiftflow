@@ -177,9 +177,16 @@ static void registerInstance(const char* id, const char* class_name) {
 
 // Trouve la classe d'une instance
 static char* findClassOf(const char* id) {
-    for(int i=0; i<instance_count; i++) {
-        if(strcmp(instances[i].id, id) == 0) return instances[i].class_name;
+    if (!id) return NULL;
+    
+    for(int i = 0; i < instance_count; i++) {
+        if(strcmp(instances[i].id, id) == 0) {
+            printf("DEBUG: Found instance %s of class %s\n", id, instances[i].class_name);
+            return instances[i].class_name;
+        }
     }
+    
+    printf("DEBUG: Instance %s not found in registry\n", id);
     return NULL;
 }
 
@@ -350,8 +357,29 @@ static void registerClass(const char* name, char* parent, ASTNode* members) {
         cls->members = members;
         class_count++;
         
+        // Enregistrer les méthodes de la classe
+        ASTNode* member = members;
+        while (member) {
+            if (member->type == NODE_FUNC) {
+                char method_full_name[256];
+                snprintf(method_full_name, 256, "%s_%s", name, member->data.name);
+                
+                // Compter les paramètres
+                int param_count = 0;
+                ASTNode* param = member->left;
+                while (param) {
+                    param_count++;
+                    param = param->right;
+                }
+                
+                printf("DEBUG: Registering method %s with %d params\n", method_full_name, param_count);
+                registerFunction(method_full_name, member->left, member->right, param_count);
+            }
+            member = member->right;
+        }
     }
 }
+
 static ModuleCache* findInCache(const char* absolute_path) {
     for (int i = 0; i < registry_count; i++) {
         if (strcmp(module_registry[i].path, absolute_path) == 0) {
@@ -1051,12 +1079,51 @@ case NODE_LIST: {
 
     // --- INSTANCIATION ---
     case NODE_NEW: {
-        static int instance_id = 0;
-        char instance_name[64];
-        sprintf(instance_name, "inst_%d", ++instance_id);
-        registerInstance(instance_name, node->data.name);
-        return str_copy(instance_name);
+    static int instance_id = 0;
+    char instance_name[64];
+    sprintf(instance_name, "inst_%d", ++instance_id);
+    
+    // Enregistrer l'instance avec sa classe
+    registerInstance(instance_name, node->data.name);
+    
+    printf("DEBUG: Created instance %s of class %s\n", instance_name, node->data.name);
+    
+    // Retourner l'identifiant de l'instance
+    char* result = malloc(64);
+    strcpy(result, instance_name);
+    
+    // Initialiser les propriétés de l'instance
+    // On crée des variables pour chaque propriété de la classe
+    for (int i = 0; i < class_count; i++) {
+        if (strcmp(classes[i].name, node->data.name) == 0) {
+            ASTNode* member = classes[i].members;
+            while (member) {
+                if (member->type == NODE_VAR_DECL && member->data.name) {
+                    // Créer la propriété de l'instance
+                    char prop_name[256];
+                    snprintf(prop_name, 256, "%s_%s", instance_name, member->data.name);
+                    
+                    if (var_count < 1000) {
+                        Variable* var = &vars[var_count];
+                        strncpy(var->name, prop_name, 99);
+                        var->type = TK_VAR;
+                        var->scope_level = 0;  // Les propriétés sont globales
+                        var->is_initialized = true;
+                        var->is_float = true;
+                        var->value.float_val = 0.0;
+                        var_count++;
+                        
+                        printf("DEBUG: Created property %s\n", prop_name);
+                    }
+                }
+                member = member->right;
+            }
+            break;
+        }
     }
+    
+    return result;
+}
 
     // --- ACCÈS MEMBRE ---
     case NODE_MEMBER_ACCESS: {
