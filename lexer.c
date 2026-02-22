@@ -512,13 +512,6 @@ static Token operatorLexer() {
             advance();
             return makeToken(TK_RBRACE); // }
             
-        case '[':
-            advance();
-            return makeToken(TK_LBRACKET); // [
-            
-        case ']':
-            advance();
-            return makeToken(TK_RBRACKET); // ]
             
         default:
             // Unknown character
