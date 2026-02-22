@@ -1641,12 +1641,13 @@ static ASTNode* forStatement() {
     
     // Initialization
     if (match(TK_SEMICOLON)) {
-        // No initialization
-    } else if (match(TK_VAR) || match(TK_LET) || match(TK_CONST) ||
-               match(TK_NET) || match(TK_CLOG) || match(TK_DOS) || match(TK_SEL)) {
+        node->data.loop.init = NULL;
+    } else if (match(TK_VAR) || match(TK_LET) || match(TK_CONST)) {
         node->data.loop.init = variableDeclaration();
+        // Ne pas consommer le ';' ici car variableDeclaration() le fait déjà
     } else {
-        node->data.loop.init = expressionStatement();
+        node->data.loop.init = expression();
+        consume(TK_SEMICOLON, "Expected ';' after loop init");
     }
     
     // Condition
@@ -1665,7 +1666,6 @@ static ASTNode* forStatement() {
     
     return node;
 }
-
 // For-in statement
 static ASTNode* forInStatement() {
     ASTNode* node = newNode(NODE_FOR_IN);
