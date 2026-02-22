@@ -2707,11 +2707,13 @@ static ASTNode* statement() {
     return expressionStatement();
 }
 static ASTNode* pytx_statement() {
-    
+    printf("DEBUG: Entering pytx_statement, current token kind: %d\n", current.kind);
+    printf("DEBUG: Current token value: '%s'\n", current.value.str_val ? current.value.str_val : "NULL");
     
     if (check(TK_PYTX)) {
         advance(); // consomme 'pytx'
-        
+        printf("DEBUG: After pytx, token kind: %d\n", current.kind);
+        printf("DEBUG: Token value: '%s'\n", current.value.str_val ? current.value.str_val : "NULL");
         
         // Vérifier que le prochain token est un identifiant ou px
         if (!check(TK_IDENT) && !check(TK_PYTX_ACCESS)) {
@@ -2727,7 +2729,7 @@ static ASTNode* pytx_statement() {
             alias = str_copy("px"); // fallback
         }
         
-        
+        printf("DEBUG: Alias found: %s\n", alias);
         advance(); // consomme l'alias
         
         // Vérifier et consommer le ':'
@@ -2736,38 +2738,39 @@ static ASTNode* pytx_statement() {
             free(alias);
             return NULL;
         }
-        
+        printf("DEBUG: Found ':'\n");
         advance(); // consomme ':'
         
         // IGNORER TOUS LES TOKENS jusqu'à "swi.cmd"
+        printf("DEBUG: Skipping all tokens until swi.cmd...\n");
         
         int found_swi = 0;
         int found_dot = 0;
         int found_cmd = 0;
         
         while (!check(TK_EOF)) {
-            
+            printf("DEBUG: Skipping token kind: %d", current.kind);
             if (current.value.str_val) {
-                
+                printf(", value: %s", current.value.str_val);
             }
             printf("\n");
             
             // Chercher la séquence swi . cmd
             if (check(TK_SWI)) {
-                
+                printf("DEBUG: Found TK_SWI\n");
                 advance(); // consomme 'swi'
                 found_swi = 1;
                 
                 // Vérifier le point
                 if (check(TK_PERIOD)) {
-                    
+                    printf("DEBUG: Found '.' after swi\n");
                     advance(); // consomme '.'
                     found_dot = 1;
                     
                     // Vérifier "cmd"
                     if (check(TK_IDENT) && current.value.str_val && 
                         strcmp(current.value.str_val, "cmd") == 0) {
-                        
+                        printf("DEBUG: Found 'cmd' after '.'\n");
                         advance(); // consomme 'cmd'
                         found_cmd = 1;
                         break;
@@ -2793,7 +2796,7 @@ static ASTNode* pytx_statement() {
         
         // Consommer le ';' optionnel après swi.cmd
         if (check(TK_SEMICOLON)) {
-            
+            printf("DEBUG: Found ';' after swi.cmd\n");
             advance();
         }
         
@@ -2801,40 +2804,42 @@ static ASTNode* pytx_statement() {
         ASTNode* node = newNode(NODE_EMPTY);
         node->data.name = alias;  // On stocke l'alias au cas où
         
-        
+        printf("DEBUG: pytx block ignored completely, %d tokens skipped\n", found_swi);
         return node;
     }
     
     return NULL;
 }
 static ASTNode* pytx_command() {
-    
+    printf("DEBUG: pytx_command starting, current kind: %d, value: '%s'\n", 
+           current.kind, current.value.str_val ? current.value.str_val : "NULL");
     
     // var net = px.httpd;
     if (match(TK_VAR)) {
-        
+        printf("DEBUG: Found TK_VAR in pytx_command\n");
         
         if (!match(TK_IDENT)) {
             errorAtCurrent("Expected variable name");
             return NULL;
         }
         char* var_name = str_copy(previous.value.str_val);
-        
+        printf("DEBUG: Variable name: '%s'\n", var_name);
         
         if (!match(TK_ASSIGN)) {
             errorAtCurrent("Expected '=' after variable name");
             free(var_name);
             return NULL;
         }
+        printf("DEBUG: Found '=' after variable\n");
         
         // Vérifier si c'est un accès px.xxx
         if (check(TK_PYTX_ACCESS) || (current.kind == TK_IDENT && strcmp(current.value.str_val, "px") == 0)) {
-            
+            printf("DEBUG: Found px access\n");
             
             // Consommer px (si c'est un TK_IDENT ou TK_PYTX_ACCESS)
             if (check(TK_PYTX_ACCESS) || (check(TK_IDENT) && strcmp(current.value.str_val, "px") == 0)) {
                 advance(); // consomme 'px'
-                
+                printf("DEBUG: After px, current kind: %d\n", current.kind);
                 
                 // Maintenant on doit avoir un point suivi d'un identifiant
                 if (!match(TK_PERIOD)) {
@@ -2842,7 +2847,7 @@ static ASTNode* pytx_command() {
                     free(var_name);
                     return NULL;
                 }
-                
+                printf("DEBUG: Found '.' after px\n");
                 
                 if (!match(TK_IDENT)) {
                     errorAtCurrent("Expected module name after px.");
@@ -2850,7 +2855,7 @@ static ASTNode* pytx_command() {
                     return NULL;
                 }
                 char* module_name = str_copy(previous.value.str_val);
-                
+                printf("DEBUG: Module name: '%s'\n", module_name);
                 
                 ASTNode* node = newNode(NODE_PYTX_VAR);
                 node->data.name = var_name;
@@ -2859,7 +2864,7 @@ static ASTNode* pytx_command() {
                 
                 // Optionnellement, on peut avoir un deuxième point pour une fonction
                 if (check(TK_PERIOD)) {
-                    
+                    printf("DEBUG: Found second '.' for function\n");
                     advance(); // consomme le deuxième point
                     
                     if (!match(TK_IDENT)) {
@@ -2868,21 +2873,21 @@ static ASTNode* pytx_command() {
                         return NULL;
                     }
                     char* func_name = str_copy(previous.value.str_val);
-                    
+                    printf("DEBUG: Function name: '%s'\n", func_name);
                     node->right = newStringNode(func_name);
                     free(func_name);
                 }
                 
                 // Consommer le ';' si présent
                 if (check(TK_SEMICOLON)) {
-                    
+                    printf("DEBUG: Found ';' at end of line\n");
                     advance();
                 }
                 
                 return node;
             }
         } else {
-            
+            printf("DEBUG: Not a px access, current kind: %d\n", current.kind);
             free(var_name);
         }
     }
@@ -2890,11 +2895,11 @@ static ASTNode* pytx_command() {
     // net.get("https://...")
     if (check(TK_IDENT)) {
         char* obj_name = str_copy(previous.value.str_val);
-        
+        printf("DEBUG: Found object name: '%s'\n", obj_name);
         advance();
         
         if (match(TK_PERIOD)) {
-            
+            printf("DEBUG: Found '.' after object\n");
             
             if (!match(TK_IDENT)) {
                 errorAtCurrent("Expected method name");
@@ -2902,7 +2907,7 @@ static ASTNode* pytx_command() {
                 return NULL;
             }
             char* method = str_copy(previous.value.str_val);
-            
+            printf("DEBUG: Method name: '%s'\n", method);
             
             if (!match(TK_LPAREN)) {
                 errorAtCurrent("Expected '(' after method name");
@@ -2910,14 +2915,14 @@ static ASTNode* pytx_command() {
                 free(method);
                 return NULL;
             }
-            
+            printf("DEBUG: Found '(' after method\n");
             
             ASTNode* args = NULL;
             if (!check(TK_RPAREN)) {
                 args = expression();
                 ASTNode* current_arg = args;
                 while (match(TK_COMMA)) {
-                    
+                    printf("DEBUG: Found ',' in arguments\n");
                     ASTNode* next_arg = expression();
                     if (current_arg) {
                         current_arg->right = next_arg;
@@ -2932,7 +2937,7 @@ static ASTNode* pytx_command() {
                 free(method);
                 return NULL;
             }
-           
+            printf("DEBUG: Found ')' after arguments\n");
             
             ASTNode* node = newNode(NODE_PYTX_CALL);
             node->data.name = obj_name;
@@ -2942,7 +2947,7 @@ static ASTNode* pytx_command() {
             
             // Consommer le ';' si présent
             if (check(TK_SEMICOLON)) {
-                
+                printf("DEBUG: Found ';' at end of line\n");
                 advance();
             }
             
@@ -2952,10 +2957,10 @@ static ASTNode* pytx_command() {
     }
     
     // Si ce n'est pas reconnu, on essaie de parser comme une expression normale
-    
+    printf("DEBUG: Falling back to expressionStatement\n");
     ASTNode* expr = expressionStatement();
     if (expr) {
-        
+        printf("DEBUG: Successfully parsed as expression\n");
     } else {
         printf("DEBUG: Failed to parse as expression\n");
     }

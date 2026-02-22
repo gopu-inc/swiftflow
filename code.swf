@@ -1,0 +1,18 @@
+pytx px:
+    import sys
+    import os
+    import math
+    import datetime
+    import json
+    
+    print("Python version:", sys.version)
+    print("Current directory:", os.getcwd())
+    print("Square root of 16:", math.sqrt(16))
+    print("Pi value:", math.pi)
+    print("Current time:", datetime.datetime.now())
+    
+    data = {"name": "SwiftFlow", "version": 1.0}
+    print("JSON:", json.dumps(data))
+swi.cmd;
+
+print("Retour dans SwiftFlow!");

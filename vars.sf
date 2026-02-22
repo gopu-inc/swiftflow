@@ -1,0 +1,6 @@
+import "./vars2.sf";
+
+var sqrt_result = sqrt(5);
+
+print("la racine carre de 5 es", sqrt_result);
+

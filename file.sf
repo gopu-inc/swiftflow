@@ -1,0 +1,12 @@
+import "json";
+import "math";
+
+var np = "json()";
+
+np;
+
+var data = math.sqrt(16);
+
+print(data);
+
+dbvar

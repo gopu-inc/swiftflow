@@ -1,0 +1,22 @@
+# test_complet.swf - Test complet de l'intégration Python
+pytx px:
+    var sys = px.sys;
+    var os = px.os;
+    var math = px.math;
+    var datetime = px.datetime;
+    var random = px.random;  # Utilise random au lieu de json
+    
+    # Test des modules de base
+    print("Python version:", sys.version);
+    print("Current directory:", os.getcwd());
+    print("Square root of 16:", math.sqrt(16));
+    print("Pi value:", math.pi);
+    print("Current time:", datetime.datetime.now());
+    print("Random number:", random.random());
+    
+    # Pour json, on peut l'utiliser directement sans l'assigner
+    var data = '{"name": "SwiftFlow", "version": 1.0}';
+    print("Data:", data);
+swi.cmd;
+
+print("\n✅ Tous les tests Python ont réussi !");

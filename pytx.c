@@ -80,6 +80,4 @@ void pytx_cleanup(void) {
             free(py_modules[i].module_name);
         }
     }
-    Py_Finalize();
-    printf("%s[PYTX]%s Python interpreter finalized\n", COLOR_GREEN, COLOR_RESET);
 }

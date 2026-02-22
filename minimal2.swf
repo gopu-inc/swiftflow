@@ -1,0 +1,4 @@
+pytx px:
+    var sys = px.sys;
+    print(sys.version);
+swi.cmd;

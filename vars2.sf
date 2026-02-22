@@ -1,0 +1,62 @@
+var nass = 0 / 0;
+
+func sqrt(x) {
+    if (x < 0) {
+        return nass;
+    } 
+    if (x == 0) {
+        return 0;
+    }
+    var guess = x / 2.0;
+    var i = 0;
+    while (i < 20) {
+        guess = (guess + x / guess) / 2.0;
+        i = i + 1;
+    }
+    return guess;
+}
+
+func pow(base, exponent) {
+    if (exponent == 0) {
+        return 1;
+    }
+    var result = 1.0;
+    var i = 0;
+    // utiliser abs pour le exponent negatif
+    var abs_exp = exponent;
+    if (exponent < 0) {
+        abs_exp = -exponent;
+    }
+    while (i < abs_exp) {
+           result = result * base;
+           i = i + 1;
+    }
+    if (exponent < 0) {
+        return 1.0 / result;
+    }
+    return result;
+}
+func min(a, b) {
+    if (a < b) {
+        return a;
+    }
+    return b;
+}
+func max(a, b) {
+    if (a > b) {
+        
+        return a;
+    }
+    return b;
+}
+
+var maxs = max(2, 51);
+var sqt = sqrt(16);
+var mins = min(2, 3);
+print("le maximale es", maxs);
+print("le minimale es", mins);
+print("le exposent de 8, pow(8, 2)");
+print("le resultat simple", sqt, sqrt(5));
+
+
+dbvar;
