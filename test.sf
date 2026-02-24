@@ -1,0 +1,39 @@
+// string.sf - Version optimisée avec boucles FOR pour gopu.inc
+
+func repeat(s, n) {
+    var res = "";
+    for (var i = 0; i < n; i = i + 1) {
+        res = res + s;
+    }
+    return res;
+}
+
+func contains(str, search) {
+    var ls = length(str);
+    var lsearch = length(search);
+    
+    if (lsearch > ls) { return false; }
+    
+    var limit = ls - lsearch;
+    
+    for (var j = 0; j <= limit; j = j + 1) {
+        // On isole l'appel pour éviter l'erreur de parsing
+        var sub = "";
+        sub = substring(str, j, lsearch); 
+        
+        if (sub == search) {
+            return true;
+        }
+    }
+    return false;
+}
+
+func padLeft(str, total, char) {
+    var cur = length(str);
+    if (cur >= total) { return str; }
+    
+    var diff = total - cur;
+    var prefix = repeat(char, diff);
+    return prefix + str;
+}
+

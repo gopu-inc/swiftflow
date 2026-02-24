@@ -1,0 +1,33 @@
+// string.sf - Version "Low-Level" pour Parser restreint
+
+func repeat(s, n) {
+    var res = "";
+    var count = 0;
+    while (count < n) {
+        res = res + s;
+        count = count + 1;
+    }
+    return res;
+}
+
+func contains(str, search) {
+    var ls = length(str);
+    var lsearch = length(search);
+    
+    if (lsearch > ls) { return false; }
+    
+    var i = 0;
+    var max = ls - lsearch;
+    
+    while (i <= max) {
+        // ON ÉVITE LES 3 ARGUMENTS ICI
+        // Si ton substring ne prend pas 3 args, on simule :
+        var test = substring(str, i); // On suppose une version à 2 args
+        if (test == search) {
+            return true;
+        }
+        i = i + 1;
+    }
+    return false;
+}
+

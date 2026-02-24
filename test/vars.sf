@@ -1,0 +1,14 @@
+import "math.sf";
+
+var E = 3.0020;
+
+clog S = 3.0000;
+
+const F = 3.000;
+
+var sqrt_result = sqrt(5);
+
+print("la racine carre de 5 es", sqrt_result);
+print("var", PI);
+print("clog", S);
+print("const", F);

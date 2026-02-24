@@ -12,7 +12,7 @@ void init_pytx(void) {
     Py_Initialize();
     // Ajouter le chemin courant au path Python
     PyRun_SimpleString("import sys; sys.path.append('.')");
-    printf("%s[PYTX]%s Python interpreter initialized\n", COLOR_GREEN, COLOR_RESET);
+    
 }
 
 PyTxModule* pytx_import(const char* module_name) {

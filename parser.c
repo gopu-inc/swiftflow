@@ -7,6 +7,8 @@
 // ======================================================
 // [SECTION] PROTOTYPES (FORWARD DECLARATIONS)
 // ======================================================
+// STRING
+static ASTNode* expression(); 
 // PYTX
 static ASTNode* pytx_statement();
 static ASTNode* pytx_command();
@@ -83,7 +85,7 @@ static void errorAt(Token token, const char* message) {
     panicMode = true;
     
     if (errorCount >= 3) {
-        fprintf(stderr, "%sPARSER FATAL%s Too many errors (%d). Stopping.\n", 
+        fprintf(stderr, "%s[PARSER]%s Fatal Too many errors (%d). Stopping.\n", 
                 COLOR_BRIGHT_RED, COLOR_RESET, errorCount);
         exit(1);
     }
@@ -207,6 +209,17 @@ static ASTNode* newFloatNode(double value) {
 static ASTNode* newStringNode(char* value) {
     ASTNode* node = newNode(NODE_STRING);
     node->data.str_val = str_copy(value);
+    return node;
+}
+
+static ASTNode* stringUpperStatement() {
+    advance(); // consomme le token 'string.upper' ou équivalent
+    consume(TK_LPAREN, "Expect '('");
+    ASTNode* arg = expression();
+    consume(TK_RPAREN, "Expect ')'");
+    
+    ASTNode* node = newNode(NODE_STR_UPPER); // Crée ce type dans NodeType
+    node->left = arg;
     return node;
 }
 
@@ -872,6 +885,9 @@ static ASTNode* primary() {
             current = start_token;
         }
         // --- MODULE 'math' ---
+    if (match(TK_STR_UPPER)) { // Assure-toi que TK_STR_UPPER existe dans common.h
+        return stringUpperStatement();
+    }
         else if (strcmp(module_name, "math") == 0) {
             advance();
             if (match(TK_PERIOD) && match(TK_IDENT)) {
@@ -2977,7 +2993,7 @@ static ASTNode* pytx_command() {
     if (expr) {
         
     } else {
-        printf("DEBUG: Failed to parse as expression\n");
+        
     }
     return expr;
 }

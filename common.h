@@ -43,7 +43,7 @@ typedef enum {
     // Identifiers
     TK_IDENT, TK_AS, TK_OF, TK_IMPORTDB,
     // PYTX tokens
-    TK_PYTX, TK_SUPER,          // pytx keyword
+    TK_PYTX,          // pytx keyword
     TK_SWI,            // swi keyword (fin de bloc pytx)
     TK_PYTX_ACCESS,    // px. access
     
@@ -205,6 +205,7 @@ static const Keyword keywords[] = {
     {"sys.argv", TK_SYS_ARGV},
     {"sys.exit", TK_SYS_EXIT},
     {"json.get", TK_JSON_GET},
+    {"str_upper", TK_STR_UPPER},
     {"std.len", TK_STD_LEN},
     {"std.split", TK_STD_SPLIT},
     {"std.to_int", TK_STD_TO_INT},
@@ -319,6 +320,7 @@ typedef enum {
     NODE_TIME_SLEEP,
     NODE_ENV_FUNC,
     NODE_PATH_FUNC,
+    NODE_STR_UPPER,
     NODE_ENC_FUNC,
     NODE_HTTP_GET,
     NODE_HTTP_POST,

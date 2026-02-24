@@ -1,0 +1,9 @@
+import "math"; // Maintenant ça devrait marcher
+
+var texte = "gopu inc";
+var grand = str_upper(texte);
+
+print("Original:", texte);
+print("Upper:", grand);
+print("Racine de 25:", sqrt(25));
+

@@ -1,0 +1,24 @@
+import "./string.sf";
+
+print("--- Test Module String (Pure SwiftFlow) ---");
+
+var texte = "SwiftFlow";
+
+// Test Reverse
+var inv = reverse(texte);
+print("Original :", texte);
+print("Inversé  :", inv);
+
+// Test Repeat
+print("Séparateur :", repeat("-", 20));
+
+// Test Padding (utile pour les IDs chez gopu.inc)
+var id = "42";
+var fullId = padLeft(id, 5, "0");
+print("ID Formaté :", fullId); 
+
+// Test Contains
+if (contains(texte, "Flow")) {
+    print("Le texte contient bien 'Flow'");
+}
+

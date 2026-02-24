@@ -1,0 +1,7 @@
+func test3(a, b, c) { return a; }
+
+// Teste ces lignes une par une :
+var x = test3(1, 2);    // Marche ?
+var y = test3(1, 2, 3); // Plante avec l'erreur Line 27 ?
+
+print(x, y);

@@ -440,6 +440,9 @@ static char* resolveModulePath(const char* import_path, const char* from_module)
         
         const char* search_paths[] = {
             "./zarch_modules",
+            "/usr/local/lib/swift/stdlib/src",
+            ".",
+            "../",
             "/usr/local/lib/swift",
             base_path,
             NULL
@@ -454,7 +457,7 @@ static char* resolveModulePath(const char* import_path, const char* from_module)
             }
             // Essayer avec .swf
             char candidate_ext[PATH_MAX];
-            snprintf(candidate_ext, PATH_MAX, "%s.swf", candidate);
+            snprintf(candidate_ext, PATH_MAX, "%s.sf", candidate);
             if (access(candidate_ext, F_OK) == 0) {
                 strcpy(candidate, candidate_ext);
                 found = true;
@@ -478,20 +481,20 @@ static char* resolveModulePath(const char* import_path, const char* from_module)
         char entry_point[PATH_MAX];
         
         // Tentative 1: index.swf
-        snprintf(entry_point, PATH_MAX, "%s/index.swf", candidate);
+        snprintf(entry_point, PATH_MAX, "%s/index.sf", candidate);
         if (access(entry_point, F_OK) == 0) {
             if (realpath(entry_point, resolved)) return strdup(resolved);
         }
         
         // Tentative 2: main.swf
-        snprintf(entry_point, PATH_MAX, "%s/main.swf", candidate);
+        snprintf(entry_point, PATH_MAX, "%s/main.sf", candidate);
         if (access(entry_point, F_OK) == 0) {
             if (realpath(entry_point, resolved)) return strdup(resolved);
         }
         
         // Tentative 3: Le nom du dossier.swf à l'intérieur (ex: math/math.swf)
         char *folder_name = basename(candidate);
-        snprintf(entry_point, PATH_MAX, "%s/%s.swf", candidate, folder_name);
+        snprintf(entry_point, PATH_MAX, "%s/%s.sf", candidate, folder_name);
         if (access(entry_point, F_OK) == 0) {
             if (realpath(entry_point, resolved)) return strdup(resolved);
         }
@@ -503,7 +506,7 @@ static char* resolveModulePath(const char* import_path, const char* from_module)
         
         // Essayer d'ajouter .swf
         char with_ext[PATH_MAX];
-        snprintf(with_ext, PATH_MAX, "%s.swf", candidate);
+        snprintf(with_ext, PATH_MAX, "%s.sf", candidate);
         if (access(with_ext, F_OK) == 0) {
              if (realpath(with_ext, resolved)) return strdup(resolved);
         }

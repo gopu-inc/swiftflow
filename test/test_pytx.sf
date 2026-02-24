@@ -1,13 +1,12 @@
-// main.swf
+# test_pytx.swf
 pytx as px:
-    var net = px.httpd
-    var json = px.json
+    var math = px.math;
+    var random = math.sqrt(16);
+    print("sqrt(16) =", random);
     
-    net.get("https://api.github.com/repos/swiftflow")
-    var data = json.loads(response)
-    
-    print("Stars:", data["stargazers_count"])
-swi.cmd
+    var datetime = px.datetime;
+    var now = datetime.datetime.now();
+    print("Current time:", now);
+swi.cmd;
 
-// Import d'un module Swift qui utilise pytx
-import "mon_app_web"  // Ce module utilise déjà pytx en interne
+print("✅ Python integration works!");

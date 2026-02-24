@@ -1,5 +1,5 @@
 var nass = 0 / 0;
-
+net PI =3.141000;
 func sqrt(x) {
     if (x < 0) {
         return nass;
