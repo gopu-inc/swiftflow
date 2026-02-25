@@ -3,7 +3,7 @@
 #include <string.h>
 #include "class.h"
 
-static ClassDef* classes[100];
+static ClassDef* classes[6400];
 static int class_count = 0;
 
 void init_class_system() {
@@ -17,16 +17,15 @@ ClassDef* create_class_def(const char* name, const char* parent) {
     def->name = str_copy(name);
     def->parent_name = parent ? str_copy(parent) : NULL;
     
-    printf("DEBUG: ClassDef créée : %s (parent: %s)\n", name, parent ? parent : "aucun");
-    return def;
+        return def;
 }
 
 void register_class(ClassDef* def) {
     if (class_count < 100) {
         classes[class_count++] = def;
-        printf("DEBUG: Classe %s enregistrée au runtime.\n", def->name);
+        
     } else {
-        fprintf(stderr, "Erreur : Trop de classes définies (max 100).\n");
+        fprintf(stderr, "Erreur : you are defield max class (max 100).\n");
     }
 }
 
