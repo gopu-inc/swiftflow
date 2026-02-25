@@ -96,16 +96,6 @@ void init_class_stdlib() {
     // Object_equals(other)
     registerFunction("Object_equals", NULL, NULL, 1);
 }
-// Dans ton interpréteur (swf.c ou stdlib.c)
-void native_Object_toString() {
-    if (current_this) {
-        char result[256];
-        char* cls = findClassOf(current_this);
-        snprintf(result, 256, "<Instance of %s at %s>", cls, current_this);
-        return_string(str_copy(result));
-    }
-}
-
 
 char* std_str_replace(const char* orig, const char* rep, const char* with) {
     if(!orig || !rep) return orig ? strdup(orig) : strdup("");
