@@ -2150,7 +2150,7 @@ static ASTNode* classDeclaration() {
 
     while (!check(TK_RBRACE) && !isAtEnd()) {
         // On vérifie si c'est une fonction/méthode
-        if (check(TK_FUNC) || check(TK_FUNCTION)) {
+        if (check(TK_FUNC)) {
             advance(); // Consomme le 'func'
             
             // On utilise ta fonction de parsing de fonction existante
