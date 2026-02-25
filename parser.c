@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <unistd.h>
+#include "class.h"
 #include "common.h"
 // ======================================================
 // [SECTION] PROTOTYPES (FORWARD DECLARATIONS)
@@ -2122,97 +2123,55 @@ static ASTNode* variableDeclaration() {
 // ======================================================
 // [SECTION] CLASS AND TYPE DECLARATIONS - COMPLETE
 // ======================================================
+// À ajouter dans les prototypes en haut de parser.c
+
+
+// La fonction à ajouter dans parser.c
 static ASTNode* classDeclaration() {
-    Token class_token = previous;
+    // 1. On consomme le nom de la classe (Player, BaseObject, etc.)
+    Token nameToken = consume(TK_IDENT, "Expect class name.");
+    char* className = str_ncopy(nameToken.start, nameToken.length);
     
-    if (!match(TK_IDENT)) {
-        errorAtCurrent("Expected class name");
-        return NULL;
+    char* parentName = NULL;
+    
+    // 2. Gestion de l'héritage (extends)
+    if (match(TK_EXTENDS)) {
+        Token parentToken = consume(TK_IDENT, "Expect parent class name.");
+        parentName = str_ncopy(parentToken.start, parentToken.length);
     }
-    
-    char* class_name = str_copy(previous.value.str_val);
-    ASTNode* node = newNode(NODE_CLASS);
-    node->data.class_def.name = class_name;
-    
-    // Type parameters (generics)
-    if (match(TK_LT)) {
-        // Skip type parameters for now
-        while (!match(TK_GT) && !check(TK_EOF)) {
-            advance();
-        }
-    }
-    
-    // Inheritance
-    if (match(TK_COLON)) {
-        if (!match(TK_IDENT)) {
-            errorAtCurrent("Expected parent class name");
-            free(class_name);
-            free(node);
-            return NULL;
-        }
-        node->data.class_def.parent = newIdentNode(previous.value.str_val);
-    }
-    
-    consume(TK_LBRACE, "Expected '{' before class body");
-    
-    // Parse class members
-    ASTNode* first_member = NULL;
-    ASTNode* current_member = NULL;
-    
-    while (!check(TK_RBRACE) && !check(TK_EOF)) {
-        ASTNode* member = NULL;
-        
-        // Access modifiers
-        if (match(TK_PUBLIC) || match(TK_PRIVATE) || match(TK_PROTECTED) || match(TK_STATIC)) {
-            TokenKind modifier = previous.kind;
-            
-            if (match(TK_VAR) || match(TK_LET) || match(TK_CONST)) {
-                member = variableDeclaration();
-                if (member) {
-                    member->op_type = modifier; // Store modifier in op_type
-                }
-            } else if (match(TK_FUNC)) {
-                member = functionDeclaration(false);
-                if (member) {
-                    member->op_type = modifier;
-                }
-            } else {
-                errorAtCurrent("Expected member declaration after access modifier");
-                advance();
-                continue;
-            }
-        } else if (match(TK_VAR) || match(TK_LET) || match(TK_CONST)) {
-            member = variableDeclaration();
-        } else if (match(TK_FUNC)) {
-            member = functionDeclaration(false);
-        } else if (match(TK_CLASS)) {
-            member = classDeclaration();
-        } else if (match(TK_STRUCT)) {
-            member = structDeclaration();
+
+    // 3. On crée le noeud AST pour la classe
+    ASTNode* node = newNode(NODE_CLASS); // Assure-toi que NODE_CLASS est dans ton enum
+    node->data.name = className;
+node->data.class_def.parent_name = parentName;
+
+
+    // 4. On consomme l'accolade ouvrante '{'
+    consume(TK_LBRACE, "Expect '{' before class body.");
+
+    // 5. On boucle tant qu'on n'a pas fermé l'accolade
+    while (!check(TK_RBRACE) && !isAtEnd()) {
+        // Pour l'instant on ignore ou on parse les méthodes
+        // Si tu vois 'func', tu peux appeler functionDeclaration()
+        if (match(TK_FUNC)) {
+            // Logique pour ajouter une méthode à la classe
+            advance(); 
         } else {
-            errorAtCurrent("Expected class member");
+            // Pour éviter la boucle infinie si le token est inconnu
             advance();
-            continue;
-        }
-        
-        if (member) {
-            if (!first_member) {
-                first_member = member;
-                current_member = member;
-            } else {
-                current_member->right = member;
-                current_member = member;
-            }
         }
     }
+
+    // 6. On referme
+    consume(TK_RBRACE, "Expect '}' after class body.");
     
-    consume(TK_RBRACE, "Expected '}' after class body");
-    
-    node->data.class_def.members = first_member;
-    
-        
+    // On enregistre la définition dans notre nouveau système
+    ClassDef* def = create_class_def(className, parentName);
+    register_class(def);
+
     return node;
 }
+
 
 static ASTNode* structDeclaration() {
     // Similar to class for now

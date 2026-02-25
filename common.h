@@ -61,7 +61,7 @@ typedef enum {
     
     // TIME
     TK_TIME_NOW, TK_TIME_SLEEP, TK_TIME_FMT,
-    
+    TK_EXTENDS,
     // ENC (Encoding)
     TK_ENC_B64ENC, TK_ENC_B64DEC,
 
@@ -110,7 +110,7 @@ typedef enum {
     TK_COMMA, TK_SEMICOLON, TK_COLON, TK_PERIOD,
     TK_AT, TK_HASH, TK_DOLLAR, TK_BACKTICK,
     
-    // Keywords
+    // Keywor
     TK_VAR, TK_LET, TK_CONST,
     TK_NET, TK_CLOG, TK_DOS, TK_SEL,
     TK_THEN, TK_DO,
@@ -122,7 +122,7 @@ typedef enum {
     
     // Error handling
     TK_TRY, TK_CATCH, TK_FINALLY, TK_THROW,
-    
+   
    // Functions & Modules
     TK_FUNC, TK_IMPORT, TK_EXPORT, TK_FROM,
     TK_CLASS, TK_STRUCT, TK_ENUM, TK_INTERFACE,
@@ -557,8 +557,9 @@ typedef struct ASTNode {
         // Class/Struct
         struct {
             char* name;
-            struct ASTNode* parent;
-            struct ASTNode* members;
+            char* parent_name; 
+            struct ASTNode* methods;
+            
         } class_def;
         
         // Switch-Case

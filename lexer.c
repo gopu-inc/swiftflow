@@ -31,7 +31,7 @@ void initLexer(const char* source) {
     lexer.start_column = 1;
 }
 
-static bool isAtEnd() { 
+bool isAtEnd() { 
     return *lexer.current == '\0'; 
 }
 

@@ -6,7 +6,7 @@ PYTHON_VERSION = 3.9
 PYTHON_INCLUDE = -I/usr/include/python$(PYTHON_VERSION)
 PYTHON_LIB = -lpython$(PYTHON_VERSION) -lpthread -ldl -lutil -lm
 
-OBJS = swf.o lexer.o parser.o io.o net.o sys.o http.o json.o stdlib.o pytx.o
+OBJS = class.o swf.o lexer.o parser.o io.o net.o sys.o http.o json.o stdlib.o pytx.o
 
 swift: $(OBJS)
 	$(CC) $(CFLAGS) -o swift $(OBJS) -lm -lsqlite3 -lcurl $(PYTHON_LIB)
