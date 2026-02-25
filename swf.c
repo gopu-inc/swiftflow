@@ -358,21 +358,23 @@ static void registerClass(const char* name, char* parent, ASTNode* members) {
         Class* cls = &classes[class_count];
         strncpy(cls->name, name, 99);
         cls->name[99] = '\0';
-        cls->parent = parent ? str_copy(parent) : NULL;
+        
+        // Sécurité GDB : Vérifie que le pointeur parent est une adresse valide (> 0x1000)
+        cls->parent = (parent && (uintptr_t)parent > 0x1000) ? str_copy(parent) : NULL;
         cls->members = members;
         class_count++;
         
         // Enregistrer les méthodes de la classe
         ASTNode* member = members;
-        while (member) {
+        while (member && (uintptr_t)member > 0x1000) { // Sécurité pointeur
             if (member->type == NODE_FUNC) {
                 char method_full_name[256];
                 snprintf(method_full_name, 256, "%s_%s", name, member->data.name);
                 
                 // Compter les paramètres
                 int param_count = 0;
-                ASTNode* param = member->left;
-                while (param) {
+                ASTNode* param = member->left; // Dans NODE_FUNC, left est souvent la liste des params
+                while (param && (uintptr_t)param > 0x1000) {
                     param_count++;
                     param = param->right;
                 }
@@ -380,7 +382,9 @@ static void registerClass(const char* name, char* parent, ASTNode* members) {
                 printf("DEBUG: Registering method %s with %d params\n", method_full_name, param_count);
                 registerFunction(method_full_name, member->left, member->right, param_count);
             }
-            member = member->right;
+            
+            // IMPORTANT : Utilise 'left' car c'est là que le parser chaîne les méthodes
+            member = member->left; 
         }
     }
 }
