@@ -81,6 +81,21 @@ char* std_str_trim(const char* s) {
     res[len] = '\0';
     return res;
 }
+void init_class_stdlib() {
+    // 1. Création de la classe racine : Object
+    ClassDef* object_def = create_class_def("Object", NULL);
+    register_class(object_def);
+
+    // 2. Enregistrement des méthodes natives pour Object
+    // Object_toString()
+    registerFunction("Object_toString", NULL, NULL, 0); 
+    
+    // Object_getType()
+    registerFunction("Object_getType", NULL, NULL, 0);
+    
+    // Object_equals(other)
+    registerFunction("Object_equals", NULL, NULL, 1);
+}
 
 char* std_str_replace(const char* orig, const char* rep, const char* with) {
     if(!orig || !rep) return orig ? strdup(orig) : strdup("");
