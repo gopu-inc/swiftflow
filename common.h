@@ -486,7 +486,7 @@ typedef struct ASTNode {
     struct ASTNode* right;
     struct ASTNode* third;
     struct ASTNode* fourth;
-    struct ASTNode* next; 
+
     
     union {
         // Basic values
