@@ -2128,44 +2128,52 @@ static ASTNode* variableDeclaration() {
 
 // La fonction à ajouter dans parser.c
 static ASTNode* classDeclaration() {
-    // 1. On consomme le nom de la classe (Player, BaseObject, etc.)
     Token nameToken = consume(TK_IDENT, "Expect class name.");
     char* className = str_ncopy(nameToken.start, nameToken.length);
     
     char* parentName = NULL;
     
-    // 2. Gestion de l'héritage (extends)
-    if (match(TK_EXTENDS)) {
+    // Support de ':' ou 'extends' selon ton choix de syntaxe
+    if (match(TK_EXTENDS) || match(TK_COLON)) { 
         Token parentToken = consume(TK_IDENT, "Expect parent class name.");
         parentName = str_ncopy(parentToken.start, parentToken.length);
     }
 
-    // 3. On crée le noeud AST pour la classe
-    ASTNode* node = newNode(NODE_CLASS); // Assure-toi que NODE_CLASS est dans ton enum
-    node->data.name = className;
-node->data.class_def.parent_name = parentName;
+    ASTNode* node = newNode(NODE_CLASS);
+    node->data.class_def.name = className; // Attention: utilise la structure class_def
+    node->data.class_def.parent_name = parentName;
+    node->data.class_def.methods = NULL; // Liste chaînée de méthodes
 
-
-    // 4. On consomme l'accolade ouvrante '{'
     consume(TK_LBRACE, "Expect '{' before class body.");
 
-    // 5. On boucle tant qu'on n'a pas fermé l'accolade
+    ASTNode* lastMethod = NULL;
+
     while (!check(TK_RBRACE) && !isAtEnd()) {
-        // Pour l'instant on ignore ou on parse les méthodes
-        // Si tu vois 'func', tu peux appeler functionDeclaration()
-        if (match(TK_FUNC)) {
-            // Logique pour ajouter une méthode à la classe
-            advance(); 
+        // On vérifie si c'est une fonction/méthode
+        if (check(TK_FUNC) || check(TK_FUNCTION)) {
+            advance(); // Consomme le 'func'
+            
+            // On utilise ta fonction de parsing de fonction existante
+            ASTNode* method = functionDeclaration(); 
+            
+            // On chaîne les méthodes dans l'AST
+            if (node->data.class_def.methods == NULL) {
+                node->data.class_def.methods = method;
+            } else {
+                lastMethod->next = method;
+            }
+            lastMethod = method;
         } else {
-            // Pour éviter la boucle infinie si le token est inconnu
+            // Si ce n'est pas une méthode, c'est peut-être une propriété (variable de classe)
+            // Pour l'instant, on synchronise pour éviter la boucle infinie
+            errorAtCurrent("Expect method declaration inside class body.");
             advance();
         }
     }
 
-    // 6. On referme
     consume(TK_RBRACE, "Expect '}' after class body.");
     
-    // On enregistre la définition dans notre nouveau système
+    // Enregistrement au runtime
     ClassDef* def = create_class_def(className, parentName);
     register_class(def);
 
