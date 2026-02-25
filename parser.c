@@ -2123,62 +2123,64 @@ static ASTNode* variableDeclaration() {
 // ======================================================
 // [SECTION] CLASS AND TYPE DECLARATIONS - COMPLETE
 // ======================================================
-// À ajouter dans les prototypes en haut de parser.c
-
-
-// La fonction à ajouter dans parser.c
 static ASTNode* classDeclaration() {
+    // 1. Nom de la classe
     Token nameToken = consume(TK_IDENT, "Expect class name.");
     char* className = str_ncopy(nameToken.start, nameToken.length);
     
     char* parentName = NULL;
     
-    // Support de ':' ou 'extends' selon ton choix de syntaxe
-    if (match(TK_EXTENDS) || match(TK_COLON)) { 
+    // 2. Héritage (supporte ':' ou 'extends')
+    if (match(TK_EXTENDS) || match(TK_COLON)) {
         Token parentToken = consume(TK_IDENT, "Expect parent class name.");
         parentName = str_ncopy(parentToken.start, parentToken.length);
     }
 
+    // 3. Initialisation du noeud
     ASTNode* node = newNode(NODE_CLASS);
-    node->data.class_def.name = className; // Attention: utilise la structure class_def
+    node->line = nameToken.line;
+    node->column = nameToken.column;
+    
+    // On remplit l'union class_def
+    node->data.class_def.name = className;
     node->data.class_def.parent_name = parentName;
-    node->data.class_def.methods = NULL; // Liste chaînée de méthodes
+    node->data.class_def.methods = NULL; 
 
     consume(TK_LBRACE, "Expect '{' before class body.");
 
     ASTNode* lastMethod = NULL;
 
+    // 4. Boucle de parsing des méthodes
     while (!check(TK_RBRACE) && !isAtEnd()) {
-        // On vérifie si c'est une fonction/méthode
-        if (check(TK_FUNC)) {
-            advance(); // Consomme le 'func'
+        if (match(TK_FUNC)) {
+            // functionDeclaration(false) car c'est une méthode privée à la classe
+            ASTNode* method = functionDeclaration(false); 
             
-            // On utilise ta fonction de parsing de fonction existante
-            ASTNode* method = functionDeclaration(); 
-            
-            // On chaîne les méthodes dans l'AST
+            // Chaînage des méthodes dans class_def.methods
             if (node->data.class_def.methods == NULL) {
                 node->data.class_def.methods = method;
             } else {
-                lastMethod->next = method;
+                // On utilise le pointeur left, right ou third comme pointeur "next" 
+                // ou on ajoute 'next' à la struct si on veut être propre.
+                // Ici, j'utilise 'left' comme pointeur de chaînage pour les méthodes.
+                lastMethod->left = method; 
             }
             lastMethod = method;
         } else {
-            // Si ce n'est pas une méthode, c'est peut-être une propriété (variable de classe)
-            // Pour l'instant, on synchronise pour éviter la boucle infinie
-            errorAtCurrent("Expect method declaration inside class body.");
+            // Saute les tokens inconnus pour éviter la boucle infinie
             advance();
         }
     }
 
     consume(TK_RBRACE, "Expect '}' after class body.");
     
-    // Enregistrement au runtime
+    // 5. Enregistrement pour le module gopu.inc
     ClassDef* def = create_class_def(className, parentName);
     register_class(def);
 
     return node;
 }
+
 
 
 static ASTNode* structDeclaration() {
