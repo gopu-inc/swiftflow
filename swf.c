@@ -2395,30 +2395,42 @@ case NODE_DIR_LIST:
     case NODE_CLASS: {
         char* cls_name = node->data.class_def.name;
         if (cls_name) {
-            // 1. Enregistrement de la classe (existant)
-            char* parent = node->data.class_def.parent ? node->data.class_def.parent->data.name : NULL;
-            registerClass(cls_name, parent, node->data.class_def.members);
+            // 1. Récupération du nom du parent (c'est déjà une chaîne char*)
+            char* parent = node->data.class_def.parent_name; 
             
-            // 2. [NOUVEAU] Aplatissement des méthodes : Zarch.install -> Zarch_install
-            ASTNode* member = node->data.class_def.members;
+            // 2. Enregistrement de la classe
+            registerClass(cls_name, parent, node->data.class_def.methods);
+            
+            // 3. Aplatissement des méthodes
+            ASTNode* member = node->data.class_def.methods;
             while (member) {
                 if (member->type == NODE_FUNC) {
                     char method_full_name[256];
+                    // On utilise member->data.name pour le nom de la fonction
                     snprintf(method_full_name, 256, "%s_%s", cls_name, member->data.name);
                     
-                    // Compter les params
+                    // Compter les paramètres
                     int p_count = 0;
-                    ASTNode* p = member->left;
-                    while(p) { p_count++; p = p->right; }
+                    ASTNode* p = member->left; // Liste des paramètres
+                    while(p) { 
+                        p_count++; 
+                        p = p->right; 
+                    }
                     
+                    // Enregistrement de la fonction aplatie (ex: Animal_speak)
                     registerFunction(method_full_name, member->left, member->right, p_count);
-                    // printf("[OOP] Registered method: %s\n", method_full_name);
+                    printf("[OOP] Registered method: %s (%d params)\n", method_full_name, p_count);
                 }
-                member = member->right;
+                
+                // IMPORTANT: Utilise le pointeur de chaînage défini dans ton parser
+                // Si ton parser fait last->left = method, utilise member->left ici.
+                // Si ton parser fait last->third = method, utilise member->third.
+                member = member->left; 
             }
         }
         break;
     }
+
 
     // --- OOP (ENUM) ---
     case NODE_ENUM: {
