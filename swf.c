@@ -379,7 +379,7 @@ static void registerClass(const char* name, char* parent, ASTNode* members) {
                     param = param->right;
                 }
                 
-                printf("DEBUG: Registering method %s with %d params\n", method_full_name, param_count);
+                
                 registerFunction(method_full_name, member->left, member->right, param_count);
             }
             
