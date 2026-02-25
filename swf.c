@@ -1664,7 +1664,6 @@ static void execute(ASTNode* node) {
     char* alias = node->data.name;
     char* python_code = node->left->data.str_val;
     
-    printf("%s[PYTX]%s Executing Python code...\n", COLOR_CYAN, COLOR_RESET);
     
     // Exécuter le code Python
     char* result = pytx_execute(python_code);
