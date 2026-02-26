@@ -1190,7 +1190,7 @@ static ASTNode* sys_statement() {
 
 static ASTNode* json_statement() {
     consume(TK_DOT, "Expect '.' after 'json'");
-    consume(TK_IDENTIFIER, "Expect 'get' after 'json.'"); // On attend 'get'
+    consume(TK_IDENT, "Expect 'get' after 'json.'"); // On attend 'get'
     
     consume(TK_LPAREN, "Expect '('");
     ASTNode* json_str = expression();
