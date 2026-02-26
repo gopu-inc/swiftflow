@@ -1174,6 +1174,46 @@ static ASTNode* dbvarStatement();
 // ======================================================
 // [SECTION] IO STATEMENT PARSING
 // ======================================================
+
+static ASTNode* sys_statement() {
+    consume(TK_DOT, "Expect '.' after 'sys'");
+    Token name = advance(); // doit être 'argv' ou 'exec'
+    
+    consume(TK_LPAREN, "Expect '('");
+    ASTNode* arg = expression();
+    consume(TK_RPAREN, "Expect ')'");
+    
+    ASTNode* node = (strcmp(name.start, "argv") == 0) ? newNode(NODE_SYS_ARGV) : newNode(NODE_SYS_EXEC);
+    node->left = arg;
+    return node;
+}
+
+static ASTNode* json_statement() {
+    consume(TK_DOT, "Expect '.' after 'json'");
+    consume(TK_IDENTIFIER, "Expect 'get' after 'json.'"); // On attend 'get'
+    
+    consume(TK_LPAREN, "Expect '('");
+    ASTNode* json_str = expression();
+    consume(TK_COMMA, "Expect ','");
+    ASTNode* key = expression();
+    consume(TK_RPAREN, "Expect ')'");
+    
+    ASTNode* node = newNode(NODE_JSON_GET);
+    node->left = json_str;
+    node->right = key;
+    return node;
+}
+
+
+
+
+
+
+
+
+
+
+
 static ASTNode* jsonGetStatement() {
     advance(); // consomme 'json.get'
     consume(TK_LPAREN, "Expect '('");
