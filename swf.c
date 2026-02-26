@@ -2203,64 +2203,7 @@ case NODE_DIR_LIST:
     }
     break;
    }
-
-        case NODE_CALL: {
-    // 1. Récupérer le nom de ce qu'on appelle (ex: "Dog")
-    char* name = node->left->data.name;
-    if (!name) {
-        runtime_error(node, "Invalid call target");
-        break;
-    }
-
-    // 2. Vérifier si c'est une CLASSE (Instanciation)
-    ClassDef* cls = find_class(name);
-    if (cls != NULL) {
-        // C'est une classe ! On crée un identifiant unique d'instance
-        char* inst_id = malloc(64);
-        snprintf(inst_id, 64, "obj_%s_%p", name, (void*)node);
-
-        // Enregistrer l'instance dans le registre global (pour findClassOf)
-        // Note: Tu dois avoir une fonction registerInstance ou similaire
-        registerInstance(inst_id, name);
-
-        
-        // 3. Chercher et appeler le constructeur s'il existe (ex: "Dog_constructor")
-        char constructor_name[256];
-        snprintf(constructor_name, 256, "%s_constructor", name);
-        
-        Function* constructor_func = findFunction(constructor_name);
-        if (constructor_func) {
-            // On injecte 'this' (inst_id) et on exécute
-            char* prev_this = current_this;
-            current_this = str_copy(inst_id);
             
-            // Exécution simplifiée du constructeur avec les arguments (node->right)
-            // (Ici tu utilises ta logique habituelle de passage de paramètres)
-            executeFunction(constructor_func, node->right);
-            
-            if (current_this) free(current_this);
-            current_this = prev_this;
-        }
-
-        // On définit le résultat de l'expression comme étant l'ID de l'instance
-        last_eval_result.str_val = inst_id;
-        last_eval_result.is_string = true;
-        break;
-    }
-
-    // 4. Si ce n'est pas une classe, c'est un APPEL DE FONCTION classique
-    Function* func = findFunction(name);
-    if (func != NULL) {
-        // Ta logique actuelle d'appel de fonction
-        execute_function_call(func, node->right);
-    } else {
-        // Si rien n'est trouvé
-        printf(" %s  <== NOT FOUND function or class\n", name);
-        runtime_error(node, "Function or Class '%s' not found", name);
-    }
-    break;
-}
-
         case NODE_BLOCK: {
             int old_scope = scope_level;
             scope_level++;
