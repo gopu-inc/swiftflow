@@ -43,6 +43,7 @@ void runtime_error(ASTNode* node, const char* fmt, ...) {
     fprintf(stderr, "\n");
     exit(1); // On arrête tout proprement
 }
+static void execute_function_call(Function* func, ASTNode* args);
 
 // Fonctions IO
 void io_open(ASTNode* node);
