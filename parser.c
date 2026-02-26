@@ -598,80 +598,59 @@ static ASTNode* lambdaExpression() {
     
     return NULL;
 }
-
+static ASTNode* parseArgs() {
+    ASTNode* args = NULL;
+    if (!check(TK_RPAREN)) {
+        args = expression();
+        ASTNode* current = args;
+        while (match(TK_COMMA)) {
+            ASTNode* next = expression();
+            current->right = next; // On chaîne les arguments
+            current = next;
+        }
+    }
+    consume(TK_RPAREN, "Expected ')' after arguments");
+    return args;
+}
 // Function calls
-
-
 static ASTNode* call() {
     ASTNode* expr = memberAccess();
     
-    // Si on trouve une parenthèse, c'est un appel
     if (match(TK_LPAREN)) {
-        
-        // --- [FIX OOP] Différencier Appel de Méthode vs. Appel de Fonction ---
-        
-        // CAS 1: C'est un appel de méthode (ex: app.install() )
-        // memberAccess() nous a donné un noeud NODE_MEMBER_ACCESS
+        // CAS 1: Appel de méthode (ex: Json.stringify(data))
         if (expr->type == NODE_MEMBER_ACCESS) {
             ASTNode* node = newNode(NODE_METHOD_CALL);
             
-            // L'objet est à gauche du . (ex: le noeud pour "app")
-            node->left = expr->left;
+            // On récupère l'instance (ex: "Json")
+            node->left = expr->left; 
             
-            // Le nom de la méthode est à droite (ex: "install")
+            // On récupère le nom de la méthode (ex: "stringify")
+            // On utilise strdup pour être sûr que la mémoire est isolée
             node->data.name = strdup(expr->right->data.name);
             
-            // On libère le noeud temporaire qui contenait l'accès
+            // Nettoyage des noeuds intermédiaires
             free(expr->right);
             free(expr);
             
-            // Maintenant, on parse les arguments
-            ASTNode* args = NULL;
-            if (!check(TK_RPAREN)) {
-                args = expression();
-                ASTNode* current_arg = args;
-                while (match(TK_COMMA)) {
-                    ASTNode* next_arg = expression();
-                    if(current_arg) {
-                        current_arg->right = next_arg;
-                        current_arg = next_arg;
-                    }
-                }
-            }
-            consume(TK_RPAREN, "Expected ')' after method arguments");
-            
-            node->right = args; // Les arguments sont dans le noeud->right
+            node->right = parseArgs();
             return node;
         }
 
-        // CAS 2: C'est un appel de fonction normal (ex: print())
-        // On garde la logique existante
+        // CAS 2: Appel de fonction normale (ex: print(data))
         ASTNode* node = newNode(NODE_FUNC_CALL);
-        if (expr->type == NODE_IDENT && expr->data.name) {
+        if (expr->type == NODE_IDENT) {
             node->data.name = strdup(expr->data.name);
+        } else {
+            // Permet des appels complexes comme (getFunc())()
+            node->left = expr; 
         }
         
-        // Parse arguments (logique existante)
-        ASTNode* args = NULL;
-        if (!check(TK_RPAREN)) {
-            args = expression();
-            ASTNode* current_arg = args;
-            while (match(TK_COMMA)) {
-                ASTNode* next_arg = expression();
-                 if(current_arg) {
-                    current_arg->right = next_arg;
-                    current_arg = next_arg;
-                }
-            }
-        }
-        consume(TK_RPAREN, "Expected ')' after arguments");
+        node->right = parseArgs(); // On unifie : les arguments vont dans right
+        if (expr->type == NODE_IDENT) free(expr); 
         
-        free(expr); // Libérer le noeud du nom de la fonction
-        node->left = args;
         return node;
     }
     
-    // Si pas de '(', ce n'est pas un appel, on retourne l'expression telle quelle
     return expr;
 }
 
