@@ -2969,6 +2969,7 @@ int main(int argc, char* argv[]) {
     init_io_module();
     init_sys_module(argc, argv);
     init_http_module();
+    init_sys_module(argc, argv);
     // Handle command line arguments
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--version") == 0 || strcmp(argv[i], "-v") == 0) {
