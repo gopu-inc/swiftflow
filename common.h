@@ -335,6 +335,7 @@ typedef enum {
     NODE_STD_TO_INT, 
     NODE_STD_TO_STR,
     NODE_THIS,
+    NODE_JSON_GET,
     // PYTX nodes
     NODE_PYTX_BLOCK,
     NODE_PYTX_VAR,
