@@ -38,12 +38,12 @@
 typedef enum {
     // Literals
     TK_INT, TK_FLOAT, TK_STRING, TK_TRUE, TK_FALSE,
-    TK_NULL, TK_UNDEFINED, TK_NAN, TK_INF,
+    TK_NULL, TK_UNDEFINED, TK_NAN, TK_INF, TK_JSON_PARSE, TK_JSON_GET,
     
     // Identifiers
     TK_IDENT, TK_AS, TK_OF, TK_IMPORTDB,
     // PYTX tokens
-    TK_PYTX,          // pytx keyword
+    TK_PYTX,         // pytx keyword
     TK_SWI,            // swi keyword (fin de bloc pytx)
     TK_PYTX_ACCESS,    // px. access
     
@@ -54,7 +54,7 @@ typedef enum {
     TK_JSON_GET,     TK_MATH_SIN, TK_MATH_COS, TK_MATH_TAN, TK_MATH_SQRT, 
     TK_MATH_POW, TK_MATH_ABS, TK_MATH_FLOOR, TK_MATH_CEIL, 
     TK_MATH_ROUND, TK_MATH_RANDOM,
-    
+    TK_SYS_ARGV, TK_SYS_EXEC,
     // STRING
     TK_STR_LEN, TK_STR_UPPER, TK_STR_LOWER, TK_STR_SUB, 
     TK_STR_REPLACE, TK_STR_FIND,
