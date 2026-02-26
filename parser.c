@@ -1182,6 +1182,19 @@ static ASTNode* dbvarStatement();
 // ======================================================
 // [SECTION] IO STATEMENT PARSING
 // ======================================================
+static ASTNode* jsonGetStatement() {
+    advance(); // consomme 'json.get'
+    consume(TK_LPAREN, "Expect '('");
+    ASTNode* json_str = expression();
+    consume(TK_COMMA, "Expect ','");
+    ASTNode* key = expression();
+    consume(TK_RPAREN, "Expect ')'");
+    
+    ASTNode* node = newNode(NODE_JSON_GET);
+    node->left = json_str;
+    node->right = key;
+    return node;
+}
 
 static ASTNode* ioOpenStatement() {
     ASTNode* node = newNode(NODE_FILE_OPEN);
