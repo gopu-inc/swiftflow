@@ -1176,17 +1176,31 @@ static ASTNode* dbvarStatement();
 // ======================================================
 
 static ASTNode* sys_statement() {
+    // On arrive ici juste après avoir consommé 'sys'
     consume(TK_DOT, "Expect '.' after 'sys'");
-    Token name = advance(); // doit être 'argv' ou 'exec'
     
-    consume(TK_LPAREN, "Expect '('");
+    advance(); // On avance sur l'identifiant (argv ou exec)
+    Token name = previous; // On récupère le token qu'on vient de passer
+    
+    consume(TK_LPAREN, "Expect '(' after system function name");
     ASTNode* arg = expression();
-    consume(TK_RPAREN, "Expect ')'");
+    consume(TK_RPAREN, "Expect ')' after arguments");
     
-    ASTNode* node = (strcmp(name.start, "argv") == 0) ? newNode(NODE_SYS_ARGV) : newNode(NODE_SYS_EXEC);
+    ASTNode* node;
+    // Comparaison du texte du token pour choisir le type de nœud
+    if (memcmp(name.start, "argv", 4) == 0 && name.length == 4) {
+        node = newNode(NODE_SYS_ARGV);
+    } else if (memcmp(name.start, "exec", 4) == 0 && name.length == 4) {
+        node = newNode(NODE_SYS_EXEC);
+    } else {
+        errorAt(&name, "Unknown system function.");
+        return NULL;
+    }
+    
     node->left = arg;
     return node;
 }
+
 
 static ASTNode* json_statement() {
     consume(TK_DOT, "Expect '.' after 'json'");
