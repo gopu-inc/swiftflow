@@ -2311,7 +2311,6 @@ static ASTNode* namespaceDeclaration() {
 // ======================================================
 // [SECTION] MODULE DECLARATIONS
 // ======================================================
-// [FICHIER: parser.c] Remplacer la fonction importStatement
 
 static ASTNode* importStatement() {
     Token import_token = previous;
@@ -3014,7 +3013,7 @@ ASTNode** parse(const char* source, int* count) {
            errorCount > 0 ? COLOR_RED : COLOR_GREEN, COLOR_RESET, errorCount, warningCount);
     
     if (errorCount > 0) {
-        printf("%sPARSER%s Parse completed with errors\n", COLOR_RED, COLOR_RESET);
+        
     } else {
         
     }
