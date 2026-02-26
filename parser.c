@@ -768,15 +768,7 @@ static ASTNode* sysExitStatement() {
     return node;
 }
 
-static ASTNode* jsonGetStatement() {
-    ASTNode* node = newNode(NODE_JSON_GET);
-    consume(TK_LPAREN, "Expected '(' after json.get");
-    node->left = expression(); // json string
-    consume(TK_COMMA, "Expected ','");
-    node->right = expression(); // key
-    consume(TK_RPAREN, "Expected ')'");
-    return node;
-}
+
 static ASTNode* primary() {
     // ========================================================================
     // [SECTION] Appels de Modules Natifs (io.open, math.sin, etc.)
