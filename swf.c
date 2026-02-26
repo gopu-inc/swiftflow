@@ -2152,6 +2152,14 @@ case NODE_DIR_LIST:
         }
         break;
     }
+        case NODE_JSON_GET: {
+    char* json_data = evalString(node->left);
+    char* key_name = evalString(node->right);
+    char* result = json_extract(json_data, key_name); // Utilise la lib native
+    // Stocker ou retourner le résultat (selon votre implémentation de evalString)
+    break;
+}
+
         case NODE_PRINT: {
             if (node->left) {
                 ASTNode* current_arg = node->left;
