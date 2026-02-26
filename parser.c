@@ -1193,7 +1193,7 @@ static ASTNode* sys_statement() {
     } else if (memcmp(name.start, "exec", 4) == 0 && name.length == 4) {
         node = newNode(NODE_SYS_EXEC);
     } else {
-        errorAt(&name, "Unknown system function.");
+        errorAt(name, "Unknown system function.");
         return NULL;
     }
     
