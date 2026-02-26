@@ -1,0 +1,22 @@
+import "stdlib/Class.sf";
+
+class Animal : Object {
+    func speak() { print("L'animal existe."); }
+    func toString() { return "Je suis un Animal"; }
+}
+
+class Dog : Animal {
+    func speak() { print("Wouf!"); }
+}
+
+// 1. On crée l'instance
+var monChien = Dog(); 
+
+// 2. On appelle la méthode sur l'instance (si NODE_METHOD_CALL est prêt)
+// print(monChien.toString());
+
+// OU, pour ton moteur actuel qui aplatit tout :
+print("Test direct :");
+Dog_speak(); // Devrait afficher Wouf!
+Animal_toString(); // Devrait afficher "Je suis un Animal"
+

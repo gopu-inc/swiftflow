@@ -1,0 +1,36 @@
+// Test du système de classes SwiftFlow
+// Projet: gopu.inc
+
+class Animal {
+    func constructor(name) {
+        this.name = name;
+    }
+
+    func speak() {
+        print("L'animal fait un bruit générique.");
+    }
+}
+
+// Test de l'héritage avec ':'
+class Dog : Animal {
+    func speak() {
+        print("Le chien dit: Wouf!");
+    }
+    
+    func eat(food) {
+        print("Le chien mange: " + food);
+    }
+}
+
+// Test de l'instanciation (si implémentée)
+print("--- Test des Classes ---");
+
+print("Action de l'animal:");
+Animal_speak();
+
+print("Action du chien:");
+Dog_speak();
+Dog_eat("un os");
+
+print("--- Fin du test ---");
+
