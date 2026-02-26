@@ -452,12 +452,20 @@ static Token operatorLexer() {
             return makeToken(TK_MOD); // %
             
         case '.':
-            advance();
-            if (match('.')) {
-                if (match('.')) return makeToken(TK_ELLIPSIS); // ...
-                if (match('=')) return makeToken(TK_RANGE_INCL); // ..=
+            advance(); // Consomme le premier '.'
+            if (match('.')) { // On a au moins ".."
+                if (match('.')) {
+                    return makeToken(TK_ELLIPSIS); // ...
+                }
+                if (match('=')) {
+                    return makeToken(TK_RANGE_INCL); // ..=
+                }
                 return makeToken(TK_RANGE); // ..
+            } else {
+                // Un seul point trouvé : c'est notre opérateur d'accès membre
+                return makeToken(TK_DOT); 
             }
+
             if (match('?')) return makeToken(TK_SAFE_NAV); // .?
             return makeToken(TK_PERIOD); // .
             
