@@ -172,8 +172,7 @@ static void registerInstance(const char* id, const char* class_name) {
         strcpy(instances[instance_count].id, id);
         strcpy(instances[instance_count].class_name, class_name);
         instance_count++;
-        printf("DEBUG: Registered instance %s as class %s (total: %d)\n", 
-               id, class_name, instance_count);
+        
     }
 }
 
