@@ -1,0 +1,692 @@
+// data.sf - Module de gestion de données et calculs scientifiques
+// Import: import "data"
+
+// ======================================================
+// CONSTANTES GLOBALES
+// ======================================================
+
+const PI = 3.141592653589793;
+const E = 2.718281828459045;
+const GOLDEN_RATIO = 1.618033988749895;
+const SPEED_OF_LIGHT = 299792458;  // m/s
+const GRAVITY = 9.80665;            // m/s²
+const PLANCK = 6.62607015e-34;       // J·s
+
+// ======================================================
+// CLASSE Vector - Gestion de vecteurs 2D/3D
+// ======================================================
+
+class Vector {
+    func init(x_val, y_val, z_val = 0) {
+        this.x = x_val;
+        this.y = y_val;
+        this.z = z_val;
+    }
+    
+    // Magnitude (norme)
+    func magnitude() {
+        return math.sqrt(this.x*this.x + this.y*this.y + this.z*this.z);
+    }
+    
+    // Normalisation
+    func normalize() {
+        var mag = this.magnitude();
+        if mag == 0 {
+            return Vector(0, 0, 0);
+        }
+        return Vector(this.x/mag, this.y/mag, this.z/mag);
+    }
+    
+    // Addition
+    func add(other) {
+        return Vector(
+            this.x + other.x,
+            this.y + other.y,
+            this.z + other.z
+        );
+    }
+    
+    // Soustraction
+    func subtract(other) {
+        return Vector(
+            this.x - other.x,
+            this.y - other.y,
+            this.z - other.z
+        );
+    }
+    
+    // Produit scalaire (dot product)
+    func dot(other) {
+        return this.x*other.x + this.y*other.y + this.z*other.z;
+    }
+    
+    // Produit vectoriel (cross product) - 3D uniquement
+    func cross(other) {
+        return Vector(
+            this.y*other.z - this.z*other.y,
+            this.z*other.x - this.x*other.z,
+            this.x*other.y - this.y*other.x
+        );
+    }
+    
+    // Scale (multiplication par scalaire)
+    func scale(factor) {
+        return Vector(this.x*factor, this.y*factor, this.z*factor);
+    }
+    
+    // Distance à un autre vecteur
+    func distance(other) {
+        var dx = this.x - other.x;
+        var dy = this.y - other.y;
+        var dz = this.z - other.z;
+        return math.sqrt(dx*dx + dy*dy + dz*dz);
+    }
+    
+    // Angle entre deux vecteurs (en radians)
+    func angle(other) {
+        var dot_product = this.dot(other);
+        var mag_product = this.magnitude() * other.magnitude();
+        if mag_product == 0 {
+            return 0;
+        }
+        return math.acos(dot_product / mag_product);
+    }
+    
+    // Projection sur un autre vecteur
+    func project(other) {
+        var scalar = this.dot(other) / (other.magnitude() * other.magnitude());
+        return other.scale(scalar);
+    }
+    
+    // Affichage
+    func toString() {
+        return "Vector(" + str(this.x) + ", " + str(this.y) + ", " + str(this.z) + ")";
+    }
+}
+
+// ======================================================
+// CLASSE Matrix - Opérations matricielles
+// ======================================================
+
+class Matrix {
+    func init(rows, cols, data = null) {
+        this.rows = rows;
+        this.cols = cols;
+        
+        if data == null {
+            // Initialiser avec des zéros
+            this.data = [];
+            for var i = 0; i < rows; i++ {
+                var row = [];
+                for var j = 0; j < cols; j++ {
+                    row.append(0);
+                }
+                this.data.append(row);
+            }
+        } else {
+            this.data = data;
+        }
+    }
+    
+    // Matrice identité
+    static func identity(size) {
+        var m = Matrix(size, size);
+        for var i = 0; i < size; i++ {
+            m.data[i][i] = 1;
+        }
+        return m;
+    }
+    
+    // Accès aux éléments
+    func get(i, j) {
+        return this.data[i][j];
+    }
+    
+    func set(i, j, value) {
+        this.data[i][j] = value;
+    }
+    
+    // Addition de matrices
+    func add(other) {
+        if this.rows != other.rows or this.cols != other.cols {
+            return null;  // Dimensions incompatibles
+        }
+        
+        var result = Matrix(this.rows, this.cols);
+        for var i = 0; i < this.rows; i++ {
+            for var j = 0; j < this.cols; j++ {
+                result.data[i][j] = this.data[i][j] + other.data[i][j];
+            }
+        }
+        return result;
+    }
+    
+    // Multiplication de matrices
+    func multiply(other) {
+        if this.cols != other.rows {
+            return null;  // Dimensions incompatibles
+        }
+        
+        var result = Matrix(this.rows, other.cols);
+        for var i = 0; i < this.rows; i++ {
+            for var j = 0; j < other.cols; j++ {
+                var sum = 0;
+                for var k = 0; k < this.cols; k++ {
+                    sum = sum + this.data[i][k] * other.data[k][j];
+                }
+                result.data[i][j] = sum;
+            }
+        }
+        return result;
+    }
+    
+    // Transposition
+    func transpose() {
+        var result = Matrix(this.cols, this.rows);
+        for var i = 0; i < this.rows; i++ {
+            for var j = 0; j < this.cols; j++ {
+                result.data[j][i] = this.data[i][j];
+            }
+        }
+        return result;
+    }
+    
+    // Trace (somme des éléments diagonaux)
+    func trace() {
+        if this.rows != this.cols {
+            return null;  // Pas une matrice carrée
+        }
+        
+        var sum = 0;
+        for var i = 0; i < this.rows; i++ {
+            sum = sum + this.data[i][i];
+        }
+        return sum;
+    }
+    
+    // Déterminant pour matrices 2x2 et 3x3
+    func determinant() {
+        if this.rows != this.cols {
+            return null;
+        }
+        
+        if this.rows == 2 {
+            return this.data[0][0]*this.data[1][1] - this.data[0][1]*this.data[1][0];
+        }
+        
+        if this.rows == 3 {
+            var a = this.data[0][0];
+            var b = this.data[0][1];
+            var c = this.data[0][2];
+            var d = this.data[1][0];
+            var e = this.data[1][1];
+            var f = this.data[1][2];
+            var g = this.data[2][0];
+            var h = this.data[2][1];
+            var i_val = this.data[2][2];
+            
+            return a*(e*i_val - f*h) - b*(d*i_val - f*g) + c*(d*h - e*g);
+        }
+        
+        return null;  // Non implémenté pour n>3
+    }
+    
+    // Affichage
+    func toString() {
+        var str = "Matrix(" + this.rows + "x" + this.cols + "):\n";
+        for var i = 0; i < this.rows; i++ {
+            str = str + "[";
+            for var j = 0; j < this.cols; j++ {
+                str = str + " " + this.data[i][j];
+            }
+            str = str + " ]\n";
+        }
+        return str;
+    }
+}
+
+// ======================================================
+// CLASSE Statistics - Fonctions statistiques
+// ======================================================
+
+class Statistics {
+    
+    // Moyenne
+    static func mean(data) {
+        if data == null or data.len() == 0 {
+            return 0;
+        }
+        
+        var sum = 0;
+        for var i = 0; i < data.len(); i++ {
+            sum = sum + data[i];
+        }
+        return sum / data.len();
+    }
+    
+    // Médiane
+    static func median(data) {
+        if data == null or data.len() == 0 {
+            return 0;
+        }
+        
+        // Tri à bulles simplifié
+        var sorted = [];
+        for var i = 0; i < data.len(); i++ {
+            sorted.append(data[i]);
+        }
+        
+        for var i = 0; i < sorted.len() - 1; i++ {
+            for var j = 0; j < sorted.len() - i - 1; j++ {
+                if sorted[j] > sorted[j+1] {
+                    var temp = sorted[j];
+                    sorted[j] = sorted[j+1];
+                    sorted[j+1] = temp;
+                }
+            }
+        }
+        
+        var n = sorted.len();
+        if n % 2 == 1 {
+            return sorted[n/2];
+        } else {
+            return (sorted[n/2 - 1] + sorted[n/2]) / 2;
+        }
+    }
+    
+    // Mode (valeur la plus fréquente)
+    static func mode(data) {
+        if data == null or data.len() == 0 {
+            return 0;
+        }
+        
+        var freq = {};
+        var max_freq = 0;
+        var mode_val = data[0];
+        
+        for var i = 0; i < data.len(); i++ {
+            var val = data[i];
+            if freq[val] == null {
+                freq[val] = 1;
+            } else {
+                freq[val] = freq[val] + 1;
+            }
+            
+            if freq[val] > max_freq {
+                max_freq = freq[val];
+                mode_val = val;
+            }
+        }
+        
+        return mode_val;
+    }
+    
+    // Variance
+    static func variance(data, sample = true) {
+        var m = this.mean(data);
+        var sum_sq = 0;
+        
+        for var i = 0; i < data.len(); i++ {
+            var diff = data[i] - m;
+            sum_sq = sum_sq + diff * diff;
+        }
+        
+        var divisor = sample ? data.len() - 1 : data.len();
+        if divisor <= 0 {
+            return 0;
+        }
+        
+        return sum_sq / divisor;
+    }
+    
+    // Écart-type
+    static func stddev(data, sample = true) {
+        return math.sqrt(this.variance(data, sample));
+    }
+    
+    // Covariance
+    static func covariance(data1, data2, sample = true) {
+        if data1.len() != data2.len() or data1.len() == 0 {
+            return 0;
+        }
+        
+        var mean1 = this.mean(data1);
+        var mean2 = this.mean(data2);
+        var sum = 0;
+        
+        for var i = 0; i < data1.len(); i++ {
+            sum = sum + (data1[i] - mean1) * (data2[i] - mean2);
+        }
+        
+        var divisor = sample ? data1.len() - 1 : data1.len();
+        if divisor <= 0 {
+            return 0;
+        }
+        
+        return sum / divisor;
+    }
+    
+    // Corrélation de Pearson
+    static func correlation(data1, data2) {
+        var cov = this.covariance(data1, data2);
+        var std1 = this.stddev(data1);
+        var std2 = this.stddev(data2);
+        
+        if std1 == 0 or std2 == 0 {
+            return 0;
+        }
+        
+        return cov / (std1 * std2);
+    }
+    
+    // Quartiles
+    static func quartiles(data) {
+        var q1 = this.percentile(data, 25);
+        var q2 = this.median(data);
+        var q3 = this.percentile(data, 75);
+        
+        return {
+            "q1": q1,
+            "q2": q2,
+            "q3": q3,
+            "iqr": q3 - q1
+        };
+    }
+    
+    // Percentile
+    static func percentile(data, p) {
+        if data == null or data.len() == 0 {
+            return 0;
+        }
+        
+        // Tri
+        var sorted = [];
+        for var i = 0; i < data.len(); i++ {
+            sorted.append(data[i]);
+        }
+        
+        for var i = 0; i < sorted.len() - 1; i++ {
+            for var j = 0; j < sorted.len() - i - 1; j++ {
+                if sorted[j] > sorted[j+1] {
+                    var temp = sorted[j];
+                    sorted[j] = sorted[j+1];
+                    sorted[j+1] = temp;
+                }
+            }
+        }
+        
+        var index = (p / 100) * (sorted.len() - 1);
+        var lower = sorted[math.floor(index)];
+        var upper = sorted[math.ceil(index)];
+        
+        if lower == upper {
+            return lower;
+        }
+        
+        var frac = index - math.floor(index);
+        return lower + frac * (upper - lower);
+    }
+}
+
+// ======================================================
+// CLASSE Polynomial - Polynômes
+// ======================================================
+
+class Polynomial {
+    // coefficients: [a0, a1, a2, ...] pour a0 + a1*x + a2*x² + ...
+    func init(coefficients) {
+        this.coeffs = coefficients;
+    }
+    
+    // Évaluation du polynôme pour une valeur x
+    func evaluate(x) {
+        var result = 0;
+        for var i = 0; i < this.coeffs.len(); i++ {
+            result = result + this.coeffs[i] * math.pow(x, i);
+        }
+        return result;
+    }
+    
+    // Dérivée
+    func derivative() {
+        var new_coeffs = [];
+        for var i = 1; i < this.coeffs.len(); i++ {
+            new_coeffs.append(this.coeffs[i] * i);
+        }
+        if new_coeffs.len() == 0 {
+            new_coeffs.append(0);
+        }
+        return Polynomial(new_coeffs);
+    }
+    
+    // Intégrale (avec constante C)
+    func integral(C = 0) {
+        var new_coeffs = [C];
+        for var i = 0; i < this.coeffs.len(); i++ {
+            new_coeffs.append(this.coeffs[i] / (i + 1));
+        }
+        return Polynomial(new_coeffs);
+    }
+    
+    // Addition
+    func add(other) {
+        var max_len = math.max(this.coeffs.len(), other.coeffs.len());
+        var new_coeffs = [];
+        
+        for var i = 0; i < max_len; i++ {
+            var a = i < this.coeffs.len() ? this.coeffs[i] : 0;
+            var b = i < other.coeffs.len() ? other.coeffs[i] : 0;
+            new_coeffs.append(a + b);
+        }
+        
+        return Polynomial(new_coeffs);
+    }
+    
+    // Multiplication
+    func multiply(other) {
+        var new_len = this.coeffs.len() + other.coeffs.len() - 1;
+        var new_coeffs = [];
+        
+        for var i = 0; i < new_len; i++ {
+            new_coeffs.append(0);
+        }
+        
+        for var i = 0; i < this.coeffs.len(); i++ {
+            for var j = 0; j < other.coeffs.len(); j++ {
+                new_coeffs[i + j] = new_coeffs[i + j] + this.coeffs[i] * other.coeffs[j];
+            }
+        }
+        
+        return Polynomial(new_coeffs);
+    }
+    
+    // Racines (méthode de Newton)
+    func findRoot(guess = 0, iterations = 100, tolerance = 1e-10) {
+        var x = guess;
+        var deriv = this.derivative();
+        
+        for var i = 0; i < iterations; i++ {
+            var f_x = this.evaluate(x);
+            if math.abs(f_x) < tolerance {
+                return x;
+            }
+            
+            var f_prime = deriv.evaluate(x);
+            if f_prime == 0 {
+                break;
+            }
+            
+            x = x - f_x / f_prime;
+        }
+        
+        return x;
+    }
+    
+    // Degré
+    func degree() {
+        return this.coeffs.len() - 1;
+    }
+    
+    // Affichage
+    func toString() {
+        var str = "";
+        for var i = this.coeffs.len() - 1; i >= 0; i-- {
+            var coeff = this.coeffs[i];
+            if coeff == 0 {
+                continue;
+            }
+            
+            if str != "" {
+                if coeff > 0 {
+                    str = str + " + ";
+                } else {
+                    str = str + " - ";
+                    coeff = -coeff;
+                }
+            } else if coeff < 0 {
+                str = "-";
+                coeff = -coeff;
+            }
+            
+            if i == 0 {
+                str = str + coeff;
+            } else if i == 1 {
+                if coeff == 1 {
+                    str = str + "x";
+                } else {
+                    str = str + coeff + "x";
+                }
+            } else {
+                if coeff == 1 {
+                    str = str + "x^" + i;
+                } else {
+                    str = str + coeff + "x^" + i;
+                }
+            }
+        }
+        
+        if str == "" {
+            return "0";
+        }
+        return str;
+    }
+}
+
+// ======================================================
+// FONCTIONS UTILES EXPORTÉES
+// ======================================================
+
+// Fonction linéaire: y = ax + b
+func linear(x, a, b) {
+    return a * x + b;
+}
+
+// Fonction quadratique: y = ax² + bx + c
+func quadratic(x, a, b, c) {
+    return a * x * x + b * x + c;
+}
+
+// Interpolation linéaire
+func lerp(a, b, t) {
+    return a + (b - a) * t;
+}
+
+// Map une valeur d'un intervalle à un autre
+func map(value, in_min, in_max, out_min, out_max) {
+    return (value - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
+// Clamp une valeur entre min et max
+func clamp(value, min_val, max_val) {
+    if value < min_val {
+        return min_val;
+    }
+    if value > max_val {
+        return max_val;
+    }
+    return value;
+}
+
+// Factorielle
+func factorial(n) {
+    if n <= 1 {
+        return 1;
+    }
+    var result = 1;
+    for var i = 2; i <= n; i++ {
+        result = result * i;
+    }
+    return result;
+}
+
+// Combinaison (n choose k)
+func combination(n, k) {
+    if k < 0 or k > n {
+        return 0;
+    }
+    return factorial(n) / (factorial(k) * factorial(n - k));
+}
+
+// Export des symboles
+export {
+    Vector,
+    Matrix,
+    Statistics,
+    Polynomial,
+    PI,
+    E,
+    GOLDEN_RATIO,
+    SPEED_OF_LIGHT,
+    GRAVITY,
+    PLANCK,
+    linear,
+    quadratic,
+    lerp,
+    map,
+    clamp,
+    factorial,
+    combination
+};
+
+// Test d'auto-vérification (optionnel)
+func test() {
+    print("=== Test du module data ===");
+    
+    // Test Vector
+    var v1 = Vector(1, 2, 3);
+    var v2 = Vector(4, 5, 6);
+    print("v1 = " + v1.toString());
+    print("v2 = " + v2.toString());
+    print("v1 + v2 = " + v1.add(v2).toString());
+    print("v1 dot v2 = " + v1.dot(v2));
+    print("v1 magnitude = " + v1.magnitude());
+    
+    // Test Statistics
+    var data = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    print("Data: " + data);
+    print("Mean = " + Statistics.mean(data));
+    print("Median = " + Statistics.median(data));
+    print("StdDev = " + Statistics.stddev(data));
+    
+    // Test Matrix
+    var m1 = Matrix(2, 2);
+    m1.set(0, 0, 1);
+    m1.set(0, 1, 2);
+    m1.set(1, 0, 3);
+    m1.set(1, 1, 4);
+    print("m1 = " + m1.toString());
+    print("m1 determinant = " + m1.determinant());
+    
+    // Test Polynomial
+    var p = Polynomial([1, -3, 2]);  // 1 - 3x + 2x²
+    print("p(x) = " + p.toString());
+    print("p(2) = " + p.evaluate(2));
+    print("p'(x) = " + p.derivative().toString());
+    
+    print("=== Fin du test ===\n");
+}
+
+// Exécuter le test si le fichier est exécuté directement
+main() {
+    test();
+}
