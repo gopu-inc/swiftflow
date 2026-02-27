@@ -416,201 +416,151 @@ static bool isLocalImport(const char* import_path) {
 static char* resolveModulePath(const char* import_path, const char* from_module) {
     char base_path[PATH_MAX];
     char resolved[PATH_MAX];
+    char candidate[PATH_MAX];
+    struct stat path_stat;
+    int i;
+    
+    // Définir les chemins de recherche
+    const char* search_paths[] = {
+        "./zarch_modules",
+        "/usr/local/lib/swift/stdlib/src",
+        ".",
+        "../",
+        "/usr/local/lib/swift",
+        NULL
+    };
     
     // 1. Déterminer le dossier de base
     if (from_module && from_module[0]) {
         // Relatif au module appelant
         char temp[PATH_MAX];
         strcpy(temp, from_module);
-        strcpy(base_path, dirname(temp));
+        char* dir = dirname(temp);
+        strncpy(base_path, dir, PATH_MAX - 1);
+        base_path[PATH_MAX - 1] = '\0';
     } else {
         // Relatif au dossier de travail actuel
-        strcpy(base_path, current_working_dir);
+        strncpy(base_path, current_working_dir, PATH_MAX - 1);
+        base_path[PATH_MAX - 1] = '\0';
     }
 
-    // 2. Construire les chemins candidats
-    char candidate[PATH_MAX];
-    
-    // Cas A: Import direct ou relatif
+    // 2. Cas A: Import direct ou relatif
     if (import_path[0] == '/' || import_path[0] == '.') {
         snprintf(candidate, PATH_MAX, "%s/%s", base_path, import_path);
+        if (access(candidate, F_OK) == 0) {
+            if (stat(candidate, &path_stat) == 0 && !S_ISDIR(path_stat.st_mode)) {
+                if (realpath(candidate, resolved)) return strdup(resolved);
+            }
+        }
+        
+        // Essayer avec .sf
+        snprintf(candidate, PATH_MAX, "%s/%s.sf", base_path, import_path);
+        if (access(candidate, F_OK) == 0) {
+            if (realpath(candidate, resolved)) return strdup(resolved);
+        }
     } 
-    // Cas B: Import "système" ou librairie (ex: import "mathlib")
+    // Cas B: Import "système" ou librairie
     else {
-        // Ordre de recherche : 
-        // 1. ./zarch_modules/ (Standard Zarch)
-        // 2. /usr/local/lib/swift/ (Global)
-        // 3. ./ (Local)
-        
-        const char* search_paths[] = {
-            "./zarch_modules",
-            "/usr/local/lib/swift/stdlib/src",
-            ".",
-            "../",
-            "/usr/local/lib/swift",
-            base_path,
-            NULL
-        };
-        
         bool found = false;
-        for (int i = 0; search_paths[i]; i++) {
+        
+        // Chercher dans les chemins standards
+        for (i = 0; search_paths[i]; i++) {
             snprintf(candidate, PATH_MAX, "%s/%s", search_paths[i], import_path);
-            if (access(candidate, F_OK) == 0 || access(candidate, R_OK) != -1) { // Vérif dossier ou fichier
+            if (access(candidate, F_OK) == 0) {
                 found = true;
                 break;
             }
             // Essayer avec .sf
-            char candidate_ext[PATH_MAX];
-            snprintf(candidate_ext, PATH_MAX, "%s.sf", candidate);
-            if (access(candidate_ext, F_OK) == 0) {
-                strcpy(candidate, candidate_ext);
+            snprintf(candidate, PATH_MAX, "%s/%s.sf", search_paths[i], import_path);
+            if (access(candidate, F_OK) == 0) {
                 found = true;
                 break;
             }
         }
         
         if (!found) {
-            // Par défaut, on tente dans le dossier courant si rien trouvé
+            // Chercher dans le dossier base_path
             snprintf(candidate, PATH_MAX, "%s/%s", base_path, import_path);
+            if (access(candidate, F_OK) != 0) {
+                snprintf(candidate, PATH_MAX, "%s/%s.sf", base_path, import_path);
+                if (access(candidate, F_OK) != 0) {
+                    // Chercher dans la structure src/
+                    snprintf(candidate, PATH_MAX, "%s/%s/src/%s.sf", base_path, import_path, import_path);
+                    if (access(candidate, F_OK) == 0) {
+                        if (realpath(candidate, resolved)) return strdup(resolved);
+                    }
+                    
+                    snprintf(candidate, PATH_MAX, "%s/src/%s.sf", base_path, import_path);
+                    if (access(candidate, F_OK) == 0) {
+                        if (realpath(candidate, resolved)) return strdup(resolved);
+                    }
+                    
+                    snprintf(candidate, PATH_MAX, "%s/%s/src/index.sf", base_path, import_path);
+                    if (access(candidate, F_OK) == 0) {
+                        if (realpath(candidate, resolved)) return strdup(resolved);
+                    }
+                    
+                    return NULL;
+                }
+            }
         }
     }
 
-    // 3. Résolution Fichier vs Dossier (Package)
-    struct stat path_stat;
-    
-    // Vérifier d'abord si le chemin existe
-    if (stat(candidate, &path_stat) != 0) {
-        // Le chemin n'existe pas, on va chercher plus loin
-        goto check_src_structure;
-    }
-    
-    if (S_ISDIR(path_stat.st_mode)) {
-        // C'est un dossier ! On cherche un point d'entrée.
-        char entry_point[PATH_MAX];
-        
-        // Tentative 1: index.sf
-        snprintf(entry_point, PATH_MAX, "%s/index.sf", candidate);
-        if (access(entry_point, F_OK) == 0) {
-            if (realpath(entry_point, resolved)) return strdup(resolved);
-        }
-        
-        // Tentative 2: main.sf
-        snprintf(entry_point, PATH_MAX, "%s/main.sf", candidate);
-        if (access(entry_point, F_OK) == 0) {
-            if (realpath(entry_point, resolved)) return strdup(resolved);
-        }
-        
-        // Tentative 3: Le nom du dossier.sf à l'intérieur (ex: math/math.sf)
-        char *folder_name = basename(candidate);
-        snprintf(entry_point, PATH_MAX, "%s/%s.sf", candidate, folder_name);
-        if (access(entry_point, F_OK) == 0) {
-            if (realpath(entry_point, resolved)) return strdup(resolved);
-        }
-        
-        // ========== NOUVELLE VÉRIFICATION : dossier/src/fichier.sf ==========
-        // Tentative 4: src/index.sf
-        snprintf(entry_point, PATH_MAX, "%s/src/index.sf", candidate);
-        if (access(entry_point, F_OK) == 0) {
-            if (realpath(entry_point, resolved)) return strdup(resolved);
-        }
-        
-        // Tentative 5: src/main.sf
-        snprintf(entry_point, PATH_MAX, "%s/src/main.sf", candidate);
-        if (access(entry_point, F_OK) == 0) {
-            if (realpath(entry_point, resolved)) return strdup(resolved);
-        }
-        
-        // Tentative 6: src/nom_du_dossier.sf
-        snprintf(entry_point, PATH_MAX, "%s/src/%s.sf", candidate, folder_name);
-        if (access(entry_point, F_OK) == 0) {
-            if (realpath(entry_point, resolved)) return strdup(resolved);
-        }
-        
-        // Tentative 7: src/nom_du_dossier/nom_du_dossier.sf (structure imbriquée)
-        snprintf(entry_point, PATH_MAX, "%s/src/%s/%s.sf", candidate, folder_name, folder_name);
-        if (access(entry_point, F_OK) == 0) {
-            if (realpath(entry_point, resolved)) return strdup(resolved);
-        }
-        
-        // Tentative 8: src/fichier.sf (si import_path contient déjà le nom)
-        snprintf(entry_point, PATH_MAX, "%s/src/%s", candidate, import_path);
-        if (access(entry_point, F_OK) == 0) {
-            if (realpath(entry_point, resolved)) return strdup(resolved);
-        }
-        
-        // Tentative 9: src/fichier.sf avec extension
-        char src_with_ext[PATH_MAX];
-        snprintf(src_with_ext, PATH_MAX, "%s/src/%s.sf", candidate, import_path);
-        if (access(src_with_ext, F_OK) == 0) {
-            if (realpath(src_with_ext, resolved)) return strdup(resolved);
-        }
-    } else {
-        // C'est potentiellement un fichier
-        if (access(candidate, F_OK) == 0) {
-             if (realpath(candidate, resolved)) return strdup(resolved);
-        }
-        
-        // Essayer d'ajouter .sf
-        char with_ext[PATH_MAX];
-        snprintf(with_ext, PATH_MAX, "%s.sf", candidate);
-        if (access(with_ext, F_OK) == 0) {
-             if (realpath(with_ext, resolved)) return strdup(resolved);
-        }
-    }
-    
-    // ========== VÉRIFICATIONS SUPPLÉMENTAIRES POUR STRUCTURE src/ ==========
-check_src_structure:
-    
-    // On va vérifier si le chemin original pourrait être un dossier avec src/
-    char src_candidate[PATH_MAX];
-    
-    // Si l'import_path est juste un nom (ex: "data"), vérifier dossier/src/data.sf
-    if (import_path[0] != '/' && import_path[0] != '.') {
-        snprintf(src_candidate, PATH_MAX, "%s/%s/src/%s.sf", base_path, import_path, import_path);
-        if (access(src_candidate, F_OK) == 0) {
-            if (realpath(src_candidate, resolved)) return strdup(resolved);
-        }
-        
-        // Vérifier dossier/src/index.sf
-        snprintf(src_candidate, PATH_MAX, "%s/%s/src/index.sf", base_path, import_path);
-        if (access(src_candidate, F_OK) == 0) {
-            if (realpath(src_candidate, resolved)) return strdup(resolved);
-        }
-        
-        // Vérifier dossier/src/main.sf
-        snprintf(src_candidate, PATH_MAX, "%s/%s/src/main.sf", base_path, import_path);
-        if (access(src_candidate, F_OK) == 0) {
-            if (realpath(src_candidate, resolved)) return strdup(resolved);
-        }
-        
-        // Vérifier dans les chemins de recherche avec src/
-        for (int i = 0; search_paths[i]; i++) {
-            snprintf(src_candidate, PATH_MAX, "%s/%s/src/%s.sf", search_paths[i], import_path, import_path);
-            if (access(src_candidate, F_OK) == 0) {
-                if (realpath(src_candidate, resolved)) return strdup(resolved);
+    // 3. Vérifier si c'est un dossier
+    if (stat(candidate, &path_stat) == 0) {
+        if (S_ISDIR(path_stat.st_mode)) {
+            // C'est un dossier ! Chercher les points d'entrée
+            char entry_point[PATH_MAX];
+            char* folder_name = strrchr(candidate, '/');
+            if (folder_name) {
+                folder_name++;
+            } else {
+                folder_name = (char*)candidate;
             }
             
-            snprintf(src_candidate, PATH_MAX, "%s/%s/src/index.sf", search_paths[i], import_path);
-            if (access(src_candidate, F_OK) == 0) {
-                if (realpath(src_candidate, resolved)) return strdup(resolved);
+            // Dans le dossier lui-même
+            snprintf(entry_point, PATH_MAX, "%s/index.sf", candidate);
+            if (access(entry_point, F_OK) == 0) {
+                if (realpath(entry_point, resolved)) return strdup(resolved);
             }
             
-            snprintf(src_candidate, PATH_MAX, "%s/%s/src/main.sf", search_paths[i], import_path);
-            if (access(src_candidate, F_OK) == 0) {
-                if (realpath(src_candidate, resolved)) return strdup(resolved);
+            snprintf(entry_point, PATH_MAX, "%s/main.sf", candidate);
+            if (access(entry_point, F_OK) == 0) {
+                if (realpath(entry_point, resolved)) return strdup(resolved);
+            }
+            
+            snprintf(entry_point, PATH_MAX, "%s/%s.sf", candidate, folder_name);
+            if (access(entry_point, F_OK) == 0) {
+                if (realpath(entry_point, resolved)) return strdup(resolved);
+            }
+            
+            // Dans src/
+            snprintf(entry_point, PATH_MAX, "%s/src/index.sf", candidate);
+            if (access(entry_point, F_OK) == 0) {
+                if (realpath(entry_point, resolved)) return strdup(resolved);
+            }
+            
+            snprintf(entry_point, PATH_MAX, "%s/src/main.sf", candidate);
+            if (access(entry_point, F_OK) == 0) {
+                if (realpath(entry_point, resolved)) return strdup(resolved);
+            }
+            
+            snprintf(entry_point, PATH_MAX, "%s/src/%s.sf", candidate, folder_name);
+            if (access(entry_point, F_OK) == 0) {
+                if (realpath(entry_point, resolved)) return strdup(resolved);
+            }
+            
+            // Dans src/nom/
+            snprintf(entry_point, PATH_MAX, "%s/src/%s/%s.sf", candidate, folder_name, folder_name);
+            if (access(entry_point, F_OK) == 0) {
+                if (realpath(entry_point, resolved)) return strdup(resolved);
+            }
+        } else {
+            // C'est un fichier
+            if (realpath(candidate, resolved)) {
+                return strdup(resolved);
             }
         }
-    }
-    
-    // Vérifier aussi dans le dossier courant avec src/
-    snprintf(src_candidate, PATH_MAX, "%s/src/%s", base_path, import_path);
-    if (access(src_candidate, F_OK) == 0) {
-        if (realpath(src_candidate, resolved)) return strdup(resolved);
-    }
-    
-    snprintf(src_candidate, PATH_MAX, "%s/src/%s.sf", base_path, import_path);
-    if (access(src_candidate, F_OK) == 0) {
-        if (realpath(src_candidate, resolved)) return strdup(resolved);
     }
 
     return NULL; // Non trouvé
