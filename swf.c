@@ -167,7 +167,6 @@ static InstanceRegistry instances[200];
 static int instance_count = 0;
 static char* current_this = NULL; // Pour stocker "inst_X" lors d'un appel de méthode
 
-// Enregistre une instance
 static void registerInstance(const char* id, const char* class_name) {
     if (instance_count < 200) {
         strcpy(instances[instance_count].id, id);
@@ -175,25 +174,24 @@ static void registerInstance(const char* id, const char* class_name) {
         instance_count++;
         printf("DEBUG: Registered instance %s as class %s (total: %d)\n", 
                id, class_name, instance_count);
-    } else {
-        printf("WARNING: Instance registry full!\n");
     }
 }
 
-// Trouve la classe d'une instance
+// Fonction pour trouver la classe d'une instance
 static char* findClassOf(const char* id) {
     if (!id) return NULL;
     
     for(int i = 0; i < instance_count; i++) {
         if(strcmp(instances[i].id, id) == 0) {
-            printf("DEBUG: Found instance %s of class %s\n", id, instances[i].class_name);
             return instances[i].class_name;
         }
     }
     
-    printf("DEBUG: Instance %s not found in registry\n", id);
+    
     return NULL;
 }
+
+
 
 typedef enum {
     MODULE_STATUS_NOT_LOADED,
