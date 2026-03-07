@@ -1,0 +1,195 @@
+// ======================================================
+// TEST COMPLET SWIFTFLOW
+// ======================================================
+
+// ----- 1. VARIABLES ET TYPES -----
+var name = "SwiftFlow"
+let version = 1.0
+const MAX = 100
+net socket_fd = 0
+clog logger = "system"
+dos data = 42
+sel selector = 0
+
+print("=== VARIABLES ===")
+print("Name:", name, "Version:", version, "MAX:", MAX)
+
+// ----- 2. OPÉRATIONS MATHÉMATIQUES -----
+print("\n=== MATHÉMATIQUES ===")
+var x = 10
+var y = 3
+print("x + y =", x + y)
+print("x - y =", x - y)
+print("x * y =", x * y)
+print("x / y =", x / y)
+print("x % y =", x % y)
+print("x ^ y =", x ^ y)
+
+// ----- 3. FONCTIONS -----
+print("\n=== FONCTIONS ===")
+func add(a, b) {
+    return a + b
+}
+
+func greet(name) {
+    return "Hello, " + name + "!"
+}
+
+print("add(5, 3) =", add(5, 3))
+print(greet("World"))
+
+// ----- 4. CONDITIONS -----
+print("\n=== CONDITIONS ===")
+var age = 18
+if (age >= 18) {
+    print("Vous êtes majeur")
+} else {
+    print("Vous êtes mineur")
+}
+
+// ----- 5. BOUCLES -----
+print("\n=== BOUCLES ===")
+print("Boucle for:")
+for (var i = 0; i < 5; i = i + 1) {
+    print("i =", i)
+}
+
+print("Boucle while:")
+var j = 0
+while (j < 3) {
+    print("j =", j)
+    j = j + 1
+}
+
+// ----- 6. CLASSES ET OBJETS -----
+print("\n=== CLASSES ===")
+
+class Animal {
+    func speak() {
+        print("L'animal fait un bruit")
+    }
+}
+
+class Chien extends Animal {
+    func speak() {
+        print("Le chien aboie: Woof woof!")
+    }
+    
+    func fetch() {
+        print("Le chien rapporte la balle")
+    }
+}
+
+// Création et utilisation
+var monChien = new Chien()
+monChien.speak()
+monChien.fetch()
+
+// ----- 7. MODULE IO -----
+print("\n=== MODULE IO ===")
+
+// Écriture dans un fichier
+io.open("test.txt", "w")
+io.write(1, "Hello SwiftFlow!")
+io.close(1)
+
+// Lecture du fichier
+io.open("test.txt", "r")
+var content = io.read_string("test.txt")
+print("Contenu du fichier:", content)
+
+// Informations sur le fichier
+print("Fichier existe?", io.exists("test.txt"))
+print("Est un fichier?", io.isfile("test.txt"))
+
+// ----- 8. MODULE STRING -----
+print("\n=== MODULE STRING ===")
+var text = "  SwiftFlow Language  "
+print("Original: '", text, "'")
+print("Trim: '", str.trim(text), "'")
+print("Upper:", str.upper(text))
+print("Lower:", str.lower(text))
+print("Sub (3,7):", str.sub(text, 3, 7))
+print("Contient 'Flow'?", str.contains(text, "Flow"))
+
+// ----- 9. MODULE PATH -----
+print("\n=== MODULE PATH ===")
+var filepath = "/home/user/test.txt"
+print("Basename:", path.basename(filepath))
+print("Dirname:", path.dirname(filepath))
+print("Join:", path.join("/home/user", "documents"))
+print("Absolute:", path.abs("."))
+
+// ----- 10. MODULE TIME -----
+print("\n=== MODULE TIME ===")
+print("Timestamp actuel:", time.now())
+print("Pause de 1 seconde...")
+time.sleep(1)
+print("Fin de la pause")
+
+// ----- 11. MODULE ENV -----
+print("\n=== MODULE ENV ===")
+print("Système d'exploitation:", env.os())
+print("Utilisateur:", env.get("USER"))
+env.set("TEST_VAR", "valeur_test")
+print("TEST_VAR:", env.get("TEST_VAR"))
+
+// ----- 12. MODULE CRYPTO -----
+print("\n=== MODULE CRYPTO ===")
+var secret = "Message secret"
+print("Original:", secret)
+print("SHA256:", crypto.sha256(secret))
+print("MD5:", crypto.md5(secret))
+print("Base64:", crypto.b64encode(secret))
+
+// ----- 13. MODULE JSON -----
+print("\n=== MODULE JSON ===")
+var jsonData = '{"name": "SwiftFlow", "version": 1.0, "features": ["classes", "modules"]}'
+print("Nom:", json.get(jsonData, "name"))
+print("Version:", json.get(jsonData, "version"))
+
+// ----- 14. GESTION DES ERREURS -----
+print("\n=== GESTION DES ERREURS ===")
+lock(x) {
+    print("Section critique avec x =", x)
+    x = x + 1
+    print("x après incrémentation:", x)
+}
+
+// ----- 15. TABLEAUX -----
+print("\n=== TABLEAUX ===")
+var liste = [1, 2, 3, 4, 5]
+print("Liste:", liste)
+
+// ----- 16. HÉRITAGE AVANCÉ -----
+print("\n=== HÉRITAGE AVANCÉ ===")
+
+class Vehicule {
+    var marque = "Inconnu"
+    
+    func demarrer() {
+        print(marque, "démarre")
+    }
+}
+
+class Voiture extends Vehicule {
+    var modele = "Inconnu"
+    
+    func demarrer() {
+        super.demarrer()
+        print("La voiture", marque, modele, "est prête")
+    }
+    
+    func klaxonner() {
+        print("Pouet pouet!")
+    }
+}
+
+var maVoiture = new Voiture()
+maVoiture.marque = "Tesla"
+maVoiture.modele = "Model 3"
+maVoiture.demarrer()
+maVoiture.klaxonner()
+
+print("\n=== TEST TERMINÉ AVEC SUCCÈS ===")
+dbvar
