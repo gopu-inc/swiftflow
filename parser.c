@@ -2162,24 +2162,19 @@ static ASTNode* variableDeclaration() {
 // [SECTION] CLASS AND TYPE DECLARATIONS - COMPLETE
 // ======================================================
 static ASTNode* classDeclaration() {
-    // 1. Consommer le nom de la classe
     Token nameToken = consume(TK_IDENT, "Expect class name.");
     char* className = str_ncopy(nameToken.start, nameToken.length);
     
     char* parentName = NULL;
-    
-    // 2. Gestion de l'héritage (supporte ':' ou 'extends')
     if (match(TK_EXTENDS) || match(TK_COLON)) {
         Token parentToken = consume(TK_IDENT, "Expect parent class name.");
         parentName = str_ncopy(parentToken.start, parentToken.length);
     }
 
-    // 3. Création et initialisation du nœud AST
     ASTNode* node = newNode(NODE_CLASS);
     node->line = nameToken.line;
     node->column = nameToken.column;
     
-    // Remplissage de l'union class_def définie dans common.h
     node->data.class_def.name = className;
     node->data.class_def.parent_name = parentName;
     node->data.class_def.methods = NULL; 
@@ -2188,37 +2183,29 @@ static ASTNode* classDeclaration() {
 
     ASTNode* lastMethod = NULL;
 
-    // 4. Boucle de parsing des membres de la classe
     while (!check(TK_RBRACE) && !isAtEnd()) {
-        // On cherche le mot-clé 'func'
         if (match(TK_FUNC)) {
-            // Appel de functionDeclaration avec false (is_exported = false)
             ASTNode* method = functionDeclaration(false); 
             
-            // Chaînage des méthodes : on utilise le pointeur 'left' de l'ASTNode
-            // comme lien vers la méthode suivante (vu que 'next' n'est pas à la racine)
+            // CHAÎNAGE VIA 'right' (uniforme avec le reste du code)
             if (node->data.class_def.methods == NULL) {
                 node->data.class_def.methods = method;
             } else if (lastMethod != NULL) {
-                lastMethod->left = method; 
+                lastMethod->right = method;  // ← CORRECTION: right au lieu de left
             }
             lastMethod = method;
         } else {
-            // Si ce n'est pas une méthode (ex: variable), on avance pour éviter la boucle infinie
             advance();
         }
     }
 
-    // 5. Fermeture de la classe
     consume(TK_RBRACE, "Expect '}' after class body.");
     
-    // 6. Enregistrement au Runtime pour gopu.inc
     ClassDef* def = create_class_def(className, parentName);
     register_class(def);
 
     return node;
 }
-
 
 static ASTNode* structDeclaration() {
     // Similar to class for now
